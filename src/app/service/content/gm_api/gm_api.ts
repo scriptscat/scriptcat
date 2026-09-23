@@ -1,5 +1,5 @@
 import { customClone, installTrustedDataPropertiesStrict, nativeApply, Native } from "../global";
-import type { Message, MessageConnect } from "@Packages/message/types";
+import type { Message, MessageConnect, MessageSend } from "@Packages/message/types";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import type {
   GMRegisterMenuCommandParam,
@@ -127,7 +127,7 @@ class GM_Base implements IGM_Base {
 
   // Extension Context 无效时释放 scriptRes
   @GMContext.protected()
-  protected message?: Message | null;
+  protected message?: MessageSend | null;
 
   @GMContext.protected()
   protected contentMsg!: Message;
@@ -316,7 +316,7 @@ class GM_Base implements IGM_Base {
 export default class GMApi extends GM_Base {
   constructor(
     public prefix: string,
-    public message: Message,
+    public message: MessageSend,
     public contentMsg: Message,
     public scriptRes: ScriptRunResource
   ) {

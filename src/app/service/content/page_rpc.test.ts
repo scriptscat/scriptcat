@@ -9,6 +9,22 @@ import {
   validatePageGMRequest,
 } from "./page_rpc";
 
+class TestPageRpcRegistry extends PageRpcRegistry {
+  register(handle: string, allowedAPIs: readonly string[]): string;
+  register(uuid: string, envTag: "it" | "ct", allowedAPIs: readonly string[], handle: string, runFlag: string): string;
+  register(
+    first: string,
+    second: "it" | "ct" | readonly string[],
+    third?: readonly string[],
+    fourth?: string,
+    fifth?: string
+  ): string {
+    return Array.isArray(second)
+      ? super.register(first, "it", second, first, `${first}-run`)
+      : super.register(first, second as "it" | "ct", third || [], fourth || first, fifth || `${first}-run`);
+  }
+}
+
 describe("page GM RPC", () => {
   it("expands only the helper operations reachable from an explicit public grant", () => {
     const allowed = getPageRpcAllowedAPIs(["CAT.agent.opfs", "GM_xmlhttpRequest"]);
@@ -111,7 +127,7 @@ describe("page GM RPC", () => {
   });
 
   it("rejects direct internal fetch helpers from a GM XHR binding", () => {
-    const registry = new PageRpcRegistry();
+    const registry = new TestPageRpcRegistry();
     const handle = registry.register("handle-a", getPageRpcAllowedAPIs(["GM_xmlhttpRequest"]));
 
     expect(() =>
@@ -129,7 +145,7 @@ describe("page GM RPC", () => {
   });
 
   it("accepts a request for the active execution binding and clones parameters", () => {
-    const registry = new PageRpcRegistry();
+    const registry = new TestPageRpcRegistry();
     const handle = registry.register("handle-a", ["GM_getValue"]);
     const params = { nested: { value: 1 } };
 
@@ -152,7 +168,7 @@ describe("page GM RPC", () => {
   });
 
   it("rejects an unknown or stale execution binding", () => {
-    const registry = new PageRpcRegistry();
+    const registry = new TestPageRpcRegistry();
     const handle = registry.register("handle-a", ["GM_getValue"]);
 
     expect(() =>
@@ -173,7 +189,7 @@ describe("page GM RPC", () => {
   it("rejects a packet that carries a page-supplied canonical identity field", () => {
     // v2 wire 身份只允许 handle；页面附带 uuid/runFlag/envTag 等字段会被判定为多余字段而拒绝，
     // canonical 身份只能由 SW 依据 handle + 真实 sender 解析出来。
-    const registry = new PageRpcRegistry();
+    const registry = new TestPageRpcRegistry();
     const handle = registry.register("handle-a", ["GM_getValue"]);
 
     expect(() =>
@@ -185,7 +201,7 @@ describe("page GM RPC", () => {
   });
 
   it("rejects APIs outside the binding and packets with accessors or unsupported values", () => {
-    const registry = new PageRpcRegistry();
+    const registry = new TestPageRpcRegistry();
     const handle = registry.register("handle-a", ["GM_getValue"]);
     const accessorRequest = { version: 2, sequence: 1, handle, api: "GM_getValue", params: [] };
     Object.defineProperty(accessorRequest, "api", { get: () => "GM_getValue" });
@@ -203,7 +219,7 @@ describe("page GM RPC", () => {
   });
 
   it("rejects accessors nested in collection RPC parameters", () => {
-    const registry = new PageRpcRegistry();
+    const registry = new TestPageRpcRegistry();
     const handle = registry.register("handle-a", ["GM_getValue"]);
     const getter = vi.fn(() => "secret");
     const nested = {} as Record<string, unknown>;
@@ -219,7 +235,7 @@ describe("page GM RPC", () => {
   });
 
   it("rejects accessors nested in set RPC parameters", () => {
-    const registry = new PageRpcRegistry();
+    const registry = new TestPageRpcRegistry();
     const handle = registry.register("handle-a", ["GM_getValue"]);
     const getter = vi.fn(() => "secret");
     const nested = {} as Record<string, unknown>;
@@ -235,7 +251,7 @@ describe("page GM RPC", () => {
   });
 
   it("does not execute a Symbol.toStringTag accessor while validating RPC values", () => {
-    const registry = new PageRpcRegistry();
+    const registry = new TestPageRpcRegistry();
     const handle = registry.register("handle-a", ["GM_getValue"]);
     const getter = vi.fn(() => "Blob");
     const nested = Object.create(null) as Record<PropertyKey, unknown>;
@@ -248,7 +264,7 @@ describe("page GM RPC", () => {
   });
 
   it("keeps validation on captured intrinsics after page prototype hooks", () => {
-    const registry = new PageRpcRegistry();
+    const registry = new TestPageRpcRegistry();
     const handle = registry.register("handle-a", ["GM_getValue"]);
     const ownKeysSpy = vi.spyOn(Reflect, "ownKeys").mockImplementation(() => {
       throw new Error("page hook");
@@ -268,7 +284,7 @@ describe("page GM RPC", () => {
   });
 
   it("rejects malformed parameters for privileged helper operations", () => {
-    const registry = new PageRpcRegistry();
+    const registry = new TestPageRpcRegistry();
     const handle = registry.register("handle-a", ["CAT_fetchBlob"]);
 
     expect(() =>
@@ -290,7 +306,7 @@ describe("page GM RPC", () => {
   });
 
   it("requires a Blob for CAT_createBlobUrl after parameter cloning", () => {
-    const registry = new PageRpcRegistry();
+    const registry = new TestPageRpcRegistry();
     const handle = registry.register("handle-a", ["CAT_createBlobUrl"]);
 
     expect(() =>
@@ -324,7 +340,7 @@ describe("page GM RPC", () => {
   });
 
   it("rejects an old request sequence after the replay window advances", () => {
-    const registry = new PageRpcRegistry();
+    const registry = new TestPageRpcRegistry();
     const handle = registry.register("handle-a", ["GM_getValue"]);
     const binding = registry.resolve(handle, "GM_getValue");
 

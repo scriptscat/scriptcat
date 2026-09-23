@@ -329,3 +329,71 @@ describe("ScriptRuntime inject page bootstrap", () => {
     expect(executor.emitEvent).not.toHaveBeenCalled();
   });
 });
+
+describe("ScriptRuntime fallback batches", () => {
+  const batch = (id: number) => ({
+    id,
+    valueUpdates: [
+      {
+        uuid: "script",
+        storageName: "script",
+        entries: [["key", [0, { value: 1 }], [2]]],
+        sender: { runFlag: "run" },
+        valueUpdated: true,
+      },
+    ],
+    emitEvents: [{ uuid: "script", event: "menuClick", eventId: `${id}` }],
+  });
+
+  it("applies contiguous batches once and treats duplicates as already applied", () => {
+    const server = { on: vi.fn() } as unknown as Server;
+    const executor = {
+      checkEarlyStartScript: vi.fn(),
+      startScripts: vi.fn(),
+      emitEvent: vi.fn(),
+      valueUpdate: vi.fn(),
+    };
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
+    const first = runtime.receiveFallbackBatch(batch(1));
+    const duplicate = runtime.receiveFallbackBatch(batch(1));
+
+    expect(first).toEqual({ applied: true, batchId: 1 });
+    expect(duplicate).toEqual({ applied: true, batchId: 1, duplicate: true });
+    expect(executor.valueUpdate).toHaveBeenCalledOnce();
+    expect(executor.emitEvent).toHaveBeenCalledOnce();
+  });
+
+  it("rejects gaps and malformed DTOs without acknowledging them", () => {
+    const server = { on: vi.fn() } as unknown as Server;
+    const executor = {
+      checkEarlyStartScript: vi.fn(),
+      startScripts: vi.fn(),
+      emitEvent: vi.fn(),
+      valueUpdate: vi.fn(),
+    };
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
+
+    expect(runtime.receiveFallbackBatch(batch(2))).toEqual({ applied: false, expectedBatchId: 1 });
+    const malformed = batch(1);
+    malformed.valueUpdates[0].entries[0][1] = [9] as never;
+    expect(runtime.receiveFallbackBatch(malformed)).toBeUndefined();
+    expect(runtime.receiveFallbackBatch(batch(1))).toEqual({ applied: true, batchId: 1 });
+  });
+
+  it("contains callback failures after consuming a valid batch", () => {
+    const server = { on: vi.fn() } as unknown as Server;
+    const executor = {
+      checkEarlyStartScript: vi.fn(),
+      startScripts: vi.fn(),
+      emitEvent: vi.fn(() => {
+        throw new Error("callback failed");
+      }),
+      valueUpdate: vi.fn(() => {
+        throw new Error("callback failed");
+      }),
+    };
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
+
+    expect(() => runtime.receiveFallbackBatch(batch(1))).not.toThrow();
+  });
+});

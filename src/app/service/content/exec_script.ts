@@ -3,7 +3,7 @@ import type Logger from "@App/app/logger/logger";
 import { createContext, createProxyContext, isInternalContextKey, type ScriptContext } from "./create_context";
 import type { GMInfoEnv, ScriptFunc } from "./types";
 import { compileScript, getEffectiveScriptGrants, isContextMenuScript } from "./utils";
-import type { Message } from "@Packages/message/types";
+import type { Message, MessageSend } from "@Packages/message/types";
 import type { ValueUpdateDataEncoded } from "./types";
 import { evaluateGMInfo } from "./gm_api/gm_info";
 import type { TScriptInfo } from "@App/app/repo/scripts";
@@ -30,7 +30,7 @@ export default class ExecScript {
     scriptRes: TScriptInfo,
     options: {
       envPrefix: string;
-      message: Message;
+      message: MessageSend;
       contentMsg: Message;
       code: string | ScriptFunc;
       envInfo: GMInfoEnv;

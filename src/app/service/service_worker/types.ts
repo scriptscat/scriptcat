@@ -76,7 +76,7 @@ export type ServiceWorkerExecutionBinding = {
 };
 
 export type MainLifecycle = "active" | "provisional-dormant" | "dormant";
-export type MainTransportMode = "preparing" | "pending" | "native" | "fallback";
+export type MainTransportMode = "pending" | "native" | "fallback";
 export type MainFallbackPhase = "activating" | "ready" | "catching-up";
 
 export type MainDeliveryQueue = {
@@ -103,12 +103,12 @@ export type MainTransportRecord = {
   delivery: MainDeliveryQueue;
   mode: MainTransportMode;
   fallbackEligibleAt?: number;
-  fallbackProgressDeadlineAt?: number;
   fallbackPhase?: MainFallbackPhase;
   nextBatchId?: number;
   inFlightBatch?: MainFallbackBatch;
   reconnectToken?: string;
   bootstrapToken?: string;
+  pendingReconnect?: { bootstrapToken: string; reconnectToken: string };
   scripts?: TScriptInfo[];
   envInfo?: GMInfoEnv;
 };
@@ -121,7 +121,7 @@ export type MainTransportLifecycleRequest = {
 };
 
 export type MainTransportResolution =
-  | { mode: "preparing" | "pending"; retryAfterMs?: number }
+  | { mode: "pending"; retryAfterMs?: number }
   | { mode: "native" }
   | {
       mode: "fallback";
@@ -132,6 +132,12 @@ export type MainTransportResolution =
       batch?: MainFallbackBatch;
     }
   | { mode: "missing" };
+
+export type MainTransportClientResolution = MainTransportResolution | { mode: "ambiguous" };
+
+export type MainFallbackBatchReceipt =
+  | { applied: true; batchId: number; duplicate?: boolean }
+  | { applied: false; expectedBatchId: number };
 
 export type GMApiRequest<T = any> = MessageRequest<T> & {
   script: Script;

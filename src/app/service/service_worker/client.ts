@@ -17,7 +17,7 @@ import type {
   TOpenUpdatePageResult,
   TPopupPageStatus,
 } from "./types";
-import type { MainTransportLifecycleRequest, MainTransportResolution } from "./types";
+import type { MainTransportClientResolution, MainTransportLifecycleRequest, MainTransportResolution } from "./types";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { Client } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
@@ -360,19 +360,19 @@ export class RuntimeClient extends Client {
     return this.doThrow("pageLoad", data);
   }
 
-  resolveMainTransport(data: { transportToken: string; forceFallback?: boolean }): Promise<MainTransportResolution> {
+  resolveMainTransport(data: { transportToken: string }): Promise<MainTransportClientResolution> {
     return this.do<MainTransportResolution>("resolveMainTransport", data).then(
-      (result) => result || { mode: "missing" }
+      (result) => result || { mode: "ambiguous" as const }
     );
   }
 
   mainTransportLifecycle(data: MainTransportLifecycleRequest) {
-    return this.do("mainTransportLifecycle", data);
+    return this.do("mainTransportLifecycle", data).then((result) => result || { mode: "ambiguous" as const });
   }
 
   advanceMainFallback(data: { transportToken: string; ackBatchId?: number }) {
     return this.do<MainTransportResolution>("advanceMainFallback", data).then(
-      (result) => result || { mode: "missing" as const }
+      (result) => result || { mode: "ambiguous" as const }
     );
   }
 

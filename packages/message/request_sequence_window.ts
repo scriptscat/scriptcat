@@ -2,48 +2,9 @@ const REQUEST_SEQUENCE_WINDOW_WORDS = 128;
 export const REQUEST_SEQUENCE_WINDOW_SIZE = REQUEST_SEQUENCE_WINDOW_WORDS * 32;
 const NativeUint32Array = Uint32Array;
 
-export type RequestSequenceWindowSnapshot = {
-  highWater: number;
-  bitmap: number[];
-};
-
 export class RequestSequenceWindow {
   private highWater = 0;
   private readonly bitmap = new NativeUint32Array(REQUEST_SEQUENCE_WINDOW_WORDS);
-
-  snapshot(): RequestSequenceWindowSnapshot {
-    return {
-      highWater: this.highWater,
-      bitmap: Array.from(this.bitmap),
-    };
-  }
-
-  static fromSnapshot(snapshot: unknown): RequestSequenceWindow {
-    const window = new RequestSequenceWindow();
-    window.restore(snapshot);
-    return window;
-  }
-
-  restore(snapshot: unknown): void {
-    if (snapshot === null || typeof snapshot !== "object") {
-      throw new Error("page RPC sequence window snapshot is invalid");
-    }
-    const candidate = snapshot as { highWater?: unknown; bitmap?: unknown };
-    if (
-      typeof candidate.highWater !== "number" ||
-      !Number.isSafeInteger(candidate.highWater) ||
-      candidate.highWater < 0 ||
-      !Array.isArray(candidate.bitmap) ||
-      candidate.bitmap.length !== REQUEST_SEQUENCE_WINDOW_WORDS ||
-      candidate.bitmap.some(
-        (word) => typeof word !== "number" || !Number.isInteger(word) || word < 0 || word > 0xffffffff
-      )
-    ) {
-      throw new Error("page RPC sequence window snapshot is invalid");
-    }
-    this.highWater = candidate.highWater;
-    this.bitmap.set(candidate.bitmap);
-  }
 
   consume(sequence: unknown): void {
     if (typeof sequence !== "number" || !Number.isSafeInteger(sequence) || sequence < 1) {

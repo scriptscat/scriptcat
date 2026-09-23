@@ -1780,6 +1780,7 @@ describe("USER_SCRIPT native callbacks", () => {
       false
     );
     expect(runtime.registerUserScriptConnection({ world: "MAIN", bootstrapToken }, connectionSender)).toBe(true);
+    expect((runtime as any).userScriptConnections.size).toBe(0);
 
     const contentConnection = {
       onMessage: vi.fn(),
@@ -1795,7 +1796,7 @@ describe("USER_SCRIPT native callbacks", () => {
         contentSender
       )
     ).toBe(true);
-    expect((runtime as any).userScriptConnections.size).toBe(2);
+    expect((runtime as any).userScriptConnections.size).toBe(1);
 
     const bootstrapHandler = (connection.onMessage as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
       | ((packet: TMessage) => void)
@@ -1807,13 +1808,17 @@ describe("USER_SCRIPT native callbacks", () => {
         data: expect.objectContaining({ scripts: expect.any(Array) }),
       })
     );
+    expect((runtime as any).userScriptConnections.size).toBe(2);
 
     sendMessage.mockClear();
-    (runtime as any).sendUserScriptMessage(undefined, "runtime/emitEvent", {
-      uuid: "inject-script",
-      event: "click",
-      eventId: "1",
-    });
+    await runtime.emitEventToTab(
+      { tabId: 41, frameId: 0, documentId: "doc-main" },
+      {
+        uuid: "inject-script",
+        event: "click",
+        eventId: "1",
+      }
+    );
     expect(sendMessage).toHaveBeenCalledWith({
       action: "inject/runtime/emitEvent",
       data: { uuid: "inject-script", event: "click", eventId: "1" },

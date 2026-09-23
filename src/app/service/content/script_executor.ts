@@ -1,4 +1,4 @@
-import type { Message } from "@Packages/message/types";
+import type { Message, MessageSend } from "@Packages/message/types";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { EmitEventRequest } from "../service_worker/types";
 import ExecScript from "./exec_script";
@@ -40,7 +40,7 @@ export class ScriptExecutor {
   private readonly execScripts = new Native.Map<string, ExecScript>();
 
   constructor(
-    private msg: Message,
+    private msg: MessageSend,
     private contentMsg: Message, // 用于 content <-> content/inject 通讯
     private readonly envPrefix = "scripting"
   ) {}

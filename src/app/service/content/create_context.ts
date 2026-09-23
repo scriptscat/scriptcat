@@ -1,6 +1,6 @@
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import { uuidv4 } from "@App/pkg/utils/uuid";
-import type { Message } from "@Packages/message/types";
+import type { Message, MessageSend } from "@Packages/message/types";
 import EventEmitter from "eventemitter3";
 import { GMContextApiGet, protect } from "./gm_api/gm_context";
 import { getGrantCandidates } from "./gm_api/grant";
@@ -72,7 +72,7 @@ export const createContext = (
   scriptRes: TScriptInfo,
   GMInfo: any,
   envPrefix: string,
-  message: Message,
+  message: MessageSend,
   contentMsg: Message,
   scriptGrants: Set<string>
 ) => {

@@ -43,11 +43,15 @@ export async function requestUserScriptReconnect(
   message: Message,
   reconnectToken: string
 ): Promise<string | undefined> {
-  const response = await message.sendMessage<UserScriptReconnectResponse>({
-    action: "serviceWorker/runtime/reconnectUserScript",
-    data: { reconnectToken },
-  });
-  if (response?.code !== 0 || response.data === null || typeof response.data !== "object") return undefined;
-  const token = (response.data as { bootstrapToken?: unknown }).bootstrapToken;
-  return typeof token === "string" && token.length > 0 && token.length <= 256 ? token : undefined;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await message.sendMessage<UserScriptReconnectResponse | undefined>({
+      action: "serviceWorker/runtime/reconnectUserScript",
+      data: { reconnectToken },
+    });
+    if (response === undefined) continue;
+    if (response.code !== 0 || response.data === null || typeof response.data !== "object") return undefined;
+    const token = (response.data as { bootstrapToken?: unknown }).bootstrapToken;
+    return typeof token === "string" && token.length > 0 && token.length <= 256 ? token : undefined;
+  }
+  return undefined;
 }

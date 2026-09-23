@@ -10,7 +10,6 @@ import type {
   ScriptMenu,
   ServiceWorkerExecutionBinding,
 } from "./types";
-import { MainTransportJournal, type MainTransportJournalState } from "./main_transport_journal";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import { RequestSequenceWindow } from "@Packages/message/request_sequence_window";
 import { GetSenderType, type Group, type IGetSender } from "@Packages/message/server";
@@ -195,12 +194,10 @@ export class RuntimeService {
   private readonly userScriptSessions = new Map<string, UserScriptSession>();
   private readonly mainTransportRecords = new Map<string, MainTransportRecord>();
   private readonly activeMainTransportByFrame = new Map<string, string>();
-  // Legacy unit tests and older callers may omit the token; only explicit-token generations
-  // belong to the restart journal so one test/runtime instance cannot inherit another's state.
-  private readonly journalTrackedTransportTokens = new Set<string>();
-  private readonly mainTransportJournal = new MainTransportJournal();
-  private readonly mainTransportHydrated: Promise<void>;
-  private mainTransportJournalHealthy = true;
+  private readonly pendingMainCandidates = new Map<
+    string,
+    { connection: MessageConnect; handles: Set<string>; bootstrapToken: string; reconnectToken?: string }
+  >();
   // Only the newest load for a tab/frame/environment may issue bindings; navigation can resolve old requests late.
   private readonly pageLoadSequences = new Map<string, number>();
 
@@ -216,8 +213,6 @@ export class RuntimeService {
     private localStorageDAO: LocalStorageDAO
   ) {
     this.logger = LoggerCore.logger({ component: "runtime" });
-    this.mainTransportHydrated = this.hydrateMainTransportJournal();
-
     // 使用中间件
     this.group = this.group.use(async (_, __, next) => {
       if (typeof this.initReady !== "boolean") await this.initReady;
@@ -237,205 +232,26 @@ export class RuntimeService {
     return `${tabId}:${frameId ?? -1}`;
   }
 
+  private activateMainGeneration(transportToken: string): MainTransportRecord | undefined {
+    const record = this.mainTransportRecords.get(transportToken);
+    if (!record) return undefined;
+    const frameKey = this.frameKey(record.tabId, record.frameId);
+    const previousToken = this.activeMainTransportByFrame.get(frameKey);
+    if (previousToken && previousToken !== transportToken) {
+      const previous = this.mainTransportRecords.get(previousToken);
+      if (previous?.lifecycle === "active") {
+        previous.lifecycle = "provisional-dormant";
+        previous.provisionalRetireAt = Date.now() + 5000;
+      }
+    }
+    record.lifecycle = "active";
+    record.provisionalRetireAt = undefined;
+    this.activeMainTransportByFrame.set(frameKey, transportToken);
+    return record;
+  }
+
   private createMainDeliveryQueue(): MainDeliveryQueue {
     return { pendingValueUpdates: new Map(), pendingEmitEvents: [] };
-  }
-
-  private serializeMainRecord(record: MainTransportRecord): Record<string, unknown> {
-    return {
-      ...record,
-      handles: [...record.handles],
-      delivery: {
-        pendingValueUpdates: [...record.delivery.pendingValueUpdates.entries()],
-        pendingEmitEvents: record.delivery.pendingEmitEvents,
-      },
-    };
-  }
-
-  private deserializeMainRecord(value: unknown): MainTransportRecord | undefined {
-    if (value === null || typeof value !== "object") return undefined;
-    const candidate = value as Partial<MainTransportRecord> & {
-      handles?: unknown;
-      delivery?: { pendingValueUpdates?: unknown; pendingEmitEvents?: unknown };
-    };
-    if (
-      typeof candidate.transportToken !== "string" ||
-      typeof candidate.tabId !== "number" ||
-      typeof candidate.url !== "string" ||
-      !Array.isArray(candidate.handles) ||
-      !["active", "provisional-dormant", "dormant"].includes(candidate.lifecycle || "") ||
-      !["preparing", "pending", "native", "fallback"].includes(candidate.mode || "") ||
-      !candidate.delivery ||
-      !Array.isArray(candidate.delivery.pendingValueUpdates) ||
-      !Array.isArray(candidate.delivery.pendingEmitEvents)
-    ) {
-      return undefined;
-    }
-    const pendingValueUpdates = new Map<string, ValueUpdateDataEncoded>();
-    for (const entry of candidate.delivery.pendingValueUpdates) {
-      if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== "string") return undefined;
-      pendingValueUpdates.set(entry[0], entry[1] as ValueUpdateDataEncoded);
-    }
-    return {
-      ...candidate,
-      handles: new Set(candidate.handles.filter((handle): handle is string => typeof handle === "string")),
-      delivery: { pendingValueUpdates, pendingEmitEvents: candidate.delivery.pendingEmitEvents as EmitEventRequest[] },
-    } as MainTransportRecord;
-  }
-
-  private serializeSession([key, session]: [string, UserScriptSession | UserScriptBootstrap]): Record<string, unknown> {
-    return {
-      key,
-      session: {
-        ...session,
-        transport: "transport" in session ? session.transport : "extension",
-        pendingValueUpdates: [...session.pendingValueUpdates.entries()],
-      },
-    };
-  }
-
-  private async hydrateMainTransportJournal(): Promise<void> {
-    try {
-      const state = await this.mainTransportJournal.hydrate();
-      for (const entry of state.records) {
-        const record = this.deserializeMainRecord(entry);
-        if (record) {
-          this.mainTransportRecords.set(record.transportToken, record);
-          this.journalTrackedTransportTokens.add(record.transportToken);
-        }
-      }
-      for (const entry of state.activeFrameIndex) {
-        if (Array.isArray(entry) && entry.length === 2) this.activeMainTransportByFrame.set(entry[0], entry[1]);
-      }
-      for (const entry of state.bindings) {
-        if (entry === null || typeof entry !== "object") continue;
-        const candidate = entry as { handle?: unknown; binding?: Record<string, unknown> };
-        const binding = candidate.binding;
-        if (
-          typeof candidate.handle !== "string" ||
-          !binding ||
-          typeof binding.uuid !== "string" ||
-          (binding.envTag !== "it" && binding.envTag !== "ct") ||
-          typeof binding.runFlag !== "string" ||
-          typeof binding.url !== "string" ||
-          typeof binding.tabId !== "number" ||
-          !binding.requestSequenceWindow
-        ) {
-          continue;
-        }
-        const requestSequenceWindow = RequestSequenceWindow.fromSnapshot(binding.requestSequenceWindow);
-        this.pageExecutionBindings.set(candidate.handle, {
-          ...(binding as unknown as ServiceWorkerExecutionBinding),
-          handle: candidate.handle,
-          allowedAPIs: new Set(
-            Array.isArray(binding.allowedAPIs)
-              ? binding.allowedAPIs.filter((api): api is string => typeof api === "string")
-              : []
-          ),
-          requestSequenceWindow,
-        });
-      }
-      const restoreSession = (
-        entry: unknown,
-        target: Map<string, UserScriptSession | UserScriptBootstrap>,
-        transport: "userScript" | "extension"
-      ) => {
-        if (entry === null || typeof entry !== "object") return;
-        const candidate = entry as { key?: unknown; session?: Record<string, unknown> };
-        if (typeof candidate.key !== "string" || !candidate.session) return;
-        const session = candidate.session;
-        if (
-          !Array.isArray(session.scripts) ||
-          !Array.isArray(session.pendingValueUpdates) ||
-          typeof session.reconnectToken !== "string" ||
-          (session.envTag !== "it" && session.envTag !== "ct") ||
-          typeof session.url !== "string" ||
-          typeof session.tabId !== "number"
-        )
-          return;
-        const pendingValueUpdates = new Map<string, ValueUpdateDataEncoded>();
-        for (const pending of session.pendingValueUpdates) {
-          if (Array.isArray(pending) && pending.length === 2 && typeof pending[0] === "string") {
-            pendingValueUpdates.set(pending[0], pending[1] as ValueUpdateDataEncoded);
-          }
-        }
-        const restored = {
-          ...(session as unknown as UserScriptSession),
-          pendingValueUpdates,
-          transport,
-        } as UserScriptSession | UserScriptBootstrap;
-        const token = session.transportToken;
-        if (typeof token === "string") this.journalTrackedTransportTokens.add(token);
-        target.set(candidate.key, restored);
-      };
-      for (const entry of state.bootstraps) {
-        restoreSession(entry, this.userScriptBootstraps, "extension");
-      }
-      for (const entry of state.sessions) {
-        restoreSession(entry, this.userScriptSessions, "userScript");
-      }
-    } catch (error) {
-      this.mainTransportJournalHealthy = false;
-      this.logger.error("MAIN transport journal hydration failed", Logger.E(error));
-    }
-  }
-
-  private async persistMainTransportJournal(): Promise<boolean> {
-    if (!this.mainTransportJournalHealthy) return false;
-    const bindings = [...this.pageExecutionBindings.entries()]
-      .filter(
-        ([, binding]) =>
-          binding.envTag === "it" &&
-          binding.transportToken &&
-          this.journalTrackedTransportTokens.has(binding.transportToken)
-      )
-      .map(([handle, binding]) => ({
-        handle,
-        binding: {
-          ...binding,
-          allowedAPIs: [...binding.allowedAPIs],
-          requestSequenceWindow: binding.requestSequenceWindow.snapshot(),
-        },
-      }));
-    const state: MainTransportJournalState = {
-      version: 1,
-      records: [...this.mainTransportRecords.values()]
-        .filter((record) => this.journalTrackedTransportTokens.has(record.transportToken))
-        .map((record) => this.serializeMainRecord(record)),
-      activeFrameIndex: [...this.activeMainTransportByFrame.entries()].filter(([, token]) =>
-        this.journalTrackedTransportTokens.has(token)
-      ),
-      bindings,
-      bootstraps: [...this.userScriptBootstraps.entries()]
-        .filter(
-          ([, bootstrap]) =>
-            bootstrap.envTag === "it" &&
-            bootstrap.transportToken &&
-            this.journalTrackedTransportTokens.has(bootstrap.transportToken)
-        )
-        .map(([key, session]) => this.serializeSession([key, session])),
-      sessions: [...this.userScriptSessions.entries()]
-        .filter(
-          ([, session]) =>
-            session.envTag === "it" &&
-            session.transportToken &&
-            this.journalTrackedTransportTokens.has(session.transportToken)
-        )
-        .map(([key, session]) => this.serializeSession([key, session])),
-    };
-    try {
-      await this.mainTransportJournal.write(state);
-      return true;
-    } catch (error) {
-      this.mainTransportJournalHealthy = false;
-      this.logger.error("MAIN transport journal persistence failed", Logger.E(error));
-      return false;
-    }
-  }
-
-  private async ensureMainTransportJournal(): Promise<boolean> {
-    await this.mainTransportHydrated;
-    return this.mainTransportJournalHealthy;
   }
 
   private revokePageBindings(sender: IGetSender, envTag?: "it" | "ct"): void {
@@ -517,7 +333,6 @@ export class RuntimeService {
     for (const key of this.pageLoadSequences.keys()) {
       if (key.startsWith(prefix)) this.pageLoadSequences.delete(key);
     }
-    void this.persistMainTransportJournal();
   }
 
   private beginPageLoadSequence(sender: IGetSender, envTag: "it" | "ct" | undefined): [string, number] | undefined {
@@ -540,9 +355,8 @@ export class RuntimeService {
     return `${tabId}:${frameId ?? -1}:${documentId ?? ""}:${envTag}`;
   }
 
-  /** Register the native USER_SCRIPT channel used for private bootstrap and callbacks; fallback ports remain token-bound. */
+  /** Register a candidate channel; MAIN becomes native only after its bootstrap packet is delivered. */
   registerUserScriptConnection(data: unknown, sender: IGetSender): boolean {
-    // bootstrap token 只允许对应 tab/frame/document 使用一次；documentId 缺失时以 URL 作为文档身份，并且必须覆盖本次下发的全部句柄。
     if (!sender.isType(GetSenderType.EXTCONNECT)) return false;
     if (data === null || typeof data !== "object") return false;
     const handshake = data as { world?: unknown; bootstrapToken?: unknown; transport?: unknown };
@@ -554,14 +368,14 @@ export class RuntimeService {
       typeof handshake.bootstrapToken !== "string" ||
       handshake.bootstrapToken.length === 0 ||
       handshake.bootstrapToken.length > 256
-    ) {
+    )
       return false;
-    }
+    const bootstrapToken = handshake.bootstrapToken;
     const source = sender.getSender();
     const connection = sender.getConnect();
     const tabId = source?.tab?.id;
     if (!source || typeof tabId !== "number" || !connection) return false;
-    const bootstrap = this.userScriptBootstraps.get(handshake.bootstrapToken);
+    const bootstrap = this.userScriptBootstraps.get(bootstrapToken);
     if (
       !bootstrap ||
       bootstrap.tabId !== tabId ||
@@ -569,17 +383,14 @@ export class RuntimeService {
       bootstrap.documentId !== source.documentId ||
       (bootstrap.documentId === undefined &&
         (typeof source.url !== "string" || source.url.length === 0 || bootstrap.url !== source.url))
-    ) {
+    )
       return false;
-    }
-    // bootstrap 令牌决定唯一可消费这些句柄的 world，调用方不能借握手字段改投其他环境。
-    const expectedWorld = bootstrap.envTag === "it" ? "MAIN" : "USER_SCRIPT";
-    if (handshake.world !== expectedWorld) return false;
+    if (handshake.world !== (bootstrap.envTag === "it" ? "MAIN" : "USER_SCRIPT")) return false;
     const handles = new Set<string>();
     for (const script of bootstrap.scripts) {
       const handle = script.executionHandle;
-      if (typeof handle !== "string" || handle.length === 0 || handle.length > 256) return false;
-      const binding = this.pageExecutionBindings.get(handle);
+      if (typeof handle !== "string") return false;
+      const binding = typeof handle === "string" ? this.pageExecutionBindings.get(handle) : undefined;
       if (
         !binding ||
         binding.envTag !== bootstrap.envTag ||
@@ -587,44 +398,55 @@ export class RuntimeService {
         binding.frameId !== source.frameId ||
         binding.documentId !== source.documentId ||
         (bootstrap.envTag === "it" && binding.transportToken !== bootstrap.transportToken)
-      ) {
+      )
         return false;
-      }
       handles.add(handle);
     }
     if (handles.size === 0) return false;
+    const frameId = source.frameId;
+    const documentId = source.documentId;
+    const key = this.userScriptConnectionKey(tabId, frameId, documentId, bootstrap.envTag, bootstrap.transportToken);
     const mainRecord =
       bootstrap.envTag === "it" && bootstrap.transportToken
         ? this.mainTransportRecords.get(bootstrap.transportToken)
         : undefined;
     if (
       bootstrap.envTag === "it" &&
-      (!mainRecord || mainRecord.tabId !== tabId || mainRecord.frameId !== source.frameId)
-    ) {
+      (!mainRecord ||
+        mainRecord.mode !== "pending" ||
+        mainRecord.lifecycle !== "active" ||
+        mainRecord.bootstrapToken !== bootstrapToken ||
+        mainRecord.tabId !== tabId ||
+        mainRecord.frameId !== source.frameId)
+    )
       return false;
+
+    const candidate = {
+      connection,
+      handles,
+      bootstrapToken,
+      reconnectToken: mainRecord?.pendingReconnect?.reconnectToken,
+    };
+    if (mainRecord) this.pendingMainCandidates.set(mainRecord.transportToken, candidate);
+    else {
+      this.userScriptBootstraps.delete(bootstrapToken);
+      const session = {
+        ...bootstrap,
+        transport: isExtensionFallback ? ("extension" as const) : ("userScript" as const),
+      };
+      const entry = { connection, handles, envTag: bootstrap.envTag, tabId, frameId, documentId, ready: false };
+      this.userScriptSessions.set(key, session);
+      this.userScriptConnections.set(key, entry);
+      connection.onDisconnect(() => {
+        if (this.userScriptConnections.get(key)?.connection === connection) this.userScriptConnections.delete(key);
+      });
     }
-    const frameId = source.frameId;
-    const documentId = source.documentId;
-    const key = this.userScriptConnectionKey(tabId, frameId, documentId, bootstrap.envTag, bootstrap.transportToken);
-    const session = { ...bootstrap, transport: isExtensionFallback ? ("extension" as const) : ("userScript" as const) };
-    this.userScriptSessions.set(key, session);
-    if (mainRecord) {
-      mainRecord.mode = "native";
-      mainRecord.bootstrapToken = handshake.bootstrapToken;
-      mainRecord.reconnectToken = bootstrap.reconnectToken;
-      mainRecord.handles = new Set(handles);
-      void this.persistMainTransportJournal();
-    }
-    this.userScriptBootstraps.delete(handshake.bootstrapToken);
-    const previous = this.userScriptConnections.get(key);
-    if (previous) previous.connection.disconnect(true);
-    const entry = { connection, handles, envTag: bootstrap.envTag, tabId, frameId, documentId, ready: false };
-    this.userScriptConnections.set(key, entry);
-    connection.onDisconnect(() => {
-      if (this.userScriptConnections.get(key)?.connection === connection) this.userScriptConnections.delete(key);
-      void this.persistMainTransportJournal();
-    });
     let bootstrapped = false;
+    connection.onDisconnect(() => {
+      if (mainRecord && this.pendingMainCandidates.get(mainRecord.transportToken)?.connection === connection) {
+        this.pendingMainCandidates.delete(mainRecord.transportToken);
+      }
+    });
     connection.onMessage((packet) => {
       if (
         bootstrapped ||
@@ -632,35 +454,61 @@ export class RuntimeService {
         typeof packet !== "object" ||
         Object.keys(packet).length !== 1 ||
         packet.action !== "userScript/bootstrap"
-      ) {
+      )
         return;
-      }
       bootstrapped = true;
+      const pageLoadData = {
+        scripts: bootstrap.scripts,
+        envInfo: bootstrap.envInfo,
+        reconnectToken: bootstrap.reconnectToken,
+        ...(bootstrap.envTag === "ct" ? { extensionOrigin: bootstrap.extensionOrigin } : {}),
+      };
       try {
-        const pageLoadData = {
-          scripts: bootstrap.scripts,
-          envInfo: bootstrap.envInfo,
-          reconnectToken: bootstrap.reconnectToken,
-          ...(bootstrap.envTag === "ct" ? { extensionOrigin: bootstrap.extensionOrigin } : {}),
-        };
-        connection.sendMessage({
-          action: `${bootstrap.envTag === "it" ? "inject" : "content"}/pageLoad`,
-          data: pageLoadData,
-        });
-        entry.ready = true;
-        this.flushPendingUserScriptValueUpdates(key, entry);
         if (mainRecord) {
-          for (const valueUpdate of mainRecord.delivery.pendingValueUpdates.values()) {
-            connection.sendMessage({ action: "inject/runtime/valueUpdate", data: valueUpdate });
+          const current = this.mainTransportRecords.get(mainRecord.transportToken);
+          const currentCandidate = this.pendingMainCandidates.get(mainRecord.transportToken);
+          if (
+            !current ||
+            current !== mainRecord ||
+            current.mode !== "pending" ||
+            currentCandidate?.connection !== connection
+          ) {
+            connection.disconnect(true);
+            return;
           }
-          mainRecord.delivery.pendingValueUpdates.clear();
-          for (const event of mainRecord.delivery.pendingEmitEvents) {
-            connection.sendMessage({ action: "inject/runtime/emitEvent", data: event });
+          if (current.pendingReconnect) {
+            connection.sendMessage({
+              action: "inject/runtime/reconnectReady",
+              data: { reconnectToken: bootstrap.reconnectToken },
+            });
+          } else {
+            connection.sendMessage({ action: "inject/pageLoad", data: pageLoadData });
           }
-          mainRecord.delivery.pendingEmitEvents = [];
-          void this.persistMainTransportJournal();
+          const session = {
+            ...bootstrap,
+            transport: isExtensionFallback ? ("extension" as const) : ("userScript" as const),
+          };
+          const entry = { connection, handles, envTag: "it" as const, tabId, frameId, documentId, ready: true };
+          this.userScriptSessions.set(key, session);
+          this.userScriptConnections.set(key, entry);
+          current.mode = "native";
+          current.reconnectToken = bootstrap.reconnectToken;
+          current.bootstrapToken = bootstrapToken;
+          current.handles = new Set(handles);
+          current.pendingReconnect = undefined;
+          this.pendingMainCandidates.delete(current.transportToken);
+          this.userScriptBootstraps.delete(bootstrapToken);
+          this.flushPendingUserScriptValueUpdates(key, entry);
+          this.flushMainDelivery(current, entry);
+        } else {
+          const entry = this.userScriptConnections.get(key);
+          if (!entry) return;
+          connection.sendMessage({ action: "content/pageLoad", data: pageLoadData });
+          entry.ready = true;
+          this.flushPendingUserScriptValueUpdates(key, entry);
         }
       } catch {
+        if (mainRecord) this.pendingMainCandidates.delete(mainRecord.transportToken);
         this.userScriptConnections.delete(key);
       }
     });
@@ -716,6 +564,8 @@ export class RuntimeService {
         return undefined;
       }
     }
+    const record = session.transportToken ? this.mainTransportRecords.get(session.transportToken) : undefined;
+    if (record?.pendingReconnect) return { bootstrapToken: record.pendingReconnect.bootstrapToken };
     const bootstrapToken = uuidv4();
     const nextSession = { ...session, reconnectToken: uuidv4() };
     for (const [token, bootstrap] of this.userScriptBootstraps) {
@@ -727,15 +577,14 @@ export class RuntimeService {
         this.userScriptBootstraps.delete(token);
       }
     }
-    this.userScriptSessions.set(key, nextSession);
-    this.userScriptBootstraps.set(bootstrapToken, nextSession);
-    if (session.transportToken) {
-      const record = this.mainTransportRecords.get(session.transportToken);
-      if (record) {
-        record.reconnectToken = nextSession.reconnectToken;
-        record.bootstrapToken = bootstrapToken;
-        void this.persistMainTransportJournal();
-      }
+    if (record) {
+      record.mode = "pending";
+      record.pendingReconnect = { bootstrapToken, reconnectToken: nextSession.reconnectToken };
+      record.bootstrapToken = bootstrapToken;
+      this.userScriptBootstraps.set(bootstrapToken, nextSession);
+    } else {
+      this.userScriptSessions.set(key, nextSession);
+      this.userScriptBootstraps.set(bootstrapToken, nextSession);
     }
     return { bootstrapToken };
   }
@@ -782,6 +631,21 @@ export class RuntimeService {
     }
   }
 
+  private flushMainDelivery(
+    record: MainTransportRecord,
+    entry: { connection: MessageConnect; envTag: "it" | "ct" }
+  ): void {
+    if (record.lifecycle !== "active" || entry.envTag !== "it") return;
+    for (const valueUpdate of record.delivery.pendingValueUpdates.values()) {
+      entry.connection.sendMessage({ action: "inject/runtime/valueUpdate", data: valueUpdate });
+    }
+    record.delivery.pendingValueUpdates.clear();
+    for (const event of record.delivery.pendingEmitEvents) {
+      entry.connection.sendMessage({ action: "inject/runtime/emitEvent", data: event });
+    }
+    record.delivery.pendingEmitEvents = [];
+  }
+
   private sendUserScriptMessage(to: ExtMessageSender | undefined, action: string, data: unknown): void {
     const dataRecord =
       typeof data === "object" && data !== null ? (data as { uuid?: unknown; storageName?: unknown }) : undefined;
@@ -814,12 +678,14 @@ export class RuntimeService {
         }
       }
       if (!bindingMatches) continue;
+      // MAIN has one authority below; content-world delivery remains on this generic path.
+      if (entry.envTag === "it") continue;
       if (!entry.ready) {
         if (valueUpdate) this.queuePendingUserScriptValueUpdate(key, valueUpdate);
         continue;
       }
       try {
-        entry.connection.sendMessage({ action: `${entry.envTag === "it" ? "inject" : "content"}/${action}`, data });
+        entry.connection.sendMessage({ action: `content/${action}`, data });
       } catch {
         this.userScriptConnections.delete(key);
         if (valueUpdate) this.queuePendingUserScriptValueUpdate(key, valueUpdate);
@@ -870,17 +736,37 @@ export class RuntimeService {
       }
     }
     for (const [token, bootstrap] of this.userScriptBootstraps) {
-      if (bootstrap.scripts.some((script) => script.uuid === uuid)) this.userScriptBootstraps.delete(token);
+      bootstrap.scripts = bootstrap.scripts.filter((script) => script.uuid !== uuid);
+      if (bootstrap.scripts.length === 0) this.userScriptBootstraps.delete(token);
     }
     for (const [key, session] of this.userScriptSessions) {
-      if (session.scripts.some((script) => script.uuid === uuid)) this.userScriptSessions.delete(key);
+      session.scripts = session.scripts.filter((script) => script.uuid !== uuid);
+      for (const [storageName, update] of session.pendingValueUpdates) {
+        if (update.uuid === uuid) session.pendingValueUpdates.delete(storageName);
+      }
+      if (session.scripts.length === 0) this.userScriptSessions.delete(key);
+    }
+    for (const [token, candidate] of this.pendingMainCandidates) {
+      candidate.handles = new Set([...candidate.handles].filter((handle) => this.pageExecutionBindings.has(handle)));
+      if (candidate.handles.size === 0) {
+        candidate.connection.disconnect(true);
+        this.pendingMainCandidates.delete(token);
+      }
     }
     for (const [token, record] of this.mainTransportRecords) {
       const handles = new Set([...record.handles].filter((handle) => this.pageExecutionBindings.has(handle)));
       record.handles = handles;
-      if (record.scripts?.some((script) => script.uuid === uuid)) this.retireMainTransport(token);
+      if (record.scripts) record.scripts = record.scripts.filter((script) => script.uuid !== uuid);
+      for (const [storageName, update] of record.delivery.pendingValueUpdates) {
+        if (update.uuid === uuid) record.delivery.pendingValueUpdates.delete(storageName);
+      }
+      record.delivery.pendingEmitEvents = record.delivery.pendingEmitEvents.filter((event) => event.uuid !== uuid);
+      if (record.inFlightBatch) {
+        record.inFlightBatch.valueUpdates = record.inFlightBatch.valueUpdates.filter((update) => update.uuid !== uuid);
+        record.inFlightBatch.emitEvents = record.inFlightBatch.emitEvents.filter((event) => event.uuid !== uuid);
+      }
+      if (record.handles.size === 0) this.retireMainTransport(token);
     }
-    void this.persistMainTransportJournal();
   }
 
   private issuePageBinding(
@@ -1254,13 +1140,26 @@ export class RuntimeService {
 
   public async pushValueUpdate(script: Script, sendData: ValueUpdateDataEncoded) {
     try {
-      if (!(await this.ensureMainTransportJournal())) return;
       const queuedRecords = this.queueMainValueUpdate(script.uuid, sendData);
-      if (!(await this.persistMainTransportJournal())) {
-        for (const record of queuedRecords) this.retireMainTransport(record.transportToken);
-        return;
-      }
       for (const record of queuedRecords) this.notifyMainFallback(record);
+      for (const record of this.mainTransportRecords.values()) {
+        const matches = [...record.handles].some((handle) => {
+          const binding = this.pageExecutionBindings.get(handle);
+          return (
+            binding?.envTag === "it" && (binding.uuid === script.uuid || binding.storageName === sendData.storageName)
+          );
+        });
+        if (!matches || record.mode !== "native" || record.lifecycle !== "active") continue;
+        const entry = this.userScriptConnections.get(`main:${record.transportToken}`);
+        if (!entry?.ready) continue;
+        try {
+          entry.connection.sendMessage({ action: "inject/runtime/valueUpdate", data: sendData });
+        } catch {
+          this.userScriptConnections.delete(`main:${record.transportToken}`);
+          const retryRecords = this.queueMainValueUpdate(script.uuid, sendData);
+          for (const retryRecord of retryRecords) this.notifyMainFallback(retryRecord);
+        }
+      }
 
       // USER_SCRIPT 看不到 scripting world 的页面广播，改经原生扩展连接投递同一份编码 DTO。
       this.sendUserScriptMessage(undefined, "runtime/valueUpdate", sendData);
@@ -1723,6 +1622,11 @@ export class RuntimeService {
     for (const [key, session] of this.userScriptSessions) {
       if (session.transportToken === transportToken) this.userScriptSessions.delete(key);
     }
+    const candidate = this.pendingMainCandidates.get(transportToken);
+    if (candidate) {
+      candidate.connection.disconnect(true);
+      this.pendingMainCandidates.delete(transportToken);
+    }
     this.mainTransportRecords.delete(transportToken);
   }
 
@@ -1761,10 +1665,9 @@ export class RuntimeService {
   }
 
   async resolveMainTransport(
-    data: { transportToken?: unknown; forceFallback?: unknown } | undefined,
+    data: { transportToken?: unknown } | undefined,
     sender: IGetSender
   ): Promise<MainTransportResolution> {
-    if (!(await this.ensureMainTransportJournal())) return { mode: "missing" };
     this.reapProvisionalMainTransports();
     if (
       !data ||
@@ -1777,21 +1680,14 @@ export class RuntimeService {
     const record = this.getMainTransportForSender(data.transportToken, sender);
     if (!record) return { mode: "missing" };
     if (record.mode === "native") return { mode: "native" };
-    if (record.mode === "preparing") return { mode: "preparing" };
     if (record.mode === "pending") {
-      const forceFallback = data.forceFallback === true;
-      if (!forceFallback && (record.fallbackEligibleAt === undefined || record.fallbackEligibleAt > Date.now())) {
+      if (record.fallbackEligibleAt === undefined || record.fallbackEligibleAt > Date.now()) {
         return { mode: "pending", retryAfterMs: Math.max(0, (record.fallbackEligibleAt ?? Date.now()) - Date.now()) };
       }
       record.mode = "fallback";
       record.fallbackPhase = "activating";
-      record.fallbackProgressDeadlineAt = Date.now() + 5000;
       record.nextBatchId = 1;
       record.inFlightBatch = undefined;
-      if (!(await this.persistMainTransportJournal())) {
-        this.retireMainTransport(record.transportToken);
-        return { mode: "missing" };
-      }
       return this.fallbackResolution(record);
     }
     return this.fallbackResolution(record);
@@ -1801,7 +1697,6 @@ export class RuntimeService {
     data: { transportToken?: unknown; ackBatchId?: unknown } | undefined,
     sender: IGetSender
   ): Promise<MainTransportResolution> {
-    if (!(await this.ensureMainTransportJournal())) return { mode: "missing" };
     if (!data || typeof data.transportToken !== "string") return { mode: "missing" };
     const record = this.getMainTransportForSender(data.transportToken, sender);
     if (!record || record.mode !== "fallback" || !record.fallbackPhase) return { mode: "missing" };
@@ -1815,10 +1710,6 @@ export class RuntimeService {
     for (const valueUpdate of valueUpdates) record.delivery.pendingValueUpdates.delete(valueUpdate.storageName);
     if (valueUpdates.length === 0 && emitEvents.length === 0) {
       record.fallbackPhase = "ready";
-      if (!(await this.persistMainTransportJournal())) {
-        this.retireMainTransport(record.transportToken);
-        return { mode: "missing" };
-      }
       return this.fallbackResolution(record);
     }
     const batch: MainFallbackBatch = {
@@ -1829,15 +1720,10 @@ export class RuntimeService {
     record.nextBatchId = batch.id + 1;
     record.inFlightBatch = batch;
     record.fallbackPhase = "catching-up";
-    if (!(await this.persistMainTransportJournal())) {
-      this.retireMainTransport(record.transportToken);
-      return { mode: "missing" };
-    }
     return this.fallbackResolution(record, batch);
   }
 
   async mainTransportLifecycle(data: MainTransportLifecycleRequest | undefined, sender: IGetSender) {
-    if (!(await this.ensureMainTransportJournal())) return { ok: false as const };
     if (
       !data ||
       typeof data.transportToken !== "string" ||
@@ -1863,13 +1749,7 @@ export class RuntimeService {
         this.retireMainTransport(record.transportToken);
       }
     } else if (data.persisted === true) {
-      record.lifecycle = "active";
-      record.provisionalRetireAt = undefined;
-      this.activeMainTransportByFrame.set(this.frameKey(record.tabId, record.frameId), record.transportToken);
-    }
-    if (!(await this.persistMainTransportJournal())) {
-      this.retireMainTransport(data.transportToken);
-      return { ok: false as const };
+      this.activateMainGeneration(record.transportToken);
     }
     return { ok: true as const };
   }
@@ -2280,20 +2160,21 @@ export class RuntimeService {
       const matches = [...record.handles].some((handle) => this.pageExecutionBindings.get(handle)?.uuid === req.uuid);
       if (!matches) continue;
       mainMatched = true;
-      if (
-        record.mode !== "native" ||
-        record.lifecycle !== "active" ||
-        !this.userScriptConnections.has(`main:${record.transportToken}`)
-      ) {
+      const entry = this.userScriptConnections.get(`main:${record.transportToken}`);
+      if (record.mode === "native" && record.lifecycle === "active" && entry?.ready) {
+        try {
+          entry.connection.sendMessage({ action: "inject/runtime/emitEvent", data: req });
+          continue;
+        } catch {
+          this.userScriptConnections.delete(`main:${record.transportToken}`);
+        }
+      }
+      {
         record.delivery.pendingEmitEvents.push(req);
         fallbackRecords.push(record);
       }
     }
     if (mainMatched) {
-      if (!(await this.persistMainTransportJournal())) {
-        for (const record of fallbackRecords) this.retireMainTransport(record.transportToken);
-        return undefined;
-      }
       for (const record of fallbackRecords) this.notifyMainFallback(record);
     }
     this.sendUserScriptMessage(to, "runtime/emitEvent", req);
@@ -2425,15 +2306,13 @@ export class RuntimeService {
     const frameId = chromeSender.frameId;
     const incognito = chromeSender.tab?.incognito ?? false;
     const isMain = data?.envTag === "it";
-    const suppliedMainTransportToken = isMain && typeof data?.mainTransportToken === "string";
     const mainTransportToken = isMain
       ? typeof data?.mainTransportToken === "string"
         ? data.mainTransportToken
         : uuidv4()
       : undefined;
     if (isMain) {
-      if (!mainTransportToken || mainTransportToken.length > 256 || !(await this.ensureMainTransportJournal()))
-        return { ok: false };
+      if (!mainTransportToken || mainTransportToken.length > 256) return { ok: false };
       this.reapProvisionalMainTransports();
       let record = this.mainTransportRecords.get(mainTransportToken);
       if (record) {
@@ -2445,15 +2324,6 @@ export class RuntimeService {
           return { ok: false };
         }
       } else {
-        const frameKey = this.frameKey(tabId, frameId);
-        const previousToken = this.activeMainTransportByFrame.get(frameKey);
-        if (previousToken && previousToken !== mainTransportToken) {
-          const previous = this.mainTransportRecords.get(previousToken);
-          if (previous && previous.lifecycle === "active") {
-            previous.lifecycle = "provisional-dormant";
-            previous.provisionalRetireAt = Date.now() + 5000;
-          }
-        }
         record = {
           transportToken: mainTransportToken,
           tabId,
@@ -2464,17 +2334,12 @@ export class RuntimeService {
           lastLifecycleSequence: 0,
           handles: new Set(),
           delivery: this.createMainDeliveryQueue(),
-          mode: "preparing",
+          mode: "pending",
         };
         this.mainTransportRecords.set(mainTransportToken, record);
-        this.activeMainTransportByFrame.set(frameKey, mainTransportToken);
       }
-      if (suppliedMainTransportToken) this.journalTrackedTransportTokens.add(mainTransportToken);
-      if (!(await this.persistMainTransportJournal())) {
-        this.retireMainTransport(mainTransportToken);
-        return { ok: false };
-      }
-      if (record.mode !== "preparing" && record.scripts && record.envInfo) {
+      this.activateMainGeneration(mainTransportToken);
+      if (record.scripts && record.envInfo) {
         return {
           ok: true,
           injectScriptList: record.scripts as TScriptInfo[],
@@ -2560,10 +2425,6 @@ export class RuntimeService {
         record.bootstrapToken = mainTransportToken;
         record.fallbackEligibleAt = Date.now() + 1000;
         record.fallbackPhase = undefined;
-        if (!(await this.persistMainTransportJournal())) {
-          this.retireMainTransport(mainTransportToken);
-          return { ok: false };
-        }
       }
       // 返回脚本资料，在页面加载
       return {
@@ -2585,7 +2446,6 @@ export class RuntimeService {
       // 没有脚本资料，不需要加载
       if (isMain && mainTransportToken) {
         this.retireMainTransport(mainTransportToken);
-        await this.persistMainTransportJournal();
       }
       return { ok: false };
     }

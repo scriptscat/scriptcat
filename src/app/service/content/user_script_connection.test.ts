@@ -122,4 +122,16 @@ describe("connectUserScriptChannel", () => {
     (message.sendMessage as ReturnType<typeof vi.fn>).mockResolvedValue({ code: 0, data: {} });
     await expect(requestUserScriptReconnect(message, "current-token")).resolves.toBeUndefined();
   });
+
+  it("retries an absent reconnect response before treating a semantic response as missing", async () => {
+    const message = {
+      sendMessage: vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({ code: 0, data: { bootstrapToken: "same-pending-token" } }),
+    } as unknown as Message;
+
+    await expect(requestUserScriptReconnect(message, "current-token")).resolves.toBe("same-pending-token");
+    expect(message.sendMessage).toHaveBeenCalledTimes(2);
+  });
 });

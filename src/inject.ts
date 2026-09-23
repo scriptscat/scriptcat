@@ -4,7 +4,6 @@ import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { PageMessage } from "@Packages/message/page_message";
 import { ExtensionMessage, hasNativeRuntimeChannel } from "@Packages/message/extension_message";
 import { Server } from "@Packages/message/server";
-import { Client } from "@Packages/message/client";
 import { ScriptExecutor } from "./app/service/content/script_executor";
 import type { Message } from "@Packages/message/types";
 import { getEventFlag } from "@Packages/message/common";
@@ -13,9 +12,7 @@ import { ScriptEnvTag } from "@Packages/message/consts";
 import { type TExtensionEnv } from "./app/service/extension/extension_env";
 import { connectUserScriptChannel, requestUserScriptReconnect } from "./app/service/content/user_script_connection";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
-import { createMainWorldPageLoadGate } from "./app/service/content/main_world_page_load_gate";
 import { MainRuntimeSend } from "./app/service/content/main_runtime_send";
-import type { MainFallbackBatch } from "./app/service/service_worker/types";
 
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
@@ -44,7 +41,7 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
   const scriptExecutor = new ScriptExecutor(
     mainRuntimeSend,
     new CustomEventMessage(eventFlag, true, ScriptEnvTag.content),
-    canUseNativeChannel ? "serviceWorker" : "scripting"
+    "serviceWorker"
   );
   const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor, extensionEnv);
   const pageServer = canUseNativeChannel ? new Server("inject", pageMsg) : undefined;
@@ -58,21 +55,7 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
       }
     | undefined;
   let reconnectToken: string | undefined;
-  let transportToken: string | undefined;
-
-  const consumeFallbackBatch = (batch: MainFallbackBatch): void => {
-    runtime.receiveFallbackBatch(batch);
-    if (transportToken) {
-      void new Client(pageMsg, "scripting")
-        .do<{ mode: "fallback"; batch?: MainFallbackBatch }>("advanceMainFallback", {
-          transportToken,
-          ackBatchId: batch.id,
-        })
-        .then((result) => {
-          if (result?.batch && result.batch.id !== batch.id) consumeFallbackBatch(result.batch);
-        });
-    }
-  };
+  let fallbackSelected = false;
 
   const settleNativeReady = (connected: boolean): void => {
     const pending = pendingNativeReady;
@@ -84,12 +67,27 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
 
   const handleNativePacket = (_connection: MessageConnect, packet: TMessage) => {
     if (packet.action === "inject/pageLoad") {
-      if (!pendingNativeReady) return;
+      if (!pendingNativeReady || fallbackSelected) {
+        try {
+          _connection.disconnect(true);
+        } catch {
+          // The candidate is already stale; there is no live transport to recover.
+        }
+        return;
+      }
       nativeConnection = _connection;
       settleNativeReady(true);
       mainRuntimeSend.selectNative();
       const nextToken = runtime.receivePageLoad(packet.data);
       if (nextToken) reconnectToken = nextToken;
+    } else if (packet.action === "inject/runtime/reconnectReady") {
+      if (fallbackSelected || typeof packet.data !== "object" || packet.data === null) return;
+      const nextToken = (packet.data as { reconnectToken?: unknown }).reconnectToken;
+      if (typeof nextToken !== "string" || nextToken.length === 0) return;
+      nativeConnection = _connection;
+      settleNativeReady(true);
+      reconnectToken = nextToken;
+      mainRuntimeSend.selectNative();
     } else if (packet.action === "inject/runtime/valueUpdate") {
       runtime.receiveValueUpdate(packet.data);
     } else if (packet.action === "inject/runtime/emitEvent") {
@@ -152,58 +150,36 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
     });
   };
 
+  const handleFallbackPageLoad = (data: unknown): undefined => {
+    fallbackSelected = true;
+    const connection = nativeConnection;
+    nativeConnection = undefined;
+    settleNativeReady(false);
+    connection?.disconnect(true);
+    mainRuntimeSend.selectFallback();
+    runtime.receivePageLoad(data);
+    return undefined;
+  };
+
   if (pageServer) {
-    const pageLoadGate = createMainWorldPageLoadGate(
-      openNativeChannel,
-      (data) => {
-        mainRuntimeSend.selectFallback();
-        runtime.receivePageLoad(data);
-        if (transportToken) {
-          void new Client(pageMsg, "scripting")
-            .do<{ mode: "fallback"; batch?: MainFallbackBatch }>("advanceMainFallback", {
-              transportToken,
-            })
-            .then((result) => {
-              if (result?.batch) consumeFallbackBatch(result.batch);
-            });
-        }
-      },
-      () =>
-        new Client(pageMsg, "scripting").do("resolveMainTransport", {
-          transportToken,
-        })
-    );
     pageServer.on("bootstrap", (data: { bootstrapToken?: unknown }) => {
       if (typeof data?.bootstrapToken !== "string" || data.bootstrapToken.length === 0) return;
-      reconnectToken = data.bootstrapToken;
-      transportToken = data.bootstrapToken;
-      pageLoadGate.onBootstrap(data.bootstrapToken);
+      void openNativeChannel(data.bootstrapToken);
     });
-    pageServer.on("pageLoad", pageLoadGate.onPageLoad);
+    pageServer.on("pageLoad", handleFallbackPageLoad);
     pageServer.on("runtime/valueUpdate", (data) => runtime.receiveValueUpdate(data));
     pageServer.on("runtime/emitEvent", (data) => runtime.receiveEmitEvent(data));
     pageServer.on("fallbackBatch", (data) => {
-      if (data && typeof data === "object" && "id" in data) consumeFallbackBatch(data as MainFallbackBatch);
+      return runtime.receiveFallbackBatch(data);
     });
   }
   runtime.init();
   if (!pageServer) {
-    // 没有原生 runtime 通道时，bootstrap 只作为页面桥上的兼容握手，随后请求完整 pageLoad。
     server.on("bootstrap", (data: { bootstrapToken?: unknown }) => {
       if (typeof data?.bootstrapToken !== "string") return;
-      transportToken = data.bootstrapToken;
-      void new Client(pageMsg, "scripting")
-        .do<{ pageLoad?: unknown; batch?: MainFallbackBatch }>("resolveMainTransport", {
-          transportToken,
-        })
-        .then((result) => {
-          if (result?.pageLoad) {
-            mainRuntimeSend.selectFallback();
-            runtime.receivePageLoad(result.pageLoad);
-          }
-          if (result?.batch) consumeFallbackBatch(result.batch);
-        });
     });
+    server.on("pageLoad", handleFallbackPageLoad);
+    server.on("fallbackBatch", (data) => runtime.receiveFallbackBatch(data));
   }
   // inject环境，直接判断白名单，注入对外接口
   runtime.externalMessage("scripting", pageMsg);
