@@ -176,7 +176,7 @@ communication styles** over **several transports**.
 | Class | File | Connects | Underlying API |
 |---|---|---|---|
 | `ExtensionMessage` | [`extension_message.ts`](../packages/message/extension_message.ts) | SW ↔ Content / Inject / Offscreen | `chrome.runtime.sendMessage` / `onConnect`; browser-identified USER_SCRIPT messages are action-gated, and regular-port fallbacks are token-bound |
-| `PageEventMessage` | [`page_event_message.ts`](../packages/message/page_event_message.ts) | `scripting` ↔ Inject | `window.postMessage`; page-visible MAIN bootstrap/fallback, runtime updates, whitelisted external API, and GM RPC fallback validated by `PageRpcRegistry` |
+| `PageEventMessage` | [`page_event_message.ts`](../packages/message/page_event_message.ts) | `scripting` ↔ Inject | Keyed `performance` `CustomEvent`; MAIN pageLoad, runtime updates, whitelisted external API, and GM RPC routed through the isolated broker and validated by `PageRpcRegistry` |
 | `CustomEventMessage` | [`custom_event_message.ts`](../packages/message/custom_event_message.ts) | Content ↔ `scripting` page helper | DOM `CustomEvent`; bootstrap handoff and synchronous DOM references, not privileged GM RPC |
 | `WindowMessage` | [`window_message.ts`](../packages/message/window_message.ts) | Offscreen ↔ Sandbox | `window.postMessage` |
 | `ServiceWorkerMessageSend` | [`window_message.ts`](../packages/message/window_message.ts) | SW → Offscreen (Chrome) | `clients.matchAll()` + `postMessage` |
