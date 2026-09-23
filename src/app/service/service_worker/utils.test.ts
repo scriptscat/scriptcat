@@ -308,6 +308,52 @@ describe.concurrent("getUserScriptRegister", () => {
     expect(result.registerScript.world).toBe("MAIN");
     expect(result.registerScript.runAt).toBe("document_end");
   });
+
+  it.concurrent("不应把 userScripts 不支持的 @match scheme 交给注册 API", () => {
+    const mockScriptMatchInfo: ScriptMatchInfo = {
+      uuid: "test-invalid-match-scheme",
+      name: "Invalid Match Scheme",
+      metadata: {},
+      scriptUrlPatterns: extractUrlPatterns(["@match https://*/*", "@match http://*/*", "@match notsupported://*/*"]),
+      originalUrlPatterns: [],
+      namespace: "test",
+      type: 1,
+      status: 1,
+      sort: 0,
+      runStatus: "running",
+      createtime: Date.now(),
+      checktime: Date.now(),
+    };
+
+    const { registerScript } = getUserScriptRegister(mockScriptMatchInfo);
+
+    expect(registerScript.matches).toEqual(["https://*/*", "http://*/*"]);
+  });
+
+  it.concurrent("应同时过滤 userScripts 不支持的 exclude match scheme", () => {
+    const mockScriptMatchInfo: ScriptMatchInfo = {
+      uuid: "test-invalid-exclude-scheme",
+      name: "Invalid Exclude Scheme",
+      metadata: {},
+      scriptUrlPatterns: extractUrlPatterns([
+        "@match https://*/*",
+        "@exclude https://example.com/private/*",
+        "@exclude notsupported://*/*",
+      ]),
+      originalUrlPatterns: [],
+      namespace: "test",
+      type: 1,
+      status: 1,
+      sort: 0,
+      runStatus: "running",
+      createtime: Date.now(),
+      checktime: Date.now(),
+    };
+
+    const { registerScript } = getUserScriptRegister(mockScriptMatchInfo);
+
+    expect(registerScript.excludeMatches).toEqual(["https://example.com/private/*"]);
+  });
 });
 
 describe.concurrent("compileInjectionCode", () => {
