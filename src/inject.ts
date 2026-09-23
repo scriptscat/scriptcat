@@ -201,13 +201,13 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
 
   const handleFallbackPageLoad = (data: unknown) =>
     runtime.receivePageLoad(data, () => {
+      mainRuntimeSend.selectFallback();
       fallbackSelected = true;
       initialBootstrapToken = undefined;
       const connection = nativeConnection;
       nativeConnection = undefined;
       settleNativeReady(false);
       connection?.disconnect(true);
-      mainRuntimeSend.selectFallback();
     });
 
   pageServer.on("bootstrap", (data: { bootstrapToken?: unknown }) => {

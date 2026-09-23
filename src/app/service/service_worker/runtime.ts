@@ -452,8 +452,12 @@ export class RuntimeService {
     }
     let bootstrapped = false;
     connection.onDisconnect(() => {
-      if (mainRecord && this.pendingMainCandidates.get(mainRecord.transportToken)?.connection === connection) {
+      if (!mainRecord) return;
+      if (this.pendingMainCandidates.get(mainRecord.transportToken)?.connection === connection) {
         this.pendingMainCandidates.delete(mainRecord.transportToken);
+      }
+      if (this.userScriptConnections.get(key)?.connection === connection) {
+        this.userScriptConnections.delete(key);
       }
     });
     connection.onMessage((packet) => {
@@ -575,7 +579,8 @@ export class RuntimeService {
         binding.envTag !== session.envTag ||
         binding.tabId !== tabId ||
         binding.frameId !== source.frameId ||
-        binding.documentId !== source.documentId
+        binding.documentId !== source.documentId ||
+        (session.envTag === "it" && binding.transportToken !== session.transportToken)
       ) {
         this.userScriptSessions.delete(key);
         return undefined;
