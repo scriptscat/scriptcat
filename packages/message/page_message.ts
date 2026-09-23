@@ -8,6 +8,7 @@ import type {
   RuntimeMessageSender,
   TMessage,
 } from "./types";
+import { CustomEventClone, pageAddEventListener, pageDispatchCustomEvent, pageRemoveEventListener } from "./common";
 
 export type PageMessageRole = "scripting" | "inject";
 
@@ -172,45 +173,42 @@ class PageMessageConnect implements MessageConnect {
 }
 
 /**
- * 页面异步 RPC 专用通道。
+ * 页面 RPC 专用通道。
  *
- * role 与 channel 只负责传输路由；调用方仍必须验证每个请求，并把权限绑定到隔离执行记录。
+ * 使用随机 channel 派生的 performance CustomEvent 名称，避免把所有跨世界 payload 暴露到
+ * host page 可无条件监听的 window "message" 总线上。event name 只降低普通页面代码的被动
+ * 可观察性，不是认证边界；调用方仍必须验证每个请求，并把权限绑定到隔离执行记录。
  */
 export class PageMessage implements Message {
   readonly EE = new EventEmitter<string, any>();
-  private readonly postMessage: (message: unknown, targetOrigin: string) => void;
-  private readonly messageHandler: (event: MessageEvent) => void;
+  private readonly receiveEventName: string;
+  private readonly messageHandler: (event: Event) => void;
   private readonly targetRole: PageMessageRole;
 
   constructor(
     private readonly channel: string,
-    private readonly role: PageMessageRole,
-    private readonly sourceWindow: Window = window
+    private readonly role: PageMessageRole
   ) {
-    if (typeof sourceWindow.postMessage !== "function") throw new TypeError("window.postMessage is unavailable");
-    this.postMessage = bindNative(sourceWindow.postMessage, sourceWindow);
     this.targetRole = otherRole(role);
-    this.messageHandler = (event: MessageEvent) => {
-      if (event.source !== null && event.source !== sourceWindow) return;
-      const body = parsePageMessageBody(event.data);
+    this.receiveEventName = `${channel}.pageMessage.${role}`;
+    this.messageHandler = (event: Event) => {
+      if (!(event instanceof CustomEventClone)) return;
+      const body = parsePageMessageBody(event.detail);
       if (!body || body.channel !== this.channel || body.target !== this.role || body.source !== this.targetRole) {
         return;
       }
       this.messageHandle(body);
     };
-    sourceWindow.addEventListener("message", this.messageHandler);
+    pageAddEventListener(this.receiveEventName, this.messageHandler);
   }
 
   private sendEnvelope(target: PageMessageRole, body: Omit<PageMessageBody, "channel" | "source" | "target">): void {
-    this.postMessage(
-      {
-        channel: this.channel,
-        source: this.role,
-        target,
-        ...body,
-      } satisfies PageMessageBody,
-      "*"
-    );
+    pageDispatchCustomEvent(`${this.channel}.pageMessage.${target}`, {
+      channel: this.channel,
+      source: this.role,
+      target,
+      ...body,
+    } satisfies PageMessageBody);
   }
 
   private messageHandle(body: PageMessageBody): void {
@@ -271,7 +269,7 @@ export class PageMessage implements Message {
   }
 
   dispose(): void {
-    this.sourceWindow.removeEventListener("message", this.messageHandler);
+    pageRemoveEventListener(this.receiveEventName, this.messageHandler);
     this.EE.removeAllListeners();
   }
 }
