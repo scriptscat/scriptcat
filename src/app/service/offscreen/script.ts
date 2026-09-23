@@ -1,7 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import type Logger from "@App/app/logger/logger";
 import { type IMessageQueue } from "@Packages/message/message_queue";
-import { type WindowMessage } from "@Packages/message/window_message";
 import { ResourceClient, ScriptClient, ValueClient } from "../service_worker/client";
 import type { ScriptRunResource } from "@App/app/repo/scripts";
 import {
@@ -25,7 +24,7 @@ export class ScriptService {
   constructor(
     private group: Group,
     private msgSender: MessageSend,
-    private windowMessage: WindowMessage,
+    private windowMessage: MessageSend,
     private messageQueue: IMessageQueue
   ) {
     this.logger = LoggerCore.logger().with({ service: "script" });

@@ -1,22 +1,24 @@
-import { WindowMessage } from "@Packages/message/window_message";
+import { createSandboxChannelClient } from "@Packages/message/sandbox_message_channel";
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import { SandboxManager } from "./app/service/sandbox";
 
 function main() {
-  // 建立与offscreen页面的连接
-  const windowMessage: WindowMessage = new WindowMessage(window, parent);
+  // sandbox 主动创建 private MessageChannel。只有 port2 的一次性 transfer 会经过 parent Window；
+  // transfer 完成后所有内部 payload 都只在 MessagePort 上流动。
+  const channel = createSandboxChannelClient(parent);
+  const message = channel.message;
 
-  // 初始化日志组件
   const loggerCore = new LoggerCore({
-    writer: new MessageWriter(windowMessage, "offscreen/logger"),
+    writer: new MessageWriter(message, "offscreen/logger"),
     labels: { env: "sandbox" },
   });
   loggerCore.logger().debug("offscreen start");
 
-  // 初始化管理器
-  const manager = new SandboxManager(windowMessage);
+  // 先完成 Server / Runtime wiring，再 transfer port。parent 收到这个 port 本身就代表 sandbox ready。
+  const manager = new SandboxManager(message);
   manager.initManager();
+  channel.transferToParent();
 }
 
 main();
