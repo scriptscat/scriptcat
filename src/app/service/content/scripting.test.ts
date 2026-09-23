@@ -47,7 +47,6 @@ describe("ScriptingRuntime page bootstrap", () => {
       contentScriptList: [makeScript("content-script")],
       envInfo,
       userScriptBootstrapToken: "bootstrap-token",
-      userScriptInjectBootstrapToken: "inject-bootstrap-token",
     } as TClientPageLoadInfo);
     const senderToExt = makeSender();
     const senderToContent = makeSender();
@@ -92,29 +91,16 @@ describe("ScriptingRuntime page bootstrap", () => {
       );
       expect(senderToInject.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: "inject/bootstrap",
-          data: { bootstrapToken: "inject-bootstrap-token" },
+          action: "inject/pageLoad",
+          data: { scripts: [injectScript], envInfo },
         })
       );
-      expect(senderToInject.sendMessage).not.toHaveBeenCalledWith(
-        expect.objectContaining({ action: "inject/pageLoad" })
-      );
-
-      handlers.get("pageLoadFallback")?.({});
-      await Promise.resolve();
-      const fallbackPageLoad = senderToInject.sendMessage.mock.calls.find(
-        ([message]) => message.action === "inject/pageLoad"
-      )?.[0];
-      expect(fallbackPageLoad?.data).toEqual({
-        scripts: [injectScript],
-        envInfo,
-      });
     } finally {
       storageLocal.onChanged = originalOnChanged;
     }
   });
 
-  it("P1-2: fallback PageRpcRegistry grants context-menu GM_registerMenuCommand and still denies GM_setValue", async () => {
+  it("P1-2: PageRpcRegistry grants context-menu GM_registerMenuCommand and still denies GM_setValue", async () => {
     const contextMenuScript = {
       ...makeScript("context-menu-script"),
       name: "Context menu script",
@@ -130,7 +116,6 @@ describe("ScriptingRuntime page bootstrap", () => {
       contentScriptList: [],
       envInfo,
       userScriptBootstrapToken: undefined,
-      userScriptInjectBootstrapToken: "inject-bootstrap-token",
     } as TClientPageLoadInfo);
     const senderToExt = makeSender();
     const senderToContent = makeSender();
@@ -161,13 +146,10 @@ describe("ScriptingRuntime page bootstrap", () => {
       await Promise.resolve();
       await Promise.resolve();
 
-      // 触发 fallback pageLoad，在本页 registry 中恢复 SW 签发的 canonical executionHandle。
-      handlers.get("pageLoadFallback")?.({}, undefined as unknown as IGetSender);
-      await Promise.resolve();
-      const fallbackPageLoad = senderToInject.sendMessage.mock.calls.find(
+      const pageLoadMessage = senderToInject.sendMessage.mock.calls.find(
         ([message]) => message.action === "inject/pageLoad"
       )?.[0];
-      const executionHandle = fallbackPageLoad?.data.scripts[0].executionHandle;
+      const executionHandle = pageLoadMessage?.data.scripts[0].executionHandle;
       expect(executionHandle).toBe("context-menu-handle");
 
       const gmApiHandler = handlers.get("runtime/gmApi")!;
@@ -230,7 +212,6 @@ describe("ScriptingRuntime page bootstrap", () => {
       contentScriptList: [],
       envInfo,
       userScriptBootstrapToken: undefined,
-      userScriptInjectBootstrapToken: "inject-bootstrap-token",
     } as TClientPageLoadInfo);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const senderToExt = makeSender();
@@ -262,13 +243,11 @@ describe("ScriptingRuntime page bootstrap", () => {
       await Promise.resolve();
       await Promise.resolve();
 
-      handlers.get("pageLoadFallback")?.({}, undefined as unknown as IGetSender);
-      await Promise.resolve();
-      const fallbackPageLoad = senderToInject.sendMessage.mock.calls.find(
+      const pageLoadMessage = senderToInject.sendMessage.mock.calls.find(
         ([message]) => message.action === "inject/pageLoad"
       )?.[0];
 
-      expect(fallbackPageLoad?.data.scripts).toEqual([boundScript]);
+      expect(pageLoadMessage?.data.scripts).toEqual([boundScript]);
       expect(warn).toHaveBeenCalledTimes(1);
     } finally {
       storageLocal.onChanged = originalOnChanged;
