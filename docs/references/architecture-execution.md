@@ -70,10 +70,32 @@ authorization secret.
 bridge establishes an authenticated extension origin, so consumers must validate its payloads before acting on
 them.
 
-### Path B — Background scripts → Offscreen → Sandbox
+### Path B — Background scripts → Offscreen/EventPage → Sandbox
 
-`@background` scripts have no page. The SW asks the Offscreen document to host them, and the Offscreen forwards
-evaluation into the **Sandbox iframe** ([`src/app/service/sandbox/runtime.ts`](../../src/app/service/sandbox/runtime.ts)).
+`@background` scripts have no page. Chromium uses the Offscreen document as the DOM-capable parent; Firefox uses
+the MV3 event page in the same role. Both create the sandbox iframe only after installing
+[`SandboxChannelHost`](../../packages/message/sandbox_message_channel.ts), so the bootstrap receiver always exists
+before the child can start.
+
+The sandbox creates its own `MessageChannel`. It keeps one port inside the trusted `sandbox.ts` module closure,
+wires [`MessagePortMessage`](../../packages/message/message_port_message.ts), `Server("sandbox")`, and
+[`Runtime`](../../src/app/service/sandbox/runtime.ts), then transfers only the peer port to the parent. The
+one-time transfer uses Window `postMessage` because that is the cross-frame bootstrap mechanism; it contains no
+script/GM payload. The parent requires the message source to be the exact sandbox `contentWindow`, accepts exactly
+one port, removes its Window `"message"` listener, and thereafter sends pageLoad-equivalent lifecycle data, GM
+request/reply traffic, value/event updates, and skill-script requests only through the private port.
+
+This split matters because untrusted `@background`/`@crontab` code executes in the sandbox Window and can use
+that Window's ordinary event APIs. A global Window-message transport would therefore let one background script
+passively observe other sandbox traffic. A private `MessagePort` is reference-scoped: a userscript that never
+receives the port cannot subscribe to or inject packets into that channel. The port is a transport-isolation
+capability, not the final GM authorization boundary; existing broker/Service Worker permission and identity checks
+still apply.
+
+Receiving the transferred port is also the parent's sandbox-readiness signal. The parent does not separately
+poll/ping the iframe and does not mark an unavailable channel ready after a timeout. Once the port is attached,
+the parent notifies the Service Worker, which replays enabled background/scheduled scripts and language state.
+
 The sandbox wraps execution in `BgExecScriptWarp`, which supplies managed `setTimeout`/`setInterval` and
 `CATRetryError` semantics so long-lived scripts can be cleanly torn down and retried.
 

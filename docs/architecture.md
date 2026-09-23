@@ -36,7 +36,7 @@ into several sandboxed JavaScript realms that cannot share memory; ScriptCat the
 Three ideas explain almost everything in the codebase:
 
 - **Contexts are processes.** Each entry point (`service_worker`, `content`, `inject`, `offscreen`, `sandbox`)
-  is an isolated realm. They never share objects — only serializable messages.
+  is an isolated realm. They do not share ordinary mutable objects — cross-context state moves through serialized or transferable messages.
 - **One message layer, several transports.** [`packages/message`](../packages/message) abstracts
   `chrome.runtime`, `postMessage`, and DOM `CustomEvent` behind a single RPC + pub/sub API, so services are
   written against interfaces (`Server`/`Group`/`Client`/`IMessageQueue`), not raw browser APIs.
@@ -62,9 +62,10 @@ Three ideas explain almost everything in the codebase:
                           │  bridges SW ↔ inject  │         │  DOM-capable background   │
                           │  Server("content")    │         │  Server("offscreen")      │
                           └──────────┬───────────┘         └─────────────┬────────────┘
-                       CustomEventMessage                        WindowMessage
-                       (DOM CustomEvent)                         (window.postMessage)
-                                     ▼                                   ▼
+                       CustomEventMessage                 SandboxChannelHost
+                       (DOM CustomEvent)                   one-shot Window bootstrap
+                                     ▼                          + private MessagePort
+                                                                    ▼
                           ┌──────────────────────┐         ┌──────────────────────────┐
                           │     INJECT SCRIPT     │         │       SANDBOX (iframe)    │
                           │  page realm,          │         │  with(){} script eval,    │
@@ -94,8 +95,8 @@ Each context is a separate bundle (see [Build pipeline & manifest](./references/
 | **Service Worker** | [`src/service_worker.ts`](../src/service_worker.ts) | No DOM. Owns `chrome.*` privileged APIs, storage, permissions, routing. | `ExtensionMessage(true)` → `Server("serviceWorker")` + `MessageQueue` → `ServiceWorkerManager` |
 | **Content** | [`src/content.ts`](../src/content.ts) | `USER_SCRIPT` world. Receives a document bootstrap token through the page-side bridge, then uses a native extension channel for script loading, GM RPC, value updates, and callbacks. Dedicated USER_SCRIPT listeners are used when available; otherwise the regular port is token-bound. | `ExtensionMessage` + native callback port → `Server("content")` → `ScriptRuntime`; `CustomEventMessage` for bootstrap handoff and DOM handles |
 | **Inject** | [`src/inject.ts`](../src/inject.ts) | Page (`MAIN`) world. Has `unsafeWindow`; runs page userscripts. | `PageEventMessage` keyed performance-event bridge → `scripting`; broker/SW validate privileged RPC; `CustomEventMessage` for synchronous DOM handles |
-| **Offscreen** | [`src/offscreen.ts`](../src/offscreen.ts) | DOM-capable background page (Blobs, clipboard, DOM scraping, local storage). | `ExtensionMessage()` + `WindowMessage(window, sandbox)` → `OffscreenManager` |
-| **Sandbox** | [`src/sandbox.ts`](../src/sandbox.ts) | `sandbox`ed iframe inside offscreen. Evaluates background/scheduled scripts; runs cron. | `WindowMessage(window, parent)` + `Server("sandbox")` → `SandboxManager` |
+| **Offscreen** | [`src/offscreen.ts`](../src/offscreen.ts) | DOM-capable background page (Blobs, clipboard, DOM scraping, local storage). | SW receiver + `SandboxChannelHost`; parent installs the one-shot bootstrap listener before attaching the sandbox iframe |
+| **Sandbox** | [`src/sandbox.ts`](../src/sandbox.ts) | `sandbox`ed iframe inside offscreen/event page. Evaluates background/scheduled scripts; runs cron. | creates `MessageChannel`, wires `MessagePortMessage` + `Server("sandbox")`, then transfers the peer port to the parent as the readiness signal |
 
 The [`scripting` bundle](../src/scripting.ts) is a document-start content script registered through
 `chrome.scripting`; it supplies the per-document page bridge. Compiled userscript payloads and the `inject.js` /
@@ -134,22 +135,17 @@ already has DOM and plays the offscreen role directly.
   `ExtensionMessage` (`chrome.runtime`).
 - **Firefox:** [`EventPageOffscreenManager`](../src/app/service/offscreen/event_page_manager.ts) substitutes
   for the offscreen document; its sandbox iframe is a `sandbox` manifest page, which Firefox 154+ loads as a
-  cross-origin frame (`contentDocument` is `null`, `contentWindow.location` is unreadable). Only the sandbox
-  itself knows when it's actually ready, so the parent never polls or pings it: `SandboxManager`
-  ([`src/app/service/sandbox/index.ts`](../src/app/service/sandbox/index.ts)) proactively posts a
-  `preparationSandbox` message once its own `Server` is wired up (same mechanism on both platforms), and
-  [`BackgroundEnvManagerBase.preparationSandbox`](../src/app/service/offscreen/base.ts) immediately tells the
-  service worker `preparationOffscreen({ verified: true })` — no round trip, no waiting. The service worker
-  replays enabled background/scheduled scripts and the current language only for this verified signal, once.
-  Separately and non-blockingly, the
-  sandbox reuses its own in-flight `getExtensionEnv` request to self-check that the channel is genuinely
-  bidirectional, and reports the outcome via `reportSandboxChannelHealth`, which the parent logs (visible in
-  the parent's own console/log, since the sandbox iframe's console is far less discoverable). If the sandbox
-  never announces readiness at all (iframe failed to load, script error), a fallback timer in
-  `BackgroundEnvManagerBase` still tells the service worker `preparationOffscreen({ verified: false })` after
-  `SANDBOX_READY_FALLBACK_MS`, logging a clear error instead of hanging forever. That unverified notification
-  does not send initialization through an unavailable channel; if the real handshake arrives later, the
-  verified state replay still occurs exactly once.
+  cross-origin frame (`contentDocument` is `null`, `contentWindow.location` is unreadable). The sandbox transport
+  is nevertheless the same as Chromium: the parent first installs a `SandboxChannelHost` bootstrap listener,
+  then attaches the iframe. After `sandbox.ts` has wired its `Server` and `Runtime`, it creates/transfers one
+  `MessagePort` to the parent. The parent accepts that capability only when `event.source` is the exact sandbox
+  `contentWindow`, removes the global Window `"message"` listener immediately, and uses the private port for all
+  subsequent traffic. Receiving the port is also the only verified sandbox-readiness signal; only then does
+  `BackgroundEnvManagerBase` call `preparationOffscreen({ verified: true })`, which lets the service worker replay
+  enabled background/scheduled scripts and language state. There is no second `preparationSandbox` RPC, health
+  ping, or unverified timeout-ready path. The transport threat model, same-realm prototype hardening, failure
+  semantics, and verification matrix are documented in
+  [Private Offscreen/EventPage ↔ Sandbox MessagePort](./references/sandbox-message-port-security.md).
 
 Firefox packages use `incognito: "spanning"`, so normal and private page scripts share one event page but retain
 their own `sender.tab.incognito` value for global-switch checks, `@run-in`, and `GM_info.isIncognito`. Background
@@ -178,7 +174,7 @@ communication styles** over **several transports**.
 | `ExtensionMessage` | [`extension_message.ts`](../packages/message/extension_message.ts) | SW ↔ Content / Inject / Offscreen | `chrome.runtime.sendMessage` / `onConnect`; browser-identified USER_SCRIPT messages are action-gated, and regular-port fallbacks are token-bound |
 | `PageEventMessage` | [`page_event_message.ts`](../packages/message/page_event_message.ts) | `scripting` ↔ Inject | Keyed `performance` `CustomEvent`; MAIN pageLoad, runtime updates, whitelisted external API, and GM RPC routed through the isolated broker and validated by `PageRpcRegistry` |
 | `CustomEventMessage` | [`custom_event_message.ts`](../packages/message/custom_event_message.ts) | Content ↔ `scripting` page helper | DOM `CustomEvent`; bootstrap handoff and synchronous DOM references, not privileged GM RPC |
-| `WindowMessage` | [`window_message.ts`](../packages/message/window_message.ts) | Offscreen ↔ Sandbox | `window.postMessage` |
+| `MessagePortMessage` / `SandboxChannelHost` | [`message_port_message.ts`](../packages/message/message_port_message.ts), [`sandbox_message_channel.ts`](../packages/message/sandbox_message_channel.ts) | Offscreen/EventPage ↔ Sandbox | sandbox-created `MessageChannel`; one strict source-checked Window bootstrap transfers the peer port, then all payloads use the private `MessagePort` |
 | `ServiceWorkerMessageSend` | [`window_message.ts`](../packages/message/window_message.ts) | SW → Offscreen (Chrome) | `clients.matchAll()` + `postMessage` |
 | `MessageQueue` | [`message_queue.ts`](../packages/message/message_queue.ts) | Broadcast among the contexts that instantiate it — SW, Offscreen, UI pages | `chrome.runtime.sendMessage` + local `EventEmitter3` |
 | `MockMessage` | [`mock_message.ts`](../packages/message/mock_message.ts) | Tests | in-memory `EventEmitter3` |

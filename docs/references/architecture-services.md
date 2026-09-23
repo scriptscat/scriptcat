@@ -122,8 +122,8 @@ The `group("name")` call is what gives each service its action prefix (`resource
 on the single `serviceWorker` `Server`. Other contexts have their own composition roots
 (`OffscreenManager`, `SandboxManager`, `ScriptRuntime` for content/inject) that play a similar
 "wire dependencies, register handlers" role, but they are **not** built to the same dependency/initialization
-shape as `ServiceWorkerManager` or each other: `OffscreenManager`'s constructor wraps a `WindowMessage` +
-`Server` + `ServiceWorkerClient` into a shared base class; `SandboxManager` builds its own `Server` and hands
+shape as `ServiceWorkerManager` or each other: `OffscreenManager`'s constructor wires a `SandboxChannelHost` +
+`Server` + `ServiceWorkerClient` into a shared base class; `SandboxManager` builds its own `Server` over the private port and hands
 it to a single `Runtime`; and `ScriptRuntime` (content/inject) additionally owns lifecycle methods the others
 don't have, such as `contentInit()` and `externalMessage()`. Read each manager's own file rather than assuming
 it mirrors `ServiceWorkerManager`.
