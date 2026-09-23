@@ -202,7 +202,10 @@ export class PageEventMessage implements Message {
     pageAddEventListener(this.receiveEventName, this.messageHandler);
   }
 
-  private sendEnvelope(target: PageEventMessageRole, body: Omit<PageEventMessageBody, "channel" | "source" | "target">): void {
+  private sendEnvelope(
+    target: PageEventMessageRole,
+    body: Omit<PageEventMessageBody, "channel" | "source" | "target">
+  ): void {
     pageDispatchCustomEvent(`${this.channel}.pageEventMessage.${target}`, {
       channel: this.channel,
       source: this.role,
