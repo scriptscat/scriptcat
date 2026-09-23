@@ -166,6 +166,8 @@ type UserScriptSession = {
 };
 type UserScriptBootstrap = Omit<UserScriptSession, "transport">;
 
+const MAIN_TRANSPORT_RETRY_MS = 50;
+
 const bgScriptStorageNames = new Set<string>();
 
 // For Firefox, StorageArea.setAccessLevel is not implemented.
@@ -410,12 +412,19 @@ export class RuntimeService {
       bootstrap.envTag === "it" && bootstrap.transportToken
         ? this.mainTransportRecords.get(bootstrap.transportToken)
         : undefined;
+    const isInitialMainCandidate =
+      mainRecord?.mode === "pending" &&
+      mainRecord.lifecycle === "active" &&
+      !mainRecord.pendingReconnect &&
+      mainRecord.bootstrapToken === bootstrapToken;
+    const isReconnectMainCandidate =
+      mainRecord?.mode === "native" &&
+      mainRecord.lifecycle === "active" &&
+      mainRecord.pendingReconnect?.bootstrapToken === bootstrapToken;
     if (
       bootstrap.envTag === "it" &&
       (!mainRecord ||
-        mainRecord.mode !== "pending" ||
-        mainRecord.lifecycle !== "active" ||
-        mainRecord.bootstrapToken !== bootstrapToken ||
+        (!isInitialMainCandidate && !isReconnectMainCandidate) ||
         mainRecord.tabId !== tabId ||
         mainRecord.frameId !== source.frameId)
     )
@@ -467,19 +476,27 @@ export class RuntimeService {
         if (mainRecord) {
           const current = this.mainTransportRecords.get(mainRecord.transportToken);
           const currentCandidate = this.pendingMainCandidates.get(mainRecord.transportToken);
+          const isReconnect =
+            current?.mode === "native" && current.pendingReconnect?.bootstrapToken === bootstrapToken;
+          const isInitial =
+            current?.mode === "pending" &&
+            current.lifecycle === "active" &&
+            !current.pendingReconnect &&
+            current.bootstrapToken === bootstrapToken;
           if (
             !current ||
             current !== mainRecord ||
-            current.mode !== "pending" ||
+            current.lifecycle !== "active" ||
+            (!isInitial && !isReconnect) ||
             currentCandidate?.connection !== connection
           ) {
             connection.disconnect(true);
             return;
           }
-          if (current.pendingReconnect) {
+          if (isReconnect) {
             connection.sendMessage({
               action: "inject/runtime/reconnectReady",
-              data: { reconnectToken: bootstrap.reconnectToken },
+              data: { reconnectToken: current.pendingReconnect!.reconnectToken },
             });
           } else {
             connection.sendMessage({ action: "inject/pageLoad", data: pageLoadData });
@@ -492,8 +509,8 @@ export class RuntimeService {
           this.userScriptSessions.set(key, session);
           this.userScriptConnections.set(key, entry);
           current.mode = "native";
-          current.reconnectToken = bootstrap.reconnectToken;
-          current.bootstrapToken = bootstrapToken;
+          current.reconnectToken = isReconnect ? current.pendingReconnect!.reconnectToken : bootstrap.reconnectToken;
+          current.bootstrapToken = undefined;
           current.handles = new Set(handles);
           current.pendingReconnect = undefined;
           this.pendingMainCandidates.delete(current.transportToken);
@@ -565,6 +582,13 @@ export class RuntimeService {
       }
     }
     const record = session.transportToken ? this.mainTransportRecords.get(session.transportToken) : undefined;
+    if (
+      record &&
+      (record.mode !== "native" ||
+        record.lifecycle !== "active" ||
+        session.transportToken !== record.transportToken)
+    )
+      return undefined;
     if (record?.pendingReconnect) return { bootstrapToken: record.pendingReconnect.bootstrapToken };
     const bootstrapToken = uuidv4();
     const nextSession = { ...session, reconnectToken: uuidv4() };
@@ -572,15 +596,15 @@ export class RuntimeService {
       if (
         bootstrap.tabId === session.tabId &&
         bootstrap.frameId === session.frameId &&
-        bootstrap.documentId === session.documentId
+        bootstrap.documentId === session.documentId &&
+        (session.transportToken === undefined || bootstrap.transportToken === session.transportToken)
       ) {
         this.userScriptBootstraps.delete(token);
       }
     }
     if (record) {
-      record.mode = "pending";
+      this.userScriptConnections.delete(key);
       record.pendingReconnect = { bootstrapToken, reconnectToken: nextSession.reconnectToken };
-      record.bootstrapToken = bootstrapToken;
       this.userScriptBootstraps.set(bootstrapToken, nextSession);
     } else {
       this.userScriptSessions.set(key, nextSession);
@@ -1681,6 +1705,9 @@ export class RuntimeService {
     if (!record) return { mode: "missing" };
     if (record.mode === "native") return { mode: "native" };
     if (record.mode === "pending") {
+      if (record.lifecycle !== "active") {
+        return { mode: "pending", retryAfterMs: MAIN_TRANSPORT_RETRY_MS };
+      }
       if (record.fallbackEligibleAt === undefined || record.fallbackEligibleAt > Date.now()) {
         return { mode: "pending", retryAfterMs: Math.max(0, (record.fallbackEligibleAt ?? Date.now()) - Date.now()) };
       }
@@ -1688,6 +1715,11 @@ export class RuntimeService {
       record.fallbackPhase = "activating";
       record.nextBatchId = 1;
       record.inFlightBatch = undefined;
+      const candidate = this.pendingMainCandidates.get(record.transportToken);
+      this.pendingMainCandidates.delete(record.transportToken);
+      candidate?.connection.disconnect(true);
+      if (record.bootstrapToken) this.userScriptBootstraps.delete(record.bootstrapToken);
+      record.bootstrapToken = undefined;
       return this.fallbackResolution(record);
     }
     return this.fallbackResolution(record);
@@ -1700,6 +1732,7 @@ export class RuntimeService {
     if (!data || typeof data.transportToken !== "string") return { mode: "missing" };
     const record = this.getMainTransportForSender(data.transportToken, sender);
     if (!record || record.mode !== "fallback" || !record.fallbackPhase) return { mode: "missing" };
+    if (record.lifecycle !== "active") return this.fallbackResolution(record);
     if (data.ackBatchId !== undefined) {
       if (typeof data.ackBatchId !== "number" || !Number.isSafeInteger(data.ackBatchId)) return { mode: "missing" };
       if (record.inFlightBatch?.id === data.ackBatchId) record.inFlightBatch = undefined;

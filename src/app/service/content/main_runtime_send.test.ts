@@ -36,4 +36,20 @@ describe("MainRuntimeSend", () => {
       "does not support"
     );
   });
+
+  it("keeps a selected transport idempotent and rejects reversal", () => {
+    const native = { sendMessage: vi.fn(), connect: vi.fn() };
+    const page = { sendMessage: vi.fn(), connect: vi.fn() };
+
+    const nativeTransport = new MainRuntimeSend(native, page);
+    nativeTransport.selectNative();
+    expect(() => nativeTransport.selectNative()).not.toThrow();
+    expect(() => nativeTransport.selectFallback()).toThrow("cannot change");
+
+    const fallbackTransport = new MainRuntimeSend(native, page);
+    fallbackTransport.selectFallback();
+    expect(() => fallbackTransport.selectFallback()).not.toThrow();
+    expect(() => fallbackTransport.selectNative()).toThrow("cannot change");
+  });
+
 });

@@ -98,11 +98,11 @@ describe("ScriptingRuntime MAIN transport", () => {
         envInfo,
       });
     const senderToInject = makeSender();
-    senderToInject.sendMessage.mockImplementation(async (message: { action: string }) =>
-      message.action === "inject/fallbackBatch"
-        ? { code: 0, data: { applied: true, batchId: 1 } }
-        : { code: 0, data: undefined }
-    );
+    senderToInject.sendMessage.mockImplementation(async (message: { action: string }) => {
+      if (message.action === "inject/pageLoad") return { code: 0, data: { accepted: true } };
+      if (message.action === "inject/fallbackBatch") return { code: 0, data: { applied: true, batchId: 1 } };
+      return { code: 0, data: undefined };
+    });
     const { runtime } = makeRuntime(makeSender(), senderToInject);
     runtime.pageLoad();
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -112,6 +112,53 @@ describe("ScriptingRuntime MAIN transport", () => {
       expect.objectContaining({ action: "inject/fallbackBatch" })
     );
     expect(advance).toHaveBeenCalledWith({ transportToken: "transport-token", ackBatchId: 1 });
+  });
+
+  it("does not release fallback backlog before MAIN accepts pageLoad", async () => {
+    const envInfo = { userAgentData: {}, sandboxMode: "raw", isIncognito: false } as const;
+    const script = makeScript("main");
+    vi.spyOn(RuntimeClient.prototype, "pageLoad").mockResolvedValue({
+      ok: true,
+      injectScriptList: [script],
+      contentScriptList: [],
+      envInfo,
+      mainTransportToken: "transport-token",
+      mainTransportFallbackRetryAfterMs: 0,
+      userScriptInjectBootstrapToken: "transport-token",
+    } as TClientPageLoadInfo);
+    vi.spyOn(RuntimeClient.prototype, "resolveMainTransport").mockResolvedValue({
+      mode: "fallback",
+      phase: "activating",
+      transportToken: "transport-token",
+      scripts: [script],
+      envInfo,
+    });
+    const advance = vi.spyOn(RuntimeClient.prototype, "advanceMainFallback").mockResolvedValue({
+      mode: "fallback",
+      phase: "ready",
+      transportToken: "transport-token",
+      scripts: [script],
+      envInfo,
+    });
+    let acceptPageLoad!: (value: unknown) => void;
+    const senderToInject = makeSender();
+    senderToInject.sendMessage.mockImplementation(
+      (message: { action: string }) =>
+        message.action === "inject/pageLoad"
+          ? new Promise((resolve) => {
+              acceptPageLoad = resolve;
+            })
+          : Promise.resolve({ code: 0, data: undefined })
+    );
+
+    const { runtime } = makeRuntime(makeSender(), senderToInject);
+    runtime.pageLoad();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(advance).not.toHaveBeenCalled();
+
+    acceptPageLoad({ code: 0, data: { accepted: true } });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(advance).toHaveBeenCalled();
   });
 
   it("serializes CAT_fetchDocument responses instead of returning a live document reference", () => {

@@ -17,6 +17,8 @@ import { MainRuntimeSend } from "./app/service/content/main_runtime_send";
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
 const NATIVE_BOOTSTRAP_TIMEOUT_MS = 1000;
+const NATIVE_RECONNECT_RETRY_MS = 50;
+const NATIVE_RECONNECT_RETRY_LIMIT = 20;
 
 getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | undefined) => {
   const scriptEnvTag = ScriptEnvTag.inject;
@@ -44,7 +46,7 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
     "serviceWorker"
   );
   const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor, extensionEnv);
-  const pageServer = canUseNativeChannel ? new Server("inject", pageMsg) : undefined;
+  const pageServer = canUseNativeChannel ? new Server("inject", pageMsg) : server;
   let reconnecting = false;
   let openingNative = false;
   let nativeConnection: MessageConnect | undefined;
@@ -55,7 +57,9 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
       }
     | undefined;
   let reconnectToken: string | undefined;
+  let initialBootstrapToken: string | undefined;
   let fallbackSelected = false;
+  let documentDormant = false;
 
   const settleNativeReady = (connected: boolean): void => {
     const pending = pendingNativeReady;
@@ -67,7 +71,7 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
 
   const handleNativePacket = (_connection: MessageConnect, packet: TMessage) => {
     if (packet.action === "inject/pageLoad") {
-      if (!pendingNativeReady || fallbackSelected) {
+      if (!pendingNativeReady || fallbackSelected || documentDormant) {
         try {
           _connection.disconnect(true);
         } catch {
@@ -75,13 +79,18 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
         }
         return;
       }
+      const receipt = runtime.receivePageLoad(packet.data, () => mainRuntimeSend.selectNative());
+      if (!receipt.accepted) {
+        settleNativeReady(false);
+        _connection.disconnect(true);
+        return;
+      }
       nativeConnection = _connection;
       settleNativeReady(true);
-      mainRuntimeSend.selectNative();
-      const nextToken = runtime.receivePageLoad(packet.data);
-      if (nextToken) reconnectToken = nextToken;
+      initialBootstrapToken = undefined;
+      if (receipt.reconnectToken) reconnectToken = receipt.reconnectToken;
     } else if (packet.action === "inject/runtime/reconnectReady") {
-      if (fallbackSelected || typeof packet.data !== "object" || packet.data === null) return;
+      if (fallbackSelected || documentDormant || typeof packet.data !== "object" || packet.data === null) return;
       const nextToken = (packet.data as { reconnectToken?: unknown }).reconnectToken;
       if (typeof nextToken !== "string" || nextToken.length === 0) return;
       nativeConnection = _connection;
@@ -89,13 +98,14 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
       reconnectToken = nextToken;
       mainRuntimeSend.selectNative();
     } else if (packet.action === "inject/runtime/valueUpdate") {
-      runtime.receiveValueUpdate(packet.data);
+      if (!fallbackSelected) runtime.receiveValueUpdate(packet.data);
     } else if (packet.action === "inject/runtime/emitEvent") {
-      runtime.receiveEmitEvent(packet.data);
+      if (!fallbackSelected) runtime.receiveEmitEvent(packet.data);
     }
   };
 
   const openNativeChannel = async (bootstrapToken: string): Promise<boolean> => {
+    if (documentDormant || fallbackSelected) return false;
     if (openingNative || nativeConnection) return Boolean(nativeConnection);
     openingNative = true;
     return new Promise<boolean>((resolve) => {
@@ -118,14 +128,8 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
         (isSelfDisconnected) => {
           nativeConnection = undefined;
           settleNativeReady(false);
-          if (isSelfDisconnected || reconnecting || !reconnectToken) return;
-          reconnecting = true;
-          void requestUserScriptReconnect(nativeMsg, reconnectToken)
-            .then((nextToken) => (nextToken ? openNativeChannel(nextToken) : undefined))
-            .catch((error) => logger.logger().debug("MAIN USER_SCRIPT reconnect failed", { error: String(error) }))
-            .finally(() => {
-              reconnecting = false;
-            });
+          if (isSelfDisconnected || documentDormant || fallbackSelected || !reconnectToken) return;
+          void reconnectNative();
         },
         "MAIN"
       )
@@ -150,37 +154,99 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
     });
   };
 
-  const handleFallbackPageLoad = (data: unknown): undefined => {
-    fallbackSelected = true;
-    const connection = nativeConnection;
-    nativeConnection = undefined;
-    settleNativeReady(false);
-    connection?.disconnect(true);
-    mainRuntimeSend.selectFallback();
-    runtime.receivePageLoad(data);
-    return undefined;
+  const reconnectNative = async (attempt = 0): Promise<void> => {
+    if (reconnecting || documentDormant || fallbackSelected || !reconnectToken || nativeConnection) return;
+    reconnecting = true;
+    try {
+      const nextToken = await requestUserScriptReconnect(nativeMsg, reconnectToken);
+      const connected = nextToken ? await openNativeChannel(nextToken) : false;
+      if (
+        !connected &&
+        attempt < NATIVE_RECONNECT_RETRY_LIMIT &&
+        !documentDormant &&
+        !fallbackSelected &&
+        reconnectToken
+      ) {
+        setTimeout(() => void reconnectNative(attempt + 1), NATIVE_RECONNECT_RETRY_MS);
+      }
+    } catch (error) {
+      logger.logger().debug("MAIN USER_SCRIPT reconnect failed", { error: String(error) });
+      if (
+        attempt < NATIVE_RECONNECT_RETRY_LIMIT &&
+        !documentDormant &&
+        !fallbackSelected &&
+        reconnectToken
+      ) {
+        setTimeout(() => void reconnectNative(attempt + 1), NATIVE_RECONNECT_RETRY_MS);
+      }
+    } finally {
+      reconnecting = false;
+    }
   };
 
-  if (pageServer) {
-    pageServer.on("bootstrap", (data: { bootstrapToken?: unknown }) => {
-      if (typeof data?.bootstrapToken !== "string" || data.bootstrapToken.length === 0) return;
-      void openNativeChannel(data.bootstrapToken);
+  const openInitialNative = async (attempt = 0): Promise<void> => {
+    const token = initialBootstrapToken;
+    if (!token || documentDormant || fallbackSelected || reconnectToken) return;
+    const connected = await openNativeChannel(token);
+    if (
+      !connected &&
+      attempt < NATIVE_RECONNECT_RETRY_LIMIT &&
+      token === initialBootstrapToken &&
+      !documentDormant &&
+      !fallbackSelected
+    ) {
+      setTimeout(() => void openInitialNative(attempt + 1), NATIVE_RECONNECT_RETRY_MS);
+    }
+  };
+
+  const handleFallbackPageLoad = (data: unknown) =>
+    runtime.receivePageLoad(data, () => {
+      fallbackSelected = true;
+      initialBootstrapToken = undefined;
+      const connection = nativeConnection;
+      nativeConnection = undefined;
+      settleNativeReady(false);
+      connection?.disconnect(true);
+      mainRuntimeSend.selectFallback();
     });
-    pageServer.on("pageLoad", handleFallbackPageLoad);
-    pageServer.on("runtime/valueUpdate", (data) => runtime.receiveValueUpdate(data));
-    pageServer.on("runtime/emitEvent", (data) => runtime.receiveEmitEvent(data));
-    pageServer.on("fallbackBatch", (data) => {
-      return runtime.receiveFallbackBatch(data);
-    });
-  }
-  runtime.init();
-  if (!pageServer) {
-    server.on("bootstrap", (data: { bootstrapToken?: unknown }) => {
-      if (typeof data?.bootstrapToken !== "string") return;
-    });
-    server.on("pageLoad", handleFallbackPageLoad);
-    server.on("fallbackBatch", (data) => runtime.receiveFallbackBatch(data));
-  }
+
+  pageServer.on("bootstrap", (data: { bootstrapToken?: unknown }) => {
+    if (typeof data?.bootstrapToken !== "string" || data.bootstrapToken.length === 0) return;
+    initialBootstrapToken = data.bootstrapToken;
+    if (canUseNativeChannel) void openInitialNative();
+  });
+  pageServer.on("pageLoad", handleFallbackPageLoad);
+  pageServer.on("runtime/valueUpdate", (data) => {
+    if (fallbackSelected) runtime.receiveValueUpdate(data);
+  });
+  pageServer.on("runtime/emitEvent", (data) => {
+    if (fallbackSelected) runtime.receiveEmitEvent(data);
+  });
+  pageServer.on("fallbackBatch", (data) => {
+    if (!fallbackSelected) return undefined;
+    return runtime.receiveFallbackBatch(data);
+  });
+
+  window.addEventListener("pagehide", (event) => {
+    if (!event.persisted) return;
+    documentDormant = true;
+    if (!reconnectToken) {
+      const connection = nativeConnection;
+      nativeConnection = undefined;
+      settleNativeReady(false);
+      connection?.disconnect(true);
+    }
+  });
+
+  window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) return;
+    documentDormant = false;
+    if (fallbackSelected || nativeConnection) return;
+    if (reconnectToken) void reconnectNative();
+    else if (initialBootstrapToken && canUseNativeChannel) void openInitialNative();
+  });
+
+  runtime.init({ registerMessageHandlers: false });
   // inject环境，直接判断白名单，注入对外接口
   runtime.externalMessage("scripting", pageMsg);
 });

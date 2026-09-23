@@ -9,12 +9,19 @@ export class MainRuntimeSend implements MessageSend {
     private readonly pageMessage: MessageSend
   ) {}
 
+  private selectMode(mode: "native" | "fallback"): void {
+    if (this.mode !== "unselected" && this.mode !== mode) {
+      throw new Error(`MAIN transport cannot change from ${this.mode} to ${mode}`);
+    }
+    this.mode = mode;
+  }
+
   selectNative(): void {
-    this.mode = "native";
+    this.selectMode("native");
   }
 
   selectFallback(): void {
-    this.mode = "fallback";
+    this.selectMode("fallback");
   }
 
   private select(message: TMessage): { sender: MessageSend; message: TMessage } {

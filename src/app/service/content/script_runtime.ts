@@ -165,6 +165,10 @@ type PageLoadData = InjectPageLoadData & {
   extensionOrigin?: ExtensionOrigin;
 };
 
+export type PageLoadReceipt =
+  | { accepted: false }
+  | { accepted: true; reconnectToken?: string };
+
 const isExtensionOrigin = (value: unknown): value is ExtensionOrigin => {
   if (!isRecord(value) || !hasOnlyKeys(value, ["protocol", "hostname", "port"])) return false;
   return (
@@ -295,19 +299,21 @@ export class ScriptRuntime {
     }
   }
 
-  init() {
-    this.server.on("runtime/emitEvent", (data: EmitEventRequest) => {
-      this.receiveEmitEvent(data);
-    });
-    this.server.on("runtime/valueUpdate", (data: ValueUpdateDataEncoded) => {
-      this.receiveValueUpdate(data);
-    });
+  init(options: { registerMessageHandlers?: boolean } = {}) {
+    if (options.registerMessageHandlers !== false) {
+      this.server.on("runtime/emitEvent", (data: EmitEventRequest) => {
+        this.receiveEmitEvent(data);
+      });
+      this.server.on("runtime/valueUpdate", (data: ValueUpdateDataEncoded) => {
+        this.receiveValueUpdate(data);
+      });
 
-    this.server.on("pageLoad", (data: { scripts: TScriptInfo[]; envInfo: GMInfoEnv }) => {
-      this.receivePageLoad(data);
-    });
-    // Older MAIN worlds may receive a forward-compatible native bootstrap token but cannot open a runtime port.
-    this.server.on("bootstrap", () => undefined);
+      this.server.on("pageLoad", (data: { scripts: TScriptInfo[]; envInfo: GMInfoEnv }) => {
+        this.receivePageLoad(data);
+      });
+      // Older MAIN worlds may receive a forward-compatible native bootstrap token but cannot open a runtime port.
+      this.server.on("bootstrap", () => undefined);
+    }
 
     // 用于 early-start 的扩充参数
     const { inIncognitoContext } = this.extensionEnv || {};
@@ -334,18 +340,26 @@ export class ScriptRuntime {
     if (freshScripts.length > 0) this.scriptExecutor.startScripts(freshScripts, envInfo);
   }
 
-  receivePageLoad(data: unknown): string | undefined {
+  receivePageLoad(data: unknown, beforeStart?: () => void): PageLoadReceipt {
     if (this.scripEnvTag === "it") {
       const safeData = cloneInjectPageLoad(data);
-      if (!safeData) return undefined;
+      if (!safeData) return { accepted: false };
+      beforeStart?.();
       this.startScripts(safeData.scripts, safeData.envInfo);
-      return safeData.reconnectToken;
+      return {
+        accepted: true,
+        ...(safeData.reconnectToken ? { reconnectToken: safeData.reconnectToken } : {}),
+      };
     }
     const safeData = clonePageLoad(data, "ct", true, true);
-    if (!safeData) return undefined;
+    if (!safeData) return { accepted: false };
+    beforeStart?.();
     setPageRpcExtensionOrigin(safeData.extensionOrigin);
     this.startScripts(safeData.scripts, safeData.envInfo);
-    return safeData.reconnectToken;
+    return {
+      accepted: true,
+      ...(safeData.reconnectToken ? { reconnectToken: safeData.reconnectToken } : {}),
+    };
   }
 
   receiveEmitEvent(data: unknown): void {

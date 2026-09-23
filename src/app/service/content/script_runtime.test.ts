@@ -397,3 +397,50 @@ describe("ScriptRuntime fallback batches", () => {
     expect(() => runtime.receiveFallbackBatch(batch(1))).not.toThrow();
   });
 });
+
+describe("ScriptRuntime MAIN pageLoad receipt", () => {
+  const makePageLoad = () => ({
+    scripts: [
+      {
+        uuid: "inject-script",
+        scriptRevision: "inject-script:1:0",
+        name: "Inject script",
+        flag: "inject-script-flag",
+        code: "",
+        metadata: { grant: [] },
+        resource: {},
+        value: {},
+        executionHandle: "page-binding",
+        executionEnvTag: "it",
+        executionRunFlag: "page-run",
+      },
+    ],
+    envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+  });
+
+  it("runs the transport-selection hook only after validation and before script start", () => {
+    const server = { on: vi.fn() } as unknown as Server;
+    let selected = false;
+    const executor = {
+      checkEarlyStartScript: vi.fn(),
+      startScripts: vi.fn(() => {
+        expect(selected).toBe(true);
+      }),
+      emitEvent: vi.fn(),
+      valueUpdate: vi.fn(),
+    };
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
+    const beforeStart = vi.fn(() => {
+      selected = true;
+    });
+
+    expect(runtime.receivePageLoad(makePageLoad(), beforeStart)).toEqual({ accepted: true });
+    expect(beforeStart).toHaveBeenCalledOnce();
+
+    selected = false;
+    const invalid = makePageLoad();
+    delete (invalid.scripts[0] as { executionHandle?: string }).executionHandle;
+    expect(runtime.receivePageLoad(invalid, beforeStart)).toEqual({ accepted: false });
+    expect(beforeStart).toHaveBeenCalledOnce();
+  });
+});

@@ -17,6 +17,7 @@ import {
 } from "./page_rpc";
 import { getEffectiveScriptGrants } from "./utils";
 import type { MainTransportClientResolution, MainTransportResolution } from "../service_worker/types";
+import type { PageLoadReceipt } from "./script_runtime";
 
 const PageOrContent = {
   PAGE: 1,
@@ -25,6 +26,24 @@ const PageOrContent = {
 } as const;
 
 type PageOrContent = ValueOf<typeof PageOrContent>;
+
+const MAIN_PAGE_RESPONSE_TIMEOUT_MS = 1000;
+const MAIN_CONTROL_RETRY_MS = 50;
+
+const withPageResponseTimeout = <T>(promise: Promise<T | undefined>): Promise<T | undefined> =>
+  new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(undefined), MAIN_PAGE_RESPONSE_TIMEOUT_MS);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(undefined);
+      }
+    );
+  });
 
 export const serializeDocumentResponse = (
   response: Document | null,
@@ -42,8 +61,10 @@ export const serializeDocumentResponse = (
 export default class ScriptingRuntime {
   private mainTransportToken?: string;
   private mainFallbackActive = false;
+  private mainFallbackDeliveryReady = false;
   private fallbackPumpRunning = false;
   private mainResolutionTimer?: ReturnType<typeof setTimeout>;
+  private fallbackPumpTimer?: ReturnType<typeof setTimeout>;
   // 页面请求必须先在此注册句柄，再由 transform 解析为隔离 broker 可接受的身份。
   private readonly pageRpc = new PageRpcRegistry();
   constructor(
@@ -149,6 +170,7 @@ export default class ScriptingRuntime {
         return false;
       },
       (data) => {
+        if (!this.mainFallbackActive) throw new Error("MAIN fallback transport is inactive");
         // 所有来自页面的 GM RPC 都在转发前完成字段、句柄、授权和参数复制检查；
         // wire 身份只带 handle，canonical uuid/runFlag/envTag 由 SW 依据 handle + 真实 sender 解析。
         const request = validatePageGMRequest(data, this.pageRpc);
@@ -175,30 +197,41 @@ export default class ScriptingRuntime {
       activeScripts.push(script);
     }
     this.mainFallbackActive = true;
+    this.mainFallbackDeliveryReady = false;
     return activeScripts;
   }
 
   private async deliverFallbackBatch(): Promise<undefined> {
-    if (!this.mainFallbackActive || !this.mainTransportToken || this.fallbackPumpRunning) return undefined;
+    if (
+      !this.mainFallbackActive ||
+      !this.mainFallbackDeliveryReady ||
+      !this.mainTransportToken ||
+      this.fallbackPumpRunning
+    )
+      return undefined;
     this.fallbackPumpRunning = true;
     try {
       const client = new RuntimeClient(this.senderToExt);
       while (this.mainFallbackActive && this.mainTransportToken) {
         const resolution = await client.advanceMainFallback({ transportToken: this.mainTransportToken });
         if (resolution.mode === "ambiguous") {
-          this.scheduleMainTransportResolution(50);
+          this.scheduleFallbackPump(MAIN_CONTROL_RETRY_MS);
           return undefined;
         }
         if (resolution.mode !== "fallback" || !resolution.batch) return undefined;
-        const receipt = await sendMessage(this.senderToInject, "inject/fallbackBatch", resolution.batch);
-        if (!receipt || typeof receipt !== "object" || (receipt as { applied?: unknown }).applied !== true)
+        const receipt = await withPageResponseTimeout(
+          sendMessage<{ applied?: unknown }>(this.senderToInject, "inject/fallbackBatch", resolution.batch)
+        );
+        if (!receipt || typeof receipt !== "object" || receipt.applied !== true) {
+          this.scheduleFallbackPump(MAIN_CONTROL_RETRY_MS);
           return undefined;
+        }
         const acknowledged = await client.advanceMainFallback({
           transportToken: this.mainTransportToken,
           ackBatchId: resolution.batch.id,
         });
         if (acknowledged.mode === "ambiguous") {
-          this.scheduleMainTransportResolution(50);
+          this.scheduleFallbackPump(MAIN_CONTROL_RETRY_MS);
           return undefined;
         }
       }
@@ -206,6 +239,17 @@ export default class ScriptingRuntime {
       this.fallbackPumpRunning = false;
     }
     return undefined;
+  }
+
+  private scheduleFallbackPump(delayMs: number): void {
+    if (this.fallbackPumpTimer) clearTimeout(this.fallbackPumpTimer);
+    this.fallbackPumpTimer = setTimeout(
+      () => {
+        this.fallbackPumpTimer = undefined;
+        void this.deliverFallbackBatch();
+      },
+      Math.max(0, delayMs)
+    );
   }
 
   private scheduleMainTransportResolution(delayMs: number): void {
@@ -221,21 +265,44 @@ export default class ScriptingRuntime {
 
   private async resolveMainTransport(): Promise<void> {
     if (!this.mainTransportToken || this.mainFallbackActive) return;
+    const token = this.mainTransportToken;
     const resolution: MainTransportClientResolution = await new RuntimeClient(this.senderToExt).resolveMainTransport({
-      transportToken: this.mainTransportToken,
+      transportToken: token,
     });
+    if (this.mainTransportToken !== token) return;
     if (resolution.mode === "ambiguous") {
-      this.scheduleMainTransportResolution(50);
+      this.scheduleMainTransportResolution(MAIN_CONTROL_RETRY_MS);
     } else if (resolution.mode === "pending") {
-      this.scheduleMainTransportResolution(Math.max(10, resolution.retryAfterMs ?? 50));
+      this.scheduleMainTransportResolution(Math.max(10, resolution.retryAfterMs ?? MAIN_CONTROL_RETRY_MS));
     } else if (resolution.mode === "fallback") {
       const scripts = this.activateFallback(resolution);
       if (!scripts) return;
-      await sendMessage(this.senderToInject, "inject/pageLoad", {
-        scripts,
-        envInfo: resolution.envInfo,
-        reconnectToken: undefined,
-      });
+      let receipt: PageLoadReceipt | undefined;
+      for (let attempt = 0; attempt < 2 && this.mainTransportToken === token; attempt += 1) {
+        receipt = await withPageResponseTimeout(
+          sendMessage<PageLoadReceipt>(this.senderToInject, "inject/pageLoad", {
+            scripts,
+            envInfo: resolution.envInfo,
+            reconnectToken: undefined,
+          })
+        );
+        if (receipt !== undefined) break;
+      }
+      if (this.mainTransportToken !== token) return;
+      if (!receipt) {
+        this.mainFallbackActive = false;
+        this.mainFallbackDeliveryReady = false;
+        this.pageRpc.revokeAll();
+        this.scheduleMainTransportResolution(MAIN_CONTROL_RETRY_MS);
+        return;
+      }
+      if (!receipt.accepted) {
+        this.mainFallbackActive = false;
+        this.mainFallbackDeliveryReady = false;
+        this.pageRpc.revokeAll();
+        return;
+      }
+      this.mainFallbackDeliveryReady = true;
       await this.deliverFallbackBatch();
     }
   }
@@ -252,13 +319,25 @@ export default class ScriptingRuntime {
             event: "pageshow",
             persisted: true,
           })
-          .then((result) =>
-            result.mode === "ambiguous" ? this.scheduleMainTransportResolution(50) : this.deliverFallbackBatch()
-          );
+          .then((result) => {
+            if (result.mode === "ambiguous") {
+              this.scheduleMainTransportResolution(MAIN_CONTROL_RETRY_MS);
+            } else if (this.mainFallbackActive) {
+              this.scheduleFallbackPump(0);
+            } else {
+              this.scheduleMainTransportResolution(0);
+            }
+          });
         void client.pageShow();
       }
     });
     window.addEventListener("pagehide", (e) => {
+      if (e.persisted) {
+        if (this.mainResolutionTimer) clearTimeout(this.mainResolutionTimer);
+        this.mainResolutionTimer = undefined;
+        if (this.fallbackPumpTimer) clearTimeout(this.fallbackPumpTimer);
+        this.fallbackPumpTimer = undefined;
+      }
       if (this.mainTransportToken) {
         void client.mainTransportLifecycle({
           transportToken: this.mainTransportToken,
