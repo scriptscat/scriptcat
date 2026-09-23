@@ -14,7 +14,7 @@ class FakePort {
 
   postMessage = (data: unknown) => {
     if (this.closed) throw new Error("closed");
-    const event = { data } as MessageEvent;
+    const event = new MessageEvent("message", { data });
     queueMicrotask(() => this.peer?.dispatch(event));
   };
 
@@ -87,6 +87,41 @@ describe("MessagePortMessage", () => {
 
     left.dispose();
     right.dispose();
+  });
+
+  it("does not consult a userscript-poisoned MessageEvent.prototype.data getter", async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(MessageEvent.prototype, "data");
+    // happy-dom currently models MessageEvent.data as an own field rather than a WebIDL
+    // prototype getter. Real-browser poisoning is covered by sandbox-message-port.spec.ts.
+    if (!descriptor?.get || descriptor.configurable !== true) return;
+
+    let poisonedReads = 0;
+    Object.defineProperty(MessageEvent.prototype, "data", {
+      ...descriptor,
+      get() {
+        poisonedReads += 1;
+        return descriptor!.get!.call(this);
+      },
+    });
+
+    const [leftPort, rightPort] = makePortPair();
+    const left = new MessagePortMessage(leftPort);
+    const right = new MessagePortMessage(rightPort);
+    right.onMessage((data, sendResponse) => {
+      sendResponse({ code: 0, data: data.data });
+    });
+
+    try {
+      await expect(left.sendMessage({ action: "sandbox/ping", data: "private" })).resolves.toEqual({
+        code: 0,
+        data: "private",
+      });
+      expect(poisonedReads).toBe(0);
+    } finally {
+      left.dispose();
+      right.dispose();
+      Object.defineProperty(MessageEvent.prototype, "data", descriptor!);
+    }
   });
 
   it("preserves scoped MessageConnect traffic", async () => {

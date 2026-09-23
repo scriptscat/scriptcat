@@ -66,6 +66,8 @@ test.describe("private Offscreen/EventPage ↔ Sandbox MessagePort", () => {
     const readyAttribute = `data-sc-${token}-spy-ready`;
     const countAttribute = `data-sc-${token}-window-message-count`;
     const victimReadyAttribute = `data-sc-${token}-victim-ready`;
+    const prototypeHookAttribute = `data-sc-${token}-prototype-hooked`;
+    const prototypeCountAttribute = `data-sc-${token}-prototype-message-count`;
 
     const spyCode = `// ==UserScript==
 // @name         ${spyName}
@@ -81,9 +83,34 @@ const capture = (event) => {
   observed.push(event.data);
   GM_setValue("window-message-count", observed.length);
 };
+
+let prototypeReads = 0;
+const dataDescriptor = Object.getOwnPropertyDescriptor(MessageEvent.prototype, "data");
+const prototypeHooked = !!dataDescriptor?.get && dataDescriptor.configurable === true;
+if (prototypeHooked) {
+  Object.defineProperty(MessageEvent.prototype, "data", {
+    ...dataDescriptor,
+    get() {
+      const value = dataDescriptor.get.call(this);
+      if (
+        value &&
+        typeof value === "object" &&
+        typeof value.messageId === "string" &&
+        typeof value.type === "string"
+      ) {
+        prototypeReads += 1;
+        GM_setValue("prototype-message-count", prototypeReads);
+      }
+      return value;
+    },
+  });
+}
+
 window.addEventListener("message", capture);
 window.onmessage = capture;
 GM_setValue("window-message-count", 0);
+GM_setValue("prototype-message-count", 0);
+GM_setValue("prototype-hooked", prototypeHooked);
 GM_setValue("spy-ready", true);
 return new Promise(() => {});
 `;
@@ -109,10 +136,14 @@ const sync = () => {
   setMarker(${JSON.stringify(readyAttribute)}, GM_getValue("spy-ready", false));
   setMarker(${JSON.stringify(countAttribute)}, GM_getValue("window-message-count", -1));
   setMarker(${JSON.stringify(victimReadyAttribute)}, GM_getValue("victim-ready", false));
+  setMarker(${JSON.stringify(prototypeHookAttribute)}, GM_getValue("prototype-hooked", false));
+  setMarker(${JSON.stringify(prototypeCountAttribute)}, GM_getValue("prototype-message-count", -1));
 };
 GM_addValueChangeListener("spy-ready", sync);
 GM_addValueChangeListener("window-message-count", sync);
 GM_addValueChangeListener("victim-ready", sync);
+GM_addValueChangeListener("prototype-hooked", sync);
+GM_addValueChangeListener("prototype-message-count", sync);
 sync();
 `;
 
@@ -139,7 +170,9 @@ return new Promise(() => {});
       await page.goto(`${TARGET_ORIGIN}/page?token=${token}`, { waitUntil: "domcontentloaded" });
       const root = page.locator("html");
       await expect(root).toHaveAttribute(readyAttribute, "true", { timeout: 20_000 });
+      await expect(root).toHaveAttribute(prototypeHookAttribute, "true", { timeout: 20_000 });
       await expect.poll(() => root.getAttribute(countAttribute), { timeout: 20_000 }).toBe("0");
+      await expect.poll(() => root.getAttribute(prototypeCountAttribute), { timeout: 20_000 }).toBe("0");
 
       // Installing/enabling another background script forces parent → sandbox lifecycle traffic.
       // With the old WindowMessage carrier the spy sees those envelopes on the global message bus.
@@ -151,6 +184,7 @@ return new Promise(() => {});
       // its message handler, so victim-ready + count=0 proves lifecycle traffic stayed private.
       await expect(root).toHaveAttribute(victimReadyAttribute, "true", { timeout: 20_000 });
       await expect.poll(() => root.getAttribute(countAttribute), { timeout: 5_000 }).toBe("0");
+      await expect.poll(() => root.getAttribute(prototypeCountAttribute), { timeout: 5_000 }).toBe("0");
     } finally {
       await page.close();
     }

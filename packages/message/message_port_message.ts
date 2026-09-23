@@ -17,6 +17,21 @@ import {
 
 const nativeReflectApply = Reflect.apply;
 const nativeFunctionBind = Function.prototype.bind;
+const nativeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+const nativeMessageEventDataGetter = nativeObjectGetOwnPropertyDescriptor(MessageEvent.prototype, "data")?.get;
+
+const readMessageEventData = (event: MessageEvent): unknown => {
+  if (nativeMessageEventDataGetter) {
+    try {
+      return nativeReflectApply(nativeMessageEventDataGetter, event, []);
+    } catch {
+      // Test/mocked Event objects may not carry the browser MessageEvent internal slots.
+    }
+  }
+  const descriptor = nativeObjectGetOwnPropertyDescriptor(event, "data");
+  return descriptor && "value" in descriptor ? descriptor.value : undefined;
+};
+
 const bindNative = <T extends (...args: any[]) => any>(fn: T, receiver: any): T =>
   nativeReflectApply(nativeFunctionBind, fn, [receiver]) as T;
 
@@ -56,7 +71,7 @@ export class MessagePortMessage implements Message {
     this.closePort = bindNative(port.close, port);
     this.target = new MessagePortPostMessage(port);
     this.messageHandler = ((event: MessageEvent) => {
-      this.messageHandle(event.data);
+      this.messageHandle(readMessageEventData(event));
     }) as EventListener;
     addMessageListener("message", this.messageHandler);
     startPort();
