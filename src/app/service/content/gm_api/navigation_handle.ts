@@ -1,4 +1,5 @@
 import { Native } from "../global";
+import { createDeferToNextTaskKernel } from "@App/pkg/utils/mesasge-channel";
 
 export class UrlChangeEvent extends Event {
   readonly url: string;
@@ -8,11 +9,19 @@ export class UrlChangeEvent extends Event {
   }
 }
 
+interface IDeferToNextTaskKernel {
+  release(): void;
+  nextMarcoTask(): Promise<void>;
+}
+
+let m: IDeferToNextTaskKernel;
+
 let attached = false;
 
-// 仅供测试使用，重置 attached 标记
+// 仅供测试使用，重置 attached 标记并释放复用的 MessageChannel
 export const resetAttachedForTest = () => {
   attached = false;
+  m.release();
 };
 
 const getPropGetter = <T>(obj: T, key: keyof T) => {
@@ -36,18 +45,16 @@ export const attachNavigateHandler = (win: Window & { navigation: EventTarget })
   const dispatch = Native.bind(win.dispatchEvent, win);
   let lastUrl = getUrl?.();
   let callSeq = 0;
+  m = createDeferToNextTaskKernel();
   const handler = async (ev: Event): Promise<void> => {
     callSeq = callSeq > 512 ? 1 : callSeq + 1;
     const seq = callSeq;
     let newUrl = getUrl?.(); // 取得当前 location.href
     const destUrl = (ev as any).destination?.url;
     if (destUrl !== newUrl && newUrl === lastUrl) {
-      // 某些情况，location.href 未更新就触发了
-      // 用 postMessage 推迟到下一个 macrotask 阶段
-      await new Promise((resolve) => {
-        self.addEventListener("message", resolve, { once: true });
-        self.postMessage({ [`${Math.random()}`]: {} }, "*"); // 传一个 dummy message
-      });
+      // 某些情况，location.href 未更新就触发了。复用一个私有 MessageChannel
+      // 让出一个 task；同一轮内的重叠导航共享这次等待，再由 callSeq 丢弃旧 continuation。
+      await m.nextMarcoTask();
       if (seq !== callSeq) return; // 等待时，或许已经触发了其他 navigate
       newUrl = getUrl?.(); // 再次取得当前 location.href
     }
