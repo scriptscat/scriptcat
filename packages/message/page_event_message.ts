@@ -10,16 +10,16 @@ import type {
 } from "./types";
 import { CustomEventClone, pageAddEventListener, pageDispatchCustomEvent, pageRemoveEventListener } from "./common";
 
-export type PageMessageRole = "scripting" | "inject";
+export type PageEventMessageRole = "scripting" | "inject";
 
-type PageMessageType = "sendMessage" | "respMessage" | "connect" | "disconnect" | "connectMessage";
+type PageEventMessageType = "sendMessage" | "respMessage" | "connect" | "disconnect" | "connectMessage";
 
-type PageMessageBody = {
+type PageEventMessageBody = {
   readonly channel: string;
-  readonly source: PageMessageRole;
-  readonly target: PageMessageRole;
+  readonly source: PageEventMessageRole;
+  readonly target: PageEventMessageRole;
   readonly messageId: string;
-  readonly type: PageMessageType;
+  readonly type: PageEventMessageType;
   readonly data: TMessage | null;
 };
 
@@ -33,18 +33,18 @@ const listenerMgr = new EventEmitter<string, any>();
 
 const nativeReflectOwnKeys = Reflect.ownKeys;
 const nativeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-const PAGE_MESSAGE_KEYS = ["channel", "source", "target", "messageId", "type", "data"] as const;
+const PAGE_EVENT_MESSAGE_KEYS = ["channel", "source", "target", "messageId", "type", "data"] as const;
 
-const parsePageMessageBody = (value: unknown): PageMessageBody | undefined => {
+const parsePageEventMessageBody = (value: unknown): PageEventMessageBody | undefined => {
   if (value === null || typeof value !== "object") return undefined;
 
   try {
     const keys = nativeReflectOwnKeys(value);
-    if (keys.length !== PAGE_MESSAGE_KEYS.length) return undefined;
+    if (keys.length !== PAGE_EVENT_MESSAGE_KEYS.length) return undefined;
     for (let index = 0; index < keys.length; index += 1) {
       let known = false;
-      for (let expectedIndex = 0; expectedIndex < PAGE_MESSAGE_KEYS.length; expectedIndex += 1) {
-        if (keys[index] === PAGE_MESSAGE_KEYS[expectedIndex]) {
+      for (let expectedIndex = 0; expectedIndex < PAGE_EVENT_MESSAGE_KEYS.length; expectedIndex += 1) {
+        if (keys[index] === PAGE_EVENT_MESSAGE_KEYS[expectedIndex]) {
           known = true;
           break;
         }
@@ -97,25 +97,25 @@ const parsePageMessageBody = (value: unknown): PageMessageBody | undefined => {
       messageId: messageId.value,
       type: messageType,
       data: data.value,
-    } as PageMessageBody;
+    } as PageEventMessageBody;
   } catch {
     return undefined;
   }
 };
 
-const otherRole = (role: PageMessageRole): PageMessageRole => (role === "scripting" ? "inject" : "scripting");
+const otherRole = (role: PageEventMessageRole): PageEventMessageRole => (role === "scripting" ? "inject" : "scripting");
 
-class PageMessageConnect implements MessageConnect {
+class PageEventMessageConnect implements MessageConnect {
   private readonly listenerId = uuidv4();
   private target: (() => void) | null;
   private isSelfDisconnected = false;
 
   constructor(
     private readonly messageId: string,
-    private readonly targetRole: PageMessageRole,
+    private readonly targetRole: PageEventMessageRole,
     private readonly send: (
-      target: PageMessageRole,
-      body: Omit<PageMessageBody, "channel" | "source" | "target">
+      target: PageEventMessageRole,
+      body: Omit<PageEventMessageBody, "channel" | "source" | "target">
     ) => void,
     private readonly EE: EventEmitter<string, any>
   ) {
@@ -179,21 +179,21 @@ class PageMessageConnect implements MessageConnect {
  * host page 可无条件监听的 window "message" 总线上。event name 只降低普通页面代码的被动
  * 可观察性，不是认证边界；调用方仍必须验证每个请求，并把权限绑定到隔离执行记录。
  */
-export class PageMessage implements Message {
+export class PageEventMessage implements Message {
   readonly EE = new EventEmitter<string, any>();
   private readonly receiveEventName: string;
   private readonly messageHandler: (event: Event) => void;
-  private readonly targetRole: PageMessageRole;
+  private readonly targetRole: PageEventMessageRole;
 
   constructor(
     private readonly channel: string,
-    private readonly role: PageMessageRole
+    private readonly role: PageEventMessageRole
   ) {
     this.targetRole = otherRole(role);
-    this.receiveEventName = `${channel}.pageMessage.${role}`;
+    this.receiveEventName = `${channel}.pageEventMessage.${role}`;
     this.messageHandler = (event: Event) => {
       if (!(event instanceof CustomEventClone)) return;
-      const body = parsePageMessageBody(event.detail);
+      const body = parsePageEventMessageBody(event.detail);
       if (!body || body.channel !== this.channel || body.target !== this.role || body.source !== this.targetRole) {
         return;
       }
@@ -202,16 +202,16 @@ export class PageMessage implements Message {
     pageAddEventListener(this.receiveEventName, this.messageHandler);
   }
 
-  private sendEnvelope(target: PageMessageRole, body: Omit<PageMessageBody, "channel" | "source" | "target">): void {
-    pageDispatchCustomEvent(`${this.channel}.pageMessage.${target}`, {
+  private sendEnvelope(target: PageEventMessageRole, body: Omit<PageEventMessageBody, "channel" | "source" | "target">): void {
+    pageDispatchCustomEvent(`${this.channel}.pageEventMessage.${target}`, {
       channel: this.channel,
       source: this.role,
       target,
       ...body,
-    } satisfies PageMessageBody);
+    } satisfies PageEventMessageBody);
   }
 
-  private messageHandle(body: PageMessageBody): void {
+  private messageHandle(body: PageEventMessageBody): void {
     if (body.type === "sendMessage") {
       this.EE.emit(
         "message",
@@ -231,7 +231,7 @@ export class PageMessage implements Message {
       this.EE.emit(
         "connect",
         body.data,
-        new PageMessageConnect(body.messageId, body.source, bindNative(this.sendEnvelope, this), this.EE)
+        new PageEventMessageConnect(body.messageId, body.source, bindNative(this.sendEnvelope, this), this.EE)
       );
     } else if (body.type === "disconnect") {
       this.EE.emit(`disconnect:${body.messageId}`);
@@ -252,7 +252,7 @@ export class PageMessage implements Message {
     const messageId = uuidv4();
     this.sendEnvelope(this.targetRole, { messageId, type: "connect", data });
     return Promise.resolve(
-      new PageMessageConnect(messageId, this.targetRole, bindNative(this.sendEnvelope, this), this.EE)
+      new PageEventMessageConnect(messageId, this.targetRole, bindNative(this.sendEnvelope, this), this.EE)
     );
   }
 
@@ -260,7 +260,7 @@ export class PageMessage implements Message {
     return new Promise<T>((resolve) => {
       const messageId = uuidv4();
       const eventId = `response:${messageId}`;
-      this.EE.addListener(eventId, (body: PageMessageBody) => {
+      this.EE.addListener(eventId, (body: PageEventMessageBody) => {
         this.EE.removeAllListeners(eventId);
         resolve(body.data as T);
       });

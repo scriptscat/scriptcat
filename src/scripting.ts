@@ -3,7 +3,7 @@ import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import type { Message } from "@Packages/message/types";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
-import { PageMessage } from "@Packages/message/page_message";
+import { PageEventMessage } from "@Packages/message/page_event_message";
 import { ScriptEnvTag } from "@Packages/message/consts";
 import { Server } from "@Packages/message/server";
 import ScriptingRuntime from "./app/service/content/scripting";
@@ -25,7 +25,7 @@ negotiateEventFlag(messageFlag, extensionEnv, 2, (eventFlag) => {
   logger.logger().debug("scripting start");
 
   const contentMsg = new CustomEventMessage(eventFlag, true, ScriptEnvTag.content);
-  const injectMsg = new PageMessage(eventFlag, "scripting");
+  const injectMsg = new PageEventMessage(eventFlag, "scripting");
 
   const server = new Server("scripting", [contentMsg, injectMsg]);
 

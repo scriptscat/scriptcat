@@ -77,15 +77,11 @@ Three ideas explain almost everything in the codebase:
          inject, and sandbox don't hold a MessageQueue instance.
 ```
 
-The diagram compresses the page-facing routes: USER_SCRIPT content and MAIN inject runtimes also connect directly
-to the Service Worker through native extension channels on the preferred path. The `scripting` bundle is a
+The diagram compresses the page-facing routes: USER_SCRIPT content uses a native extension channel after bootstrap, while MAIN inject intentionally uses a single keyed performance-event bridge through `scripting`. The `scripting` bundle is a
 document-start extension content script registered per matching frame; it runs a page-bridge runtime and is a
 supporting per-document helper rather than a separate service/background context in this five-context model.
 `CustomEventMessage` carries the content bootstrap
-handoff and synchronous DOM handles; `PageMessage` carries MAIN bootstrap/fallback traffic, runtime event/value
-updates, and the whitelisted `external.Scriptcat` API. When MAIN GM RPC uses the page bridge fallback, the scripting
-runtime validates the execution handle and grant before forwarding it to the Service Worker; the page bridge
-itself is not an authenticated extension origin.
+handoff and synchronous DOM handles; `PageEventMessage` carries MAIN pageLoad, runtime event/value updates, the whitelisted `external.Scriptcat` API, and validated GM RPC through the isolated `scripting` broker. It uses a random event name on `performance`, not the global `window.message` bus. The bridge itself is not an authenticated extension origin.
 
 ---
 
@@ -97,7 +93,7 @@ Each context is a separate bundle (see [Build pipeline & manifest](./references/
 |---|---|---|---|
 | **Service Worker** | [`src/service_worker.ts`](../src/service_worker.ts) | No DOM. Owns `chrome.*` privileged APIs, storage, permissions, routing. | `ExtensionMessage(true)` → `Server("serviceWorker")` + `MessageQueue` → `ServiceWorkerManager` |
 | **Content** | [`src/content.ts`](../src/content.ts) | `USER_SCRIPT` world. Receives a document bootstrap token through the page-side bridge, then uses a native extension channel for script loading, GM RPC, value updates, and callbacks. Dedicated USER_SCRIPT listeners are used when available; otherwise the regular port is token-bound. | `ExtensionMessage` + native callback port → `Server("content")` → `ScriptRuntime`; `CustomEventMessage` for bootstrap handoff and DOM handles |
-| **Inject** | [`src/inject.ts`](../src/inject.ts) | Page (`MAIN`) world. Has `unsafeWindow`; runs page userscripts. | Native extension port for the preferred GM RPC path; `PageMessage` for bootstrap/fallback, whitelisted external API, and validated GM RPC fallback; `CustomEventMessage` for synchronous DOM handles |
+| **Inject** | [`src/inject.ts`](../src/inject.ts) | Page (`MAIN`) world. Has `unsafeWindow`; runs page userscripts. | `PageEventMessage` keyed performance-event bridge → `scripting`; broker/SW validate privileged RPC; `CustomEventMessage` for synchronous DOM handles |
 | **Offscreen** | [`src/offscreen.ts`](../src/offscreen.ts) | DOM-capable background page (Blobs, clipboard, DOM scraping, local storage). | `ExtensionMessage()` + `WindowMessage(window, sandbox)` → `OffscreenManager` |
 | **Sandbox** | [`src/sandbox.ts`](../src/sandbox.ts) | `sandbox`ed iframe inside offscreen. Evaluates background/scheduled scripts; runs cron. | `WindowMessage(window, parent)` + `Server("sandbox")` → `SandboxManager` |
 
@@ -180,7 +176,7 @@ communication styles** over **several transports**.
 | Class | File | Connects | Underlying API |
 |---|---|---|---|
 | `ExtensionMessage` | [`extension_message.ts`](../packages/message/extension_message.ts) | SW ↔ Content / Inject / Offscreen | `chrome.runtime.sendMessage` / `onConnect`; browser-identified USER_SCRIPT messages are action-gated, and regular-port fallbacks are token-bound |
-| `PageMessage` | [`page_message.ts`](../packages/message/page_message.ts) | `scripting` ↔ Inject | `window.postMessage`; page-visible MAIN bootstrap/fallback, runtime updates, whitelisted external API, and GM RPC fallback validated by `PageRpcRegistry` |
+| `PageEventMessage` | [`page_event_message.ts`](../packages/message/page_event_message.ts) | `scripting` ↔ Inject | `window.postMessage`; page-visible MAIN bootstrap/fallback, runtime updates, whitelisted external API, and GM RPC fallback validated by `PageRpcRegistry` |
 | `CustomEventMessage` | [`custom_event_message.ts`](../packages/message/custom_event_message.ts) | Content ↔ `scripting` page helper | DOM `CustomEvent`; bootstrap handoff and synchronous DOM references, not privileged GM RPC |
 | `WindowMessage` | [`window_message.ts`](../packages/message/window_message.ts) | Offscreen ↔ Sandbox | `window.postMessage` |
 | `ServiceWorkerMessageSend` | [`window_message.ts`](../packages/message/window_message.ts) | SW → Offscreen (Chrome) | `clients.matchAll()` + `postMessage` |

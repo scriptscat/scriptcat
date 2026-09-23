@@ -59,13 +59,7 @@ content script that supplies the page bridge. At document time the content/injec
 ([`script_runtime.ts`](../../src/app/service/content/script_runtime.ts),
 [`exec_script.ts`](../../src/app/service/content/exec_script.ts)) evaluates the compiled function with the GM
 context. The `USER_SCRIPT` content path obtains its matched scripts directly from the service worker over
-`ExtensionMessage` after a bootstrap-token handoff. The MAIN `inject` path uses a native extension port for GM RPC
-when available; `PageMessage` carries page-visible bootstrap/fallback traffic, MAIN event/value updates, the
-whitelisted `external.Scriptcat` API, and the MAIN GM RPC fallback through the `scripting` bundle. On a MAIN
-bootstrap fallback request, [`scripting.ts`](../../src/app/service/content/scripting.ts) forwards the prepared
-matching `injectScriptList` and environment information; it does not reduce execution to `@grant none` scripts.
-The GM RPC fallback validates the request shape, active execution handle, request sequence, and granted API in
-[`PageRpcRegistry`](../../src/app/service/content/page_rpc.ts) before forwarding it to the service worker. The
+`ExtensionMessage` after a bootstrap-token handoff. The MAIN `inject` path deliberately has one cross-world transport: `PageEventMessage`, carried by a random event name on `performance`. It carries authoritative pageLoad data, MAIN event/value updates, the whitelisted `external.Scriptcat` API, and GM RPC through the isolated `scripting` broker. Before forwarding privileged GM RPC, [`PageRpcRegistry`](../../src/app/service/content/page_rpc.ts) validates the request shape, active execution handle, request sequence, and granted API; the Service Worker then resolves canonical identity again from the handle and real sender. The
 handle identifies a binding but is not an authorization secret.
 `CustomEventMessage` carries the content bootstrap handoff and synchronous DOM references. Neither page-visible
 bridge establishes an authenticated extension origin, so consumers must validate its payloads before acting on

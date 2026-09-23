@@ -20,6 +20,6 @@ document），细节见
 - service_worker 和 offscreen 之间可以使用 postMessage 的方式进行通信，避免同时监听 message 与 connect 导致冲突的问题。
 - service_worker 会在空闲后进入不活动状态；与它建立的 `connect()` 长连接会在此时中断，因此需要长连接的场景要考虑
   重连/状态恢复，而不是假定连接一直存活——这不是禁止在 service_worker 上使用 `connect`，只是需要为其生命周期设计容错。
-- USER_SCRIPT content 和 MAIN inject 优先使用 `ExtensionMessage` 原生扩展通道；服务端区分浏览器提供的 USER_SCRIPT 来源，并把 MAIN 或专用监听器不可用时的普通端口绑定到文档 bootstrap token。
-- `Server("serviceWorker")` 对浏览器标记的 `userScript` 来源仅允许 `connect()` 使用 `runtime/registerUserScript` 或 `runtime/gmApi`，仅允许 `sendMessage()` 使用 `runtime/gmApi` 或 `runtime/reconnectUserScript`；普通 extension 端口不带该来源标记，USER_SCRIPT / MAIN 的注册回退路径会在 `runtime/registerUserScript` 握手中校验文档 bootstrap token。
-- `CustomEventMessage` 和 `PageMessage` 是页面可见的桥：前者承载 content bootstrap 交接与同步 DOM 节点引用，后者承载 MAIN bootstrap/fallback、事件/值更新、白名单 `external.Scriptcat` API，以及经 `scripting` 中转的 GM RPC fallback。它们不提供已认证的扩展来源；`PageMessage` 的 GM RPC 在转发前必须通过 `PageRpcRegistry` 的执行句柄与 grant 校验。
+- USER_SCRIPT content 使用 `ExtensionMessage` 原生扩展通道；专用 USER_SCRIPT listener 不可用时才退到受文档 bootstrap token 约束的普通 extension port。MAIN inject 不维护 native/fallback 双轨。
+- `Server("serviceWorker")` 对浏览器标记的 `userScript` 来源仅允许受控的 USER_SCRIPT 注册/GM API/reconnect 路径；普通 extension port fallback 只服务 USER_SCRIPT，并在 `runtime/registerUserScript` 握手中校验文档 bootstrap token。
+- `CustomEventMessage` 和 `PageEventMessage` 都使用 `performance` 上的随机 key 事件。前者承载 USER_SCRIPT bootstrap 与同步 DOM 节点引用；后者是 MAIN↔`scripting` 的唯一普通消息桥。不要把 MAIN payload 改回 `window.postMessage`：全局 `"message"` event 会让页面只用一个 listener 就被动观察全部 payload。随机 event key 不是授权秘密；MAIN GM RPC 仍必须先通过 `PageRpcRegistry`，再由 Service Worker 结合真实 sender 重验。

@@ -1,7 +1,7 @@
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
-import { PageMessage } from "@Packages/message/page_message";
+import { PageEventMessage } from "@Packages/message/page_event_message";
 import { Server } from "@Packages/message/server";
 import { ScriptExecutor } from "./app/service/content/script_executor";
 import type { Message } from "@Packages/message/types";
@@ -17,7 +17,7 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
 
   // MAIN world 使用唯一的 keyed performance-event bridge。
   // privileged GM RPC 仍由 scripting broker + service worker 对 execution binding / grant / sequence 做最终验证。
-  const msg: Message = new PageMessage(eventFlag, "inject");
+  const msg: Message = new PageEventMessage(eventFlag, "inject");
 
   const logger = new LoggerCore({
     writer: new MessageWriter(msg, "scripting/logger"),

@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PageMessage } from "./page_message";
+import { PageEventMessage } from "./page_event_message";
 import { pageDispatchCustomEvent } from "./common";
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("PageMessage", () => {
+describe("PageEventMessage", () => {
   it("routes messages only to the opposite role over a keyed performance event", async () => {
-    const scripting = new PageMessage("page-message-test", "scripting");
-    const inject = new PageMessage("page-message-test", "inject");
+    const scripting = new PageEventMessage("page-message-test", "scripting");
+    const inject = new PageEventMessage("page-message-test", "inject");
     const received = vi.fn((_data, sendResponse) => sendResponse({ code: 0, data: "pong" }));
     inject.onMessage(received);
 
@@ -29,8 +29,8 @@ describe("PageMessage", () => {
   it("does not publish bridge payloads on window message", async () => {
     const onWindowMessage = vi.fn();
     window.addEventListener("message", onWindowMessage);
-    const scripting = new PageMessage("page-message-no-window", "scripting");
-    const inject = new PageMessage("page-message-no-window", "inject");
+    const scripting = new PageEventMessage("page-message-no-window", "scripting");
+    const inject = new PageEventMessage("page-message-no-window", "inject");
     inject.onMessage((_data, sendResponse) => sendResponse({ code: 0 }));
 
     await scripting.sendMessage({ action: "inject/ping" });
@@ -44,8 +44,8 @@ describe("PageMessage", () => {
   });
 
   it("supports scoped connections and removes its keyed listener on dispose", async () => {
-    const scripting = new PageMessage("page-message-connect", "scripting");
-    const inject = new PageMessage("page-message-connect", "inject");
+    const scripting = new PageEventMessage("page-message-connect", "scripting");
+    const inject = new PageEventMessage("page-message-connect", "inject");
     const received = vi.fn();
     inject.onConnect((_data, connection) => connection.onMessage(received));
 
@@ -58,7 +58,7 @@ describe("PageMessage", () => {
     inject.dispose();
 
     expect(() =>
-      pageDispatchCustomEvent("page-message-connect.pageMessage.inject", {
+      pageDispatchCustomEvent("page-message-connect.pageEventMessage.inject", {
         channel: "page-message-connect",
         source: "scripting",
         target: "inject",
@@ -71,7 +71,7 @@ describe("PageMessage", () => {
   });
 
   it("ignores envelopes with accessor fields without executing the accessor", () => {
-    const inject = new PageMessage("page-message-accessor", "inject");
+    const inject = new PageEventMessage("page-message-accessor", "inject");
     const received = vi.fn();
     inject.onMessage(received);
     const envelope: Record<string, unknown> = {
@@ -92,14 +92,14 @@ describe("PageMessage", () => {
       },
     });
 
-    expect(() => pageDispatchCustomEvent("page-message-accessor.pageMessage.inject", envelope)).not.toThrow();
+    expect(() => pageDispatchCustomEvent("page-message-accessor.pageEventMessage.inject", envelope)).not.toThrow();
     expect(accessed).toBe(false);
     expect(received).not.toHaveBeenCalled();
     inject.dispose();
   });
 
   it("ignores proxy envelopes whose own-key inspection is hostile", () => {
-    const inject = new PageMessage("page-message-proxy", "inject");
+    const inject = new PageEventMessage("page-message-proxy", "inject");
     const received = vi.fn();
     inject.onMessage(received);
     const envelope = new Proxy(
@@ -118,17 +118,17 @@ describe("PageMessage", () => {
       }
     );
 
-    expect(() => pageDispatchCustomEvent("page-message-proxy.pageMessage.inject", envelope)).not.toThrow();
+    expect(() => pageDispatchCustomEvent("page-message-proxy.pageEventMessage.inject", envelope)).not.toThrow();
     expect(received).not.toHaveBeenCalled();
     inject.dispose();
   });
 
   it("rejects envelopes with unexpected own keys", () => {
-    const inject = new PageMessage("page-message-extra-key", "inject");
+    const inject = new PageEventMessage("page-message-extra-key", "inject");
     const received = vi.fn();
     inject.onMessage(received);
 
-    pageDispatchCustomEvent("page-message-extra-key.pageMessage.inject", {
+    pageDispatchCustomEvent("page-message-extra-key.pageEventMessage.inject", {
       channel: "page-message-extra-key",
       source: "scripting",
       target: "inject",
