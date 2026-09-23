@@ -25,14 +25,14 @@ import { cacheInstance } from "@App/app/cache";
 export type RegisteredUserScriptWithJsCode = RequireField<chrome.userScripts.RegisteredUserScript, "js">;
 
 const CHROMIUM_USER_SCRIPT_MATCH_SCHEMES = new Set(["*", "http", "https", "file"]);
+const FIREFOX_USER_SCRIPT_MATCH_SCHEMES = new Set(["*", "http", "https", "file", "ws", "wss", "ftp"]);
 
 export function filterUserScriptApiPatternsByScheme(patterns: readonly string[]): string[] {
-  // Firefox 的 match-pattern scheme 集合与 Chromium 不同；这里只在已验证的 Chromium API 边界收紧。
-  if (isFirefox()) return [...patterns];
+  const supportedSchemes = isFirefox() ? FIREFOX_USER_SCRIPT_MATCH_SCHEMES : CHROMIUM_USER_SCRIPT_MATCH_SCHEMES;
   return patterns.filter((pattern) => {
     if (pattern === "<all_urls>") return true;
     const schemeEnd = pattern.indexOf("://");
-    return schemeEnd > 0 && CHROMIUM_USER_SCRIPT_MATCH_SCHEMES.has(pattern.substring(0, schemeEnd));
+    return schemeEnd > 0 && supportedSchemes.has(pattern.substring(0, schemeEnd));
   });
 }
 

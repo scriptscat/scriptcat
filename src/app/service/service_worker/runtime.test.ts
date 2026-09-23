@@ -720,7 +720,7 @@ const _createRuntimeContext = () => {
 };
 
 describe("loadBlacklist 原生 match scheme 过滤", () => {
-  it("Chromium 原生黑名单应过滤不支持的 scheme，但内部匹配规则保持不变", () => {
+  it("原生 userScripts 黑名单应过滤不支持的 scheme，但内部匹配规则保持不变", () => {
     const { runtime } = _createRuntimeContext();
     runtime.blacklist = obtainBlackList("*://www.blacklisted.com/*\nnotsupported://*/*");
 
@@ -1371,7 +1371,7 @@ describe("getParticularScriptList 原生 match scheme 过滤", () => {
     expect(list[0].excludeMatches).toEqual([]);
   });
 
-  it("旧缓存没有任何 Chromium 可注册 scheme 时不创建原生注册项", async () => {
+  it("旧缓存没有任何 userScripts 可注册 scheme 时不创建原生注册项", async () => {
     const { runtime, mockScriptDAO } = _createRuntimeContext();
     const script = _createMockScript();
     const compiledResource = createCompiledResource(script, ["notsupported://*/*"]);

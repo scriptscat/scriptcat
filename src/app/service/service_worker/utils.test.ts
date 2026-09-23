@@ -309,7 +309,7 @@ describe.concurrent("getUserScriptRegister", () => {
     expect(result.registerScript.runAt).toBe("document_end");
   });
 
-  it.concurrent("不应把 Chromium 不支持的 @match scheme 交给 userScripts 注册", () => {
+  it.concurrent("不应把 userScripts 不支持的 @match scheme 交给注册 API", () => {
     const mockScriptMatchInfo: ScriptMatchInfo = {
       uuid: "test-invalid-match-scheme",
       name: "Invalid Match Scheme",
@@ -330,7 +330,7 @@ describe.concurrent("getUserScriptRegister", () => {
     expect(registerScript.matches).toEqual(["https://*/*", "http://*/*"]);
   });
 
-  it.concurrent("应同时过滤 Chromium 不支持的 exclude match scheme", () => {
+  it.concurrent("应同时过滤 userScripts 不支持的 exclude match scheme", () => {
     const mockScriptMatchInfo: ScriptMatchInfo = {
       uuid: "test-invalid-exclude-scheme",
       name: "Invalid Exclude Scheme",
