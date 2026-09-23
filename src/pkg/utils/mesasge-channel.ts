@@ -4,27 +4,25 @@ import { MessageChannel as NodeMessageChannel } from "node:worker_threads";
 // 安全考慮和複雜度平衡：這裡做一個 NativeMessageChannel 但不做 NativeMessagePort
 // 基於安全度考慮程度跟 Native 有不一致，故不放在 Native
 
-const nativeMessageChannel = typeof MessageChannel === "undefined" ? NodeMessageChannel : MessageChannel;
-
-export const NativeMessageChannel =
-  typeof MessageChannel === "undefined"
-    ? nativeMessageChannel
-    : class extends nativeMessageChannel {
-        declare public port1: MessagePort;
-        declare public port2: MessagePort;
-      };
-
-if (NativeMessageChannel !== NodeMessageChannel) {
-  const nativeMessageChannelPort1 = nativeMessageChannel.prototype.port1;
-  const nativeMessageChannelPort2 = nativeMessageChannel.prototype.port2;
-  const nativeMessageChannelPrototype = NativeMessageChannel.prototype as unknown as {
+const getNativeMessageChannelConstructor = () => {
+  if (typeof MessageChannel === "undefined") return NodeMessageChannel as typeof MessageChannel;
+  const NativeMessageChannel = class extends MessageChannel {
+    declare public port1: MessagePort;
+    declare public port2: MessagePort;
+  };
+  const nativeMessageChannelPort1 = MessageChannel.prototype.port1;
+  const nativeMessageChannelPort2 = MessageChannel.prototype.port2;
+  const nativeMessageChannelPrototype = NativeMessageChannel.prototype as {
     port1: MessagePort;
     port2: MessagePort;
   };
   nativeMessageChannelPrototype.port1 = nativeMessageChannelPort1 as MessagePort; // 重新把 port1 注入 prototype
   nativeMessageChannelPrototype.port2 = nativeMessageChannelPort2 as MessagePort; // 重新把 port2 注入 prototype
   Object.freeze(NativeMessageChannel.prototype);
-}
+  return NativeMessageChannel as typeof MessageChannel;
+};
+
+export const NativeMessageChannel = getNativeMessageChannelConstructor();
 
 // ---- IDeferToNextTaskKernel ----
 
@@ -36,19 +34,8 @@ export interface IDeferToNextTaskKernel {
   nextMarcoTask(): Promise<void>;
 }
 
-interface MessagePortLike {
-  close(): void;
-  postMessage(message: null): void;
-  onmessage: (() => void) | null;
-}
-
-interface MessageChannelLike {
-  port1: MessagePortLike;
-  port2: MessagePortLike;
-}
-
 export const createDeferToNextTaskKernel = (): IDeferToNextTaskKernel => {
-  let deferredChannel: MessageChannelLike | undefined;
+  let deferredChannel: MessageChannel | undefined;
   let deferredTask: Promise<void> | undefined;
   let resolveDeferredTask: (() => void) | undefined;
   return {
@@ -63,7 +50,7 @@ export const createDeferToNextTaskKernel = (): IDeferToNextTaskKernel => {
       if (deferredTask) return deferredTask;
       if (!deferredChannel) {
         // init
-        deferredChannel = new NativeMessageChannel() as unknown as MessageChannelLike;
+        deferredChannel = new NativeMessageChannel();
         // onmessage 自動 start port
         deferredChannel.port1.onmessage = () => {
           const resolve = resolveDeferredTask;
