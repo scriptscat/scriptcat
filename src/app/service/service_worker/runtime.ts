@@ -1040,22 +1040,22 @@ export class RuntimeService {
       this.pageLoadCaches.delete(script.uuid);
       // 安装，启用，或earlyStartScript的value更新
       const scriptRes = buildScriptRunResourceBasic(script);
-    const patterns = scriptURLPatternResults(scriptRes);
-    if (patterns) {
-      this.scriptMatchEntry(scriptRes, patterns);
-    } else {
-      void this.applyScriptMatchInfo(scriptRes);
-    }
-    const ret = await this.buildCompiledResourceFromScript(script, true);
-    if (!ret) {
-      // 空匹配覆盖（match 与 include 均为空）时脚本不再匹配任何站点。内存 matcher 里只剩
-      // 供 Popup 恢复用的原始规则，这里再清掉持久化的 CompiledResource 并注销浏览器旧注册，
-      // 否则 SW 重启后 waitInit 会信任旧资源、让旧范围复活。
-      await this.compiledResourceDAO.delete(script.uuid);
-      await this.unregistryPageScripts([script.uuid]);
-      return;
-    }
-    const { apiScript } = ret;
+      const patterns = scriptURLPatternResults(scriptRes);
+      if (patterns) {
+        this.scriptMatchEntry(scriptRes, patterns);
+      } else {
+        void this.applyScriptMatchInfo(scriptRes);
+      }
+      const ret = await this.buildCompiledResourceFromScript(script, true);
+      if (!ret) {
+        // 空匹配覆盖（match 与 include 均为空）时脚本不再匹配任何站点。内存 matcher 里只剩
+        // 供 Popup 恢复用的原始规则，这里再清掉持久化的 CompiledResource 并注销浏览器旧注册，
+        // 否则 SW 重启后 waitInit 会信任旧资源、让旧范围复活。
+        await this.compiledResourceDAO.delete(script.uuid);
+        await this.unregistryPageScripts([script.uuid]);
+        return;
+      }
+      const { apiScript } = ret;
       if (await this.loadPageScript(script, apiScript!)) {
         try {
           await this.compiledResourceDAO.save(ret.compiledResource);
