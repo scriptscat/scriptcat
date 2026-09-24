@@ -1017,9 +1017,7 @@ export class RuntimeService {
         return candidate ? { script, candidate } : undefined;
       })
     );
-    const failedBuild = buildResults.find(
-      (result): result is PromiseRejectedResult => result.status === "rejected"
-    );
+    const failedBuild = buildResults.find((result): result is PromiseRejectedResult => result.status === "rejected");
     if (failedBuild) {
       this.dirtyEarlyStorageNames.add(storageName);
       this.logger.error(
@@ -1199,11 +1197,7 @@ export class RuntimeService {
     await update();
   }
 
-  public async pushValueUpdate(
-    script: Script,
-    sendData: ValueUpdateDataEncoded,
-    committedValueStore?: ValueStore
-  ) {
+  public async pushValueUpdate(script: Script, sendData: ValueUpdateDataEncoded, committedValueStore?: ValueStore) {
     if (sendData.valueUpdated) {
       try {
         const refresh = await this.refreshEarlyStartSnapshots(sendData.storageName, committedValueStore);
