@@ -520,7 +520,7 @@ describe("utils", () => {
       expect(script.metadata.grant).toEqual(["GM_getValue", "GM_setValue"]);
     });
 
-    it("binds a source revision and redacts user state from the early wrapper", () => {
+    it("binds a source revision and preloads synchronous userscript state without page capabilities", () => {
       const script = createScript({ grant: ["GM_getValue"] }, []);
       script.uuid = "revision-script";
       script.createtime = 123;
@@ -536,8 +536,13 @@ describe("utils", () => {
       const preInject = trimPreInjectScriptInfo(script);
 
       expect(trimmed.scriptRevision).toBe("revision-script:123:456");
-      expect(preInject).toMatchObject({ value: {}, config: undefined, userConfig: undefined, userConfigStr: "" });
-      expect(JSON.stringify(preInject)).not.toContain("secret");
+      expect(preInject.value).toEqual({ secret: "value" });
+      expect(preInject.config).toEqual(script.config);
+      expect(preInject.userConfig).toEqual(script.userConfig);
+      expect(preInject.userConfigStr).toBe(script.userConfigStr);
+      expect(preInject.executionHandle).toBeUndefined();
+      expect(preInject.executionEnvTag).toBeUndefined();
+      expect(preInject.executionRunFlag).toBeUndefined();
     });
 
     it("preserves an explicitly supplied compiled revision", () => {
@@ -1021,7 +1026,7 @@ describe("utils", () => {
       expect(testPerformance.addEventListener).not.toHaveBeenCalled();
     });
 
-    it.concurrent("does not expose stored values or user config in the observable preload event", () => {
+    it.concurrent("keeps preload state in the wrapper closure while the observable event only exposes the flag", () => {
       const script: ScriptLoadInfo = {
         uuid: "pre-inject-private-uuid",
         name: "Pre Inject Private Script",
@@ -1034,13 +1039,16 @@ describe("utils", () => {
         checktime: Date.now(),
         code: "",
         value: { secret: "stored-value" },
-        config: { private: { secret: { title: "Private", description: "", index: 0, default: "secret" } } },
+        config: { private: { secret: { title: "Private", description: "", index: 0, default: "config" } } },
+        userConfig: {
+          private: { secret: { title: "Private", description: "", index: 0, default: "user-config" } },
+        },
         flag: "pre-inject-private-flag",
         resource: {},
         metadata: {},
         originalMetadata: {},
         metadataStr: "",
-        userConfigStr: "",
+        userConfigStr: '{"secret":"user-config"}',
       };
       let detail: Record<string, any> | undefined;
       const testPerformance = {
@@ -1050,10 +1058,21 @@ describe("utils", () => {
         }),
         addEventListener: vi.fn(),
       };
+      const targetWindow: GeneratedWindow = {};
 
-      executeGeneratedScript(compilePreInjectScript(script, "return undefined;"), {}, testPerformance);
+      executeGeneratedScript(compilePreInjectScript(script, "return undefined;"), targetWindow, testPerformance);
 
+      const generated = targetWindow[script.flag] as ScriptFunc;
+      const metadataJSON = getCompiledScriptMetadata(generated);
+      expect(metadataJSON).toBeTypeOf("string");
+      const metadata = JSON.parse(metadataJSON!);
+      expect(metadata.value).toEqual({ secret: "stored-value" });
+      expect(metadata.config).toEqual(script.config);
+      expect(metadata.userConfig).toEqual(script.userConfig);
+      expect(metadata.userConfigStr).toBe(script.userConfigStr);
       expect(detail).toEqual({ scriptFlag: script.flag });
+      expect(JSON.stringify(detail)).not.toContain("stored-value");
+      expect(JSON.stringify(detail)).not.toContain("user-config");
     });
 
     it.concurrent("does not mount a regex-excluded early-start script", () => {

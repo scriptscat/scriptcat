@@ -315,17 +315,14 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
 };
 
 /**
- * 预注入事件会经过页面可观察的 performance 通道；不要把用户值或配置放进它的 detail。
- * 资源仍需在脚本最早执行时可用，后续 pageLoad 会补回权威的值与配置。
+ * early-start 的 userscript body 会在 authoritative pageLoad 前执行，因此同步 GM API
+ * 必须从已注册 wrapper 的 snapshot 立即取得 value/config/userConfig/resource。
+ *
+ * 这些资料只放在 compiled wrapper 的闭包 metadata 中；页面可观察的 performance event
+ * 仍只携带 scriptFlag。executionHandle / executionRunFlag 等 document-bound 权限资料则继续
+ * 由 trimScriptInfo() 排除，必须等当前 document 的 authoritative pageLoad 才补上。
  */
-export const trimPreInjectScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
-  const scriptInfo = trimScriptInfo(script);
-  scriptInfo.value = {};
-  scriptInfo.config = undefined;
-  scriptInfo.userConfig = undefined;
-  scriptInfo.userConfigStr = "";
-  return scriptInfo;
-};
+export const trimPreInjectScriptInfo = (script: ScriptLoadInfo): TScriptInfo => trimScriptInfo(script);
 
 /**
  * 将脚本函数编译为预注入脚本代码
