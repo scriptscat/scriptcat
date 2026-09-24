@@ -108,6 +108,10 @@ type TLocalResourceCache = {
   sha512: string | undefined;
 };
 
+type EarlySnapshotRefreshResult =
+  | { ok: true; updated: string[] }
+  | { ok: false; updated: string[]; error: unknown };
+
 type TPageLoadScriptCache = {
   scriptCacheKey: string;
   scriptRevision: string;
@@ -623,10 +627,11 @@ export class RuntimeService {
   private sorter: Record<string, number> = {};
   private readonly codeCacheMap = new Map<string, TCodeCache>();
   private readonly pageLoadCaches = new Map<string, TPageLoadScriptCache>();
-  // early-start preload depends on the backing ValueStore, not merely on the script UUID.
-  // Keep both directions so metadata/status changes can remove the previous dependency in O(1).
+  // Only early-start scripts that can synchronously read GM storage need value snapshots refreshed.
+  // Keep both directions so metadata/status/grant changes can remove the previous dependency in O(1).
   private readonly earlyScriptsByStorageName = new Map<string, Set<string>>();
   private readonly earlyStorageNameByUuid = new Map<string, string>();
+  private readonly dirtyEarlyStorageNames = new Set<string>();
   private sandboxInitializationReplayed = false;
   private readonly cachedPatterns = new Map<
     string,
@@ -852,13 +857,25 @@ export class RuntimeService {
 
   private indexEarlyScriptStorage(script: Script): void {
     this.removeEarlyScriptStorageIndex(script.uuid);
+    const metadata = getCombinedMeta(script.metadata, script.selfMetadata);
     if (
       script.type !== SCRIPT_TYPE_NORMAL ||
       script.status !== SCRIPT_STATUS_ENABLE ||
-      !isEarlyStartScript(getCombinedMeta(script.metadata, script.selfMetadata))
+      !isEarlyStartScript(metadata)
     ) {
       return;
     }
+
+    const valueReadGrants = new Set([
+      "GM_getValue",
+      "GM.getValue",
+      "GM_getValues",
+      "GM.getValues",
+      "GM_listValues",
+      "GM.listValues",
+    ]);
+    if (!getEffectiveScriptGrants(metadata).some((grant) => valueReadGrants.has(grant))) return;
+
     const storageName = getStorageName(script);
     let scripts = this.earlyScriptsByStorageName.get(storageName);
     if (!scripts) {
@@ -869,17 +886,69 @@ export class RuntimeService {
     this.earlyStorageNameByUuid.set(script.uuid, storageName);
   }
 
-  private refreshEarlyStartSnapshots(storageName: string): Promise<void> {
-    return stackAsyncTask<void>(this.earlyRegistrationTaskKey, () => this.refreshEarlyStartSnapshotsNow(storageName));
+  private refreshEarlyStartSnapshots(storageName: string): Promise<EarlySnapshotRefreshResult> {
+    return stackAsyncTask<EarlySnapshotRefreshResult>(this.earlyRegistrationTaskKey, () =>
+      this.refreshEarlyStartSnapshotsNow(storageName)
+    );
   }
 
-  private async refreshEarlyStartSnapshotsNow(storageName: string): Promise<void> {
-    if (!this.isUserScriptsAvailable || !this.isLoadScripts) return;
+  private async recoverEarlyStartSnapshotRegistrations(
+    storageName: string,
+    candidates: Array<{
+      script: Script;
+      candidate: NonNullable<Awaited<ReturnType<RuntimeService["buildCompiledResourceFromScript"]>>>;
+    }>,
+    originalError: unknown
+  ): Promise<EarlySnapshotRefreshResult> {
+    const ids = candidates.map(({ script }) => script.uuid);
+    try {
+      const registered = await chrome.userScripts.getScripts({ ids });
+      const registeredIds = new Set(registered.map(({ id }) => id));
+      const existingUpdates = candidates
+        .filter(({ script }) => registeredIds.has(script.uuid))
+        .map(({ script, candidate }) => ({
+          id: script.uuid,
+          js: candidate.apiScript.js,
+        }));
+      const missingRegistrations = candidates
+        .filter(({ script }) => !registeredIds.has(script.uuid))
+        .map(({ candidate }) => candidate.apiScript);
+
+      if (existingUpdates.length) await chrome.userScripts.update(existingUpdates);
+      if (missingRegistrations.length) await chrome.userScripts.register(missingRegistrations);
+
+      this.dirtyEarlyStorageNames.delete(storageName);
+      return { ok: true, updated: ids };
+    } catch (recoveryError) {
+      this.dirtyEarlyStorageNames.add(storageName);
+      this.logger.error(
+        "repair early-start registrations after value update failed",
+        { storageName, ids },
+        Logger.E(recoveryError)
+      );
+      return { ok: false, updated: [], error: recoveryError || originalError };
+    }
+  }
+
+  private async refreshEarlyStartSnapshotsNow(storageName: string): Promise<EarlySnapshotRefreshResult> {
+    if (!this.isUserScriptsAvailable || !this.isLoadScripts) {
+      return { ok: true, updated: [] };
+    }
     const indexed = this.earlyScriptsByStorageName.get(storageName);
-    if (!indexed?.size) return;
+    if (!indexed?.size) {
+      this.dirtyEarlyStorageNames.delete(storageName);
+      return { ok: true, updated: [] };
+    }
 
     const uuids = [...indexed];
-    const scripts = await this.scriptDAO.gets(uuids);
+    let scripts: Array<Script | undefined>;
+    try {
+      scripts = await this.scriptDAO.gets(uuids);
+    } catch (error) {
+      this.dirtyEarlyStorageNames.add(storageName);
+      return { ok: false, updated: [], error };
+    }
+
     const activeScripts: Script[] = [];
     for (let index = 0; index < uuids.length; index += 1) {
       const uuid = uuids[index];
@@ -892,47 +961,52 @@ export class RuntimeService {
       this.indexEarlyScriptStorage(script);
       if (this.earlyStorageNameByUuid.get(uuid) === storageName) activeScripts.push(script);
     }
-    if (!activeScripts.length) return;
-
-    const candidates = (
-      await Promise.all(
-        activeScripts.map(async (script) => {
-          const candidate = await this.buildCompiledResourceFromScript(script, true);
-          return candidate ? { script, candidate } : undefined;
-        })
-      )
-    ).filter((entry): entry is NonNullable<typeof entry> => !!entry);
-    if (!candidates.length) return;
-
-    let registeredScripts: RegisteredUserScriptWithJsCode[];
-    try {
-      registeredScripts = (await chrome.userScripts.getScripts({
-        ids: candidates.map(({ script }) => script.uuid),
-      })) as RegisteredUserScriptWithJsCode[];
-    } catch (e) {
-      this.logger.error("get early-start registrations for value refresh failed", { storageName }, Logger.E(e));
-      return;
+    if (!activeScripts.length) {
+      this.dirtyEarlyStorageNames.delete(storageName);
+      return { ok: true, updated: [] };
     }
 
-    const candidatesByUuid = new Map(candidates.map((entry) => [entry.script.uuid, entry]));
-    const updates: RegisteredUserScriptWithJsCode[] = [];
-    for (const registered of registeredScripts) {
-      const entry = candidatesByUuid.get(registered.id);
-      const js = entry?.candidate.apiScript.js;
-      if (!entry || !js?.length) continue;
-      // Preserve the currently registered match/blacklist/world configuration. Value mutations
-      // only replace the compiled wrapper snapshot; they must not accidentally rewrite routing.
-      updates.push({ ...registered, js });
+    const buildResults = await Promise.allSettled(
+      activeScripts.map(async (script) => {
+        const candidate = await this.buildCompiledResourceFromScript(script, true);
+        return candidate ? { script, candidate } : undefined;
+      })
+    );
+    const failedBuild = buildResults.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected"
+    );
+    if (failedBuild) {
+      this.dirtyEarlyStorageNames.add(storageName);
+      this.logger.error("build early-start snapshot after value update failed", { storageName }, Logger.E(failedBuild.reason));
+      return { ok: false, updated: [], error: failedBuild.reason };
     }
-    if (!updates.length) return;
+
+    const candidates = buildResults
+      .map((result) => (result.status === "fulfilled" ? result.value : undefined))
+      .filter((entry): entry is NonNullable<typeof entry> => !!entry);
+    if (!candidates.length) {
+      this.dirtyEarlyStorageNames.delete(storageName);
+      return { ok: true, updated: [] };
+    }
+
+    const updates = candidates.map(({ script, candidate }) => ({
+      id: script.uuid,
+      js: candidate.apiScript.js,
+    }));
 
     try {
-      // One API call keeps all early scripts sharing the same ValueStore on the same generation.
-      // scriptRevision/pageLoadCaches describe static code/resource material, so a value-only
-      // refresh deliberately does not rewrite or invalidate those caches.
+      // update() is a partial update: omitted routing/world fields keep their registered values.
+      // One batch therefore refreshes a shared ValueStore generation without a getScripts() roundtrip.
       await chrome.userScripts.update(updates);
-    } catch (e) {
-      this.logger.error("refresh early-start registrations after value update failed", { storageName }, Logger.E(e));
+      this.dirtyEarlyStorageNames.delete(storageName);
+      return { ok: true, updated: candidates.map(({ script }) => script.uuid) };
+    } catch (error) {
+      this.logger.error(
+        "refresh early-start registrations after value update failed; attempting repair",
+        { storageName, ids: candidates.map(({ script }) => script.uuid) },
+        Logger.E(error)
+      );
+      return this.recoverEarlyStartSnapshotRegistrations(storageName, candidates, error);
     }
   }
 
@@ -1064,42 +1138,70 @@ export class RuntimeService {
         }
       }
     };
-    if (isEarlyStartScript(getCombinedMeta(script.metadata, script.selfMetadata))) {
-      return stackAsyncTask(this.earlyRegistrationTaskKey, update);
+    const metadata = getCombinedMeta(script.metadata, script.selfMetadata);
+    if (isEarlyStartScript(metadata)) {
+      await stackAsyncTask(this.earlyRegistrationTaskKey, update);
+      const storageName = getStorageName(script);
+      if (this.dirtyEarlyStorageNames.has(storageName)) {
+        await this.refreshEarlyStartSnapshots(storageName);
+      }
+      return;
     }
-    return update();
+    await update();
   }
 
   public async pushValueUpdate(script: Script, sendData: ValueUpdateDataEncoded) {
-    try {
-      // Promise-based GM.setValue resolves from the valueUpdate delivery below. Refresh every
-      // enabled early-start registration sharing this storageName first, so that ack is a
-      // freshness barrier without adding any roundtrip to the next document_start hot path.
-      if (sendData.valueUpdated) {
-        await this.refreshEarlyStartSnapshots(sendData.storageName);
+    if (sendData.valueUpdated) {
+      const refresh = await this.refreshEarlyStartSnapshots(sendData.storageName);
+      if (!refresh.ok) {
+        // Storage commit already succeeded. Keep userscript storage semantics successful, but mark
+        // the registration dirty and keep delivery channels alive so listeners/cache updates do not hang.
+        this.logger.error(
+          "early-start snapshot remains dirty after value update",
+          { uuid: script.uuid, storageName: sendData.storageName },
+          Logger.E(refresh.error)
+        );
       }
+    }
 
-      // 前台腳本 （推送值到tab）
+    // Delivery is cache/listener propagation only. No channel is allowed to become the completion
+    // signal for GM.setValue, and one broken channel must not suppress the others.
+    try {
       await deliveryStorage!.set({
         valueUpdateDelivery: {
           rId: `${Date.now()}.${Math.random()}`, // 用于区分不同的更新，确保 deliveryStorage.onChanged 必能触发
           sendData,
         },
       });
+    } catch (error) {
+      this.logger.error(
+        "deliver value update to extension contexts failed",
+        { uuid: script.uuid, storageName: sendData.storageName },
+        Logger.E(error)
+      );
+    }
+
+    try {
       // USER_SCRIPT 看不到 scripting world 的页面广播，改经原生扩展连接投递同一份编码 DTO。
       this.sendUserScriptMessage(undefined, "runtime/valueUpdate", sendData);
-
-      // 後台腳本
-      if (bgScriptStorageNames.has(sendData.storageName)) {
-        // 推送到offscreen中
-        await sendMessage(this.msgSender, "offscreen/runtime/valueUpdate", sendData);
-      }
-    } catch (e) {
+    } catch (error) {
       this.logger.error(
-        "push value update failed",
+        "deliver value update to USER_SCRIPT contexts failed",
         { uuid: script.uuid, storageName: sendData.storageName },
-        Logger.E(e)
+        Logger.E(error)
       );
+    }
+
+    if (bgScriptStorageNames.has(sendData.storageName)) {
+      try {
+        await sendMessage(this.msgSender, "offscreen/runtime/valueUpdate", sendData);
+      } catch (error) {
+        this.logger.error(
+          "deliver value update to background contexts failed",
+          { uuid: script.uuid, storageName: sendData.storageName },
+          Logger.E(error)
+        );
+      }
     }
   }
 

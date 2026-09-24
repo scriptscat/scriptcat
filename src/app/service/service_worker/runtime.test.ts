@@ -2147,6 +2147,12 @@ describe("restoreJSCodeFromCompiledResource 还原代码时的生效 metadata", 
     const script = _createMockScript({
       metadata: { match: ["https://www.example.com/*"], "run-at": ["document-idle"] },
       selfMetadata: { "early-start": [""], "run-at": ["document-start"] },
+      metadata: {
+        match: ["https://www.example.com/*"],
+        storagename: [shared],
+        grant: ["GM.getValue"],
+        "run-at": ["document-idle"],
+      },
     });
     const { runtime, compiledResource } = createContext(script);
 
@@ -2173,6 +2179,7 @@ describe("early-start value snapshot coherence", () => {
         storagename: [shared],
         "early-start": [""],
         "run-at": ["document-start"],
+        grant: ["GM_getValue"],
       },
     });
     const scriptB = _createMockScript({
@@ -2200,23 +2207,19 @@ describe("early-start value snapshot coherence", () => {
         apiScript: { id: script.uuid, js: [{ code: `fresh-${script.uuid}` }] },
       }) as any;
     vi.spyOn(runtime, "buildCompiledResourceFromScript").mockImplementation(async (script) => candidateFor(script));
-    vi.spyOn(chrome.userScripts, "getScripts").mockResolvedValue([
-      { id: scriptA.uuid, js: [{ code: "old-a" }], matches: ["https://www.example.com/*"] },
-      { id: scriptB.uuid, js: [{ code: "old-b" }], matches: ["https://www.example.com/*"] },
-    ] as any);
+    const getScripts = vi.spyOn(chrome.userScripts, "getScripts");
     const update = vi.spyOn(chrome.userScripts, "update").mockResolvedValue(undefined);
 
-    await (runtime as any).refreshEarlyStartSnapshots(shared);
+    const result = await (runtime as any).refreshEarlyStartSnapshots(shared);
 
+    expect(result).toEqual({ ok: true, updated: [scriptA.uuid, scriptB.uuid] });
     expect(mockScriptDAO.gets).toHaveBeenCalledWith([scriptA.uuid, scriptB.uuid]);
     expect(runtime.buildCompiledResourceFromScript).toHaveBeenCalledTimes(2);
-    const sharedUpdateCalls = update.mock.calls.filter(([registrations]) =>
-      registrations.some((registration) => registration.id === scriptA.uuid || registration.id === scriptB.uuid)
-    );
-    expect(sharedUpdateCalls).toHaveLength(1);
-    expect(sharedUpdateCalls[0][0]).toEqual([
-      expect.objectContaining({ id: scriptA.uuid, js: [{ code: `fresh-${scriptA.uuid}` }] }),
-      expect.objectContaining({ id: scriptB.uuid, js: [{ code: `fresh-${scriptB.uuid}` }] }),
+    expect(getScripts).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith([
+      { id: scriptA.uuid, js: [{ code: `fresh-${scriptA.uuid}` }] },
+      { id: scriptB.uuid, js: [{ code: `fresh-${scriptB.uuid}` }] },
     ]);
   });
 
@@ -2232,6 +2235,7 @@ describe("early-start value snapshot coherence", () => {
         storagename: [storageName],
         "early-start": [""],
         "run-at": ["document-start"],
+        grant: ["GM_getValue"],
       },
     });
     (runtime as any).indexEarlyScriptStorage(script);
@@ -2253,9 +2257,6 @@ describe("early-start value snapshot coherence", () => {
     build.mockResolvedValue(candidate);
     vi.spyOn(runtime, "loadPageScript").mockResolvedValue(true);
     vi.spyOn(runtime.compiledResourceDAO, "save").mockResolvedValue({} as CompiledResource);
-    vi.spyOn(chrome.userScripts, "getScripts").mockResolvedValue([
-      { id: script.uuid, js: [{ code: "old-wrapper" }], matches: ["https://www.example.com/*"] },
-    ] as any);
     vi.spyOn(chrome.userScripts, "update").mockResolvedValue(undefined);
 
     const scriptUpdate = runtime.updateResourceOnScriptChange(script);
@@ -2274,18 +2275,18 @@ describe("early-start value snapshot coherence", () => {
     expect(build).toHaveBeenCalledTimes(2);
   });
 
-  it("does not deliver the mutation ack before the early snapshot refresh barrier", async () => {
+  it("keeps value delivery alive when early snapshot refresh fails", async () => {
     const { runtime } = _createRuntimeContext();
     const script = _createMockScript();
-    let releaseRefresh!: () => void;
-    const barrier = new Promise<void>((resolve) => {
-      releaseRefresh = resolve;
+    vi.spyOn(runtime as any, "refreshEarlyStartSnapshots").mockResolvedValue({
+      ok: false,
+      updated: [],
+      error: new Error("registration failed"),
     });
-    vi.spyOn(runtime as any, "refreshEarlyStartSnapshots").mockReturnValue(barrier);
     const storageSet = vi.spyOn(chrome.storage.local, "set").mockResolvedValue(undefined);
 
-    const update = runtime.pushValueUpdate(script, {
-      id: "ack-after-refresh",
+    await runtime.pushValueUpdate(script, {
+      id: "delivery-after-refresh-failure",
       entries: [["key", encodeRValue("new"), encodeRValue("old")]],
       uuid: script.uuid,
       storageName: "shared",
@@ -2293,13 +2294,68 @@ describe("early-start value snapshot coherence", () => {
       valueUpdated: true,
     });
 
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(storageSet).not.toHaveBeenCalled();
-
-    releaseRefresh();
-    await update;
     expect(storageSet).toHaveBeenCalledTimes(1);
+  });
+
+  it("repairs a missing early registration only after the partial update fast path fails", async () => {
+    const { runtime, mockScriptDAO } = _createRuntimeContext();
+    runtime.isUserScriptsAvailable = true;
+    runtime.isLoadScripts = true;
+    const storageName = "repair-store";
+    const script = _createMockScript({
+      uuid: "repair-script",
+      metadata: {
+        match: ["https://www.example.com/*"],
+        storagename: [storageName],
+        grant: ["GM_getValue"],
+        "early-start": [""],
+        "run-at": ["document-start"],
+      },
+    });
+    (runtime as any).indexEarlyScriptStorage(script);
+    vi.mocked(mockScriptDAO.gets).mockResolvedValue([script]);
+
+    const candidate = {
+      compiledResource: { uuid: script.uuid, scriptRevision: "repair-revision" },
+      apiScript: {
+        id: script.uuid,
+        js: [{ code: "fresh-wrapper" }],
+        matches: ["https://www.example.com/*"],
+      },
+    } as any;
+    vi.spyOn(runtime, "buildCompiledResourceFromScript").mockResolvedValue(candidate);
+    const update = vi
+      .spyOn(chrome.userScripts, "update")
+      .mockRejectedValueOnce(new Error("No script with id"))
+      .mockResolvedValue(undefined);
+    const getScripts = vi.spyOn(chrome.userScripts, "getScripts").mockResolvedValue([]);
+    const register = vi.spyOn(chrome.userScripts, "register").mockResolvedValue(undefined);
+
+    const result = await (runtime as any).refreshEarlyStartSnapshots(storageName);
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(getScripts).toHaveBeenCalledWith({ ids: [script.uuid] });
+    expect(register).toHaveBeenCalledWith([candidate.apiScript]);
+    expect(result).toEqual({ ok: true, updated: [script.uuid] });
+  });
+
+  it("does not index early scripts that cannot read GM storage", () => {
+    const { runtime } = _createRuntimeContext();
+    const storageName = "write-only-store";
+    const script = _createMockScript({
+      uuid: "write-only-early",
+      metadata: {
+        match: ["https://www.example.com/*"],
+        storagename: [storageName],
+        grant: ["GM_setValue", "unsafeWindow"],
+        "early-start": [""],
+        "run-at": ["document-start"],
+      },
+    });
+
+    (runtime as any).indexEarlyScriptStorage(script);
+
+    expect((runtime as any).earlyScriptsByStorageName.get(storageName)).toBeUndefined();
   });
 });
 
