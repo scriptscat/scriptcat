@@ -113,6 +113,15 @@ type EarlySnapshotRefreshResult =
   | { ok: true; updated: string[] }
   | { ok: false; updated: string[]; error: unknown };
 
+const EARLY_VALUE_READ_GRANTS = new Set([
+  "GM_getValue",
+  "GM.getValue",
+  "GM_getValues",
+  "GM.getValues",
+  "GM_listValues",
+  "GM.listValues",
+]);
+
 type TPageLoadScriptCache = {
   scriptCacheKey: string;
   scriptRevision: string;
@@ -867,15 +876,7 @@ export class RuntimeService {
       return;
     }
 
-    const valueReadGrants = new Set([
-      "GM_getValue",
-      "GM.getValue",
-      "GM_getValues",
-      "GM.getValues",
-      "GM_listValues",
-      "GM.listValues",
-    ]);
-    if (!getEffectiveScriptGrants(metadata).some((grant) => valueReadGrants.has(grant))) return;
+    if (!getEffectiveScriptGrants(metadata).some((grant) => EARLY_VALUE_READ_GRANTS.has(grant))) return;
 
     const storageName = getStorageName(script);
     let scripts = this.earlyScriptsByStorageName.get(storageName);
@@ -1204,14 +1205,25 @@ export class RuntimeService {
     committedValueStore?: ValueStore
   ) {
     if (sendData.valueUpdated) {
-      const refresh = await this.refreshEarlyStartSnapshots(sendData.storageName, committedValueStore);
-      if (!refresh.ok) {
-        // Storage commit already succeeded. Keep userscript storage semantics successful, but mark
-        // the registration dirty and keep delivery channels alive so listeners/cache updates do not hang.
+      try {
+        const refresh = await this.refreshEarlyStartSnapshots(sendData.storageName, committedValueStore);
+        if (!refresh.ok) {
+          // Storage commit already succeeded. Keep userscript storage semantics successful, but mark
+          // the registration dirty and keep delivery channels alive so listeners/cache updates do not hang.
+          this.logger.error(
+            "early-start snapshot remains dirty after value update",
+            { uuid: script.uuid, storageName: sendData.storageName },
+            Logger.E(refresh.error)
+          );
+        }
+      } catch (error) {
+        // Snapshot maintenance is not the storage transaction. Once ValueDAO.save() succeeded,
+        // an unexpected registration/cache failure must not turn GM.setValue into a rejected write.
+        this.dirtyEarlyStorageNames.add(sendData.storageName);
         this.logger.error(
-          "early-start snapshot remains dirty after value update",
+          "unexpected early-start snapshot refresh failure",
           { uuid: script.uuid, storageName: sendData.storageName },
-          Logger.E(refresh.error)
+          Logger.E(error)
         );
       }
     }

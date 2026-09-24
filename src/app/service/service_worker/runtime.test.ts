@@ -2328,6 +2328,28 @@ describe("early-start value snapshot coherence", () => {
     expect(build).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps value delivery alive when early snapshot refresh throws unexpectedly", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createMockScript();
+    vi.spyOn(runtime as any, "refreshEarlyStartSnapshots").mockRejectedValue(new Error("unexpected refresh failure"));
+    const storageSet = vi.spyOn(chrome.storage.local, "set").mockResolvedValue(undefined);
+    const storageName = "unexpected-refresh-failure";
+
+    await expect(
+      runtime.pushValueUpdate(script, {
+        id: "delivery-after-thrown-refresh",
+        entries: [["key", encodeRValue("new"), encodeRValue("old")]],
+        uuid: script.uuid,
+        storageName,
+        sender: { runFlag: "origin", tabId: 1 },
+        valueUpdated: true,
+      })
+    ).resolves.toBeUndefined();
+
+    expect(storageSet).toHaveBeenCalledTimes(1);
+    expect((runtime as any).dirtyEarlyStorageNames.has(storageName)).toBe(true);
+  });
+
   it("keeps value delivery alive when early snapshot refresh fails", async () => {
     const { runtime } = _createRuntimeContext();
     const script = _createMockScript();
