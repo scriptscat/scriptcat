@@ -880,10 +880,7 @@ test.describe("GM API", () => {
     expect(summary.passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
-  test("GM storage clone compatibility (gm_storage_clone_compatibility_test.js)", async ({
-    context,
-    extensionId,
-  }) => {
+  test("GM storage clone compatibility (gm_storage_clone_compatibility_test.js)", async ({ context, extensionId }) => {
     const { summary, logs } = await runTestScript(
       context,
       extensionId,
