@@ -49,15 +49,12 @@ export class ValueService {
     this.valueDAO.enableCache();
   }
 
-  async getScriptValueDetails(script: Script) {
+  materializeScriptValue(script: Script, rawValueStore: ValueStore = {}): Record<string, any> {
     // data/newValues 是同一个 Object.create(null) 建出的纯字典，没有可被继承 setter 或
     // __proto__ 劫持的原型，逐键直接赋值即可，不需要 setOwnValue 的 defineProperty。
     const data: { [key: string]: any } = Object.create(null);
-    const ret = await this.valueDAO.get(getStorageName(script));
-    if (ret) {
-      for (const key of Object.keys(ret.data)) {
-        data[key] = ret.data[key];
-      }
+    for (const key of Object.keys(rawValueStore)) {
+      data[key] = rawValueStore[key];
     }
     const newValues = data;
     // 和userconfig组装
@@ -82,15 +79,24 @@ export class ValueService {
         }
       }
     }
-    return [newValues, ret] as const;
+    return newValues;
+  }
+
+  async getScriptValueDetails(script: Script) {
+    const ret = await this.valueDAO.get(getStorageName(script));
+    return [this.materializeScriptValue(script, ret?.data), ret] as const;
   }
 
   getScriptValue(script: Script): Promise<Record<string, any>> {
     return this.getScriptValueDetails(script).then((res) => res[0]);
   }
 
-  async pushValueUpdate<T extends ValueUpdateDataEncoded>(script: Script, sendData: T) {
-    return this.runtime!.pushValueUpdate(script, sendData);
+  async pushValueUpdate<T extends ValueUpdateDataEncoded>(
+    script: Script,
+    sendData: T,
+    committedValueStore?: ValueStore
+  ) {
+    return this.runtime!.pushValueUpdate(script, sendData, committedValueStore);
   }
 
   // 批量设置
@@ -186,7 +192,12 @@ export class ValueService {
         sender: valueSender,
         valueUpdated: entries.length > 0,
       } as ValueUpdateDataEncoded;
-      await this.pushValueUpdate(script, sendData);
+      if (this.runtime) {
+        await this.pushValueUpdate(script, sendData, valueModel.data);
+      } else {
+        // Unit-level/custom callers that replace pushValueUpdate before init keep the old call shape.
+        await this.pushValueUpdate(script, sendData);
+      }
     });
   }
 

@@ -145,6 +145,28 @@ describe("ValueService - setValue 方法测试", () => {
     expect((values as Record<string, unknown>).polluted).toBeUndefined();
   });
 
+  it("materializeScriptValue uses a committed raw store without reading ValueDAO", () => {
+    const mockScript = createMockScript({
+      config: {
+        settings: {
+          choice: {
+            default: "default-choice",
+            index: 0,
+          },
+        },
+      } as any,
+    });
+    const values = valueService.materializeScriptValue(mockScript, {
+      direct: "committed",
+      "settings.choice": "stored-choice",
+    });
+
+    expect(mockValueDAO.get).not.toHaveBeenCalled();
+    expect(values.direct).toBe("committed");
+    expect(values["settings.choice"]).toBe("stored-choice");
+    expect(Object.getPrototypeOf(values)).toBeNull();
+  });
+
   it("getScriptValueDetails 直接赋值到 data/newValues 时不会触发 Object.prototype 上的继承 setter", async () => {
     // data/newValues 是同一个 Object.create(null) 建出的纯字典，setOwnValue 改成直接赋值后，
     // 即使 Object.prototype 被投毒了同名 setter，无论是复制 ret.data 还是写入 config 绑定的默认值，

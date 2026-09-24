@@ -17,6 +17,7 @@ import type {
   ScriptRunResource,
   ScriptSite,
   TScriptInfo,
+  ValueStore,
   UserConfig,
 } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
@@ -886,9 +887,12 @@ export class RuntimeService {
     this.earlyStorageNameByUuid.set(script.uuid, storageName);
   }
 
-  private refreshEarlyStartSnapshots(storageName: string): Promise<EarlySnapshotRefreshResult> {
+  private refreshEarlyStartSnapshots(
+    storageName: string,
+    committedValueStore?: ValueStore
+  ): Promise<EarlySnapshotRefreshResult> {
     return stackAsyncTask<EarlySnapshotRefreshResult>(this.earlyRegistrationTaskKey, () =>
-      this.refreshEarlyStartSnapshotsNow(storageName)
+      this.refreshEarlyStartSnapshotsNow(storageName, committedValueStore)
     );
   }
 
@@ -896,9 +900,10 @@ export class RuntimeService {
     storageName: string,
     candidates: Array<{
       script: Script;
-      candidate: NonNullable<Awaited<ReturnType<RuntimeService["buildCompiledResourceFromScript"]>>>;
+      candidate: { apiScript: chrome.userScripts.RegisteredUserScript };
     }>,
-    originalError: unknown
+    originalError: unknown,
+    committedValueStore?: ValueStore
   ): Promise<EarlySnapshotRefreshResult> {
     const ids = candidates.map(({ script }) => script.uuid);
     try {
@@ -910,11 +915,23 @@ export class RuntimeService {
           id: script.uuid,
           js: candidate.apiScript.js,
         }));
-      const missingRegistrations = candidates
-        .filter(({ script }) => !registeredIds.has(script.uuid))
-        .map(({ candidate }) => candidate.apiScript);
+      const missingCandidates = candidates.filter(({ script }) => !registeredIds.has(script.uuid));
+      const missingRegistrations = (
+        await Promise.all(
+          missingCandidates.map(async ({ script }) => {
+            const effectiveValue =
+              committedValueStore === undefined
+                ? undefined
+                : this.value.materializeScriptValue(script, committedValueStore);
+            return (await this.buildCompiledResourceFromScript(script, true, effectiveValue))?.apiScript;
+          })
+        )
+      ).filter((registration): registration is chrome.userScripts.RegisteredUserScript => !!registration);
 
       if (existingUpdates.length) await chrome.userScripts.update(existingUpdates);
+      if (missingRegistrations.length !== missingCandidates.length) {
+        throw new Error("failed to rebuild a missing early-start registration");
+      }
       if (missingRegistrations.length) await chrome.userScripts.register(missingRegistrations);
 
       this.dirtyEarlyStorageNames.delete(storageName);
@@ -930,7 +947,10 @@ export class RuntimeService {
     }
   }
 
-  private async refreshEarlyStartSnapshotsNow(storageName: string): Promise<EarlySnapshotRefreshResult> {
+  private async refreshEarlyStartSnapshotsNow(
+    storageName: string,
+    committedValueStore?: ValueStore
+  ): Promise<EarlySnapshotRefreshResult> {
     if (!this.isUserScriptsAvailable || !this.isLoadScripts) {
       return { ok: true, updated: [] };
     }
@@ -968,7 +988,31 @@ export class RuntimeService {
 
     const buildResults = await Promise.allSettled(
       activeScripts.map(async (script) => {
-        const candidate = await this.buildCompiledResourceFromScript(script, true);
+        const effectiveValue =
+          committedValueStore === undefined
+            ? undefined
+            : this.value.materializeScriptValue(script, committedValueStore);
+        const scriptRes = buildScriptRunResourceBasic(script);
+        const cache = this.pageLoadCaches.get(script.uuid);
+        if (cache?.scriptCacheKey === this.getPageLoadScriptCacheKey(scriptRes)) {
+          const cachedScriptRes = this.createPageLoadScriptInfo(scriptRes, cache);
+          cachedScriptRes.value = effectiveValue ?? (await this.value.getScriptValue(script));
+          return {
+            script,
+            candidate: {
+              apiScript: {
+                id: script.uuid,
+                js: [
+                  {
+                    code: compileInjectionCode(cachedScriptRes, cache.code, cache.scriptUrlPatterns),
+                  },
+                ],
+              } as chrome.userScripts.RegisteredUserScript,
+            },
+          };
+        }
+
+        const candidate = await this.buildCompiledResourceFromScript(script, true, effectiveValue);
         return candidate ? { script, candidate } : undefined;
       })
     );
@@ -1010,7 +1054,7 @@ export class RuntimeService {
         { storageName, ids: candidates.map(({ script }) => script.uuid) },
         Logger.E(error)
       );
-      return this.recoverEarlyStartSnapshotRegistrations(storageName, candidates, error);
+      return this.recoverEarlyStartSnapshotRegistrations(storageName, candidates, error, committedValueStore);
     }
   }
 
@@ -1154,9 +1198,13 @@ export class RuntimeService {
     await update();
   }
 
-  public async pushValueUpdate(script: Script, sendData: ValueUpdateDataEncoded) {
+  public async pushValueUpdate(
+    script: Script,
+    sendData: ValueUpdateDataEncoded,
+    committedValueStore?: ValueStore
+  ) {
     if (sendData.valueUpdated) {
-      const refresh = await this.refreshEarlyStartSnapshots(sendData.storageName);
+      const refresh = await this.refreshEarlyStartSnapshots(sendData.storageName, committedValueStore);
       if (!refresh.ok) {
         // Storage commit already succeeded. Keep userscript storage semantics successful, but mark
         // the registration dirty and keep delivery channels alive so listeners/cache updates do not hang.
@@ -1573,8 +1621,14 @@ export class RuntimeService {
     }
   }
 
-  async buildCompiledResourceFromScript(script: Script, withCode: boolean = false) {
-    const scriptRes = withCode ? await this.script.buildScriptRunResource(script) : buildScriptRunResourceBasic(script);
+  async buildCompiledResourceFromScript(
+    script: Script,
+    withCode: boolean = false,
+    valueOverride?: Record<string, any>
+  ) {
+    const scriptRes = withCode
+      ? await this.script.buildScriptRunResource(script, valueOverride)
+      : buildScriptRunResourceBasic(script);
     const resourceByType = withCode
       ? scriptRes.resourceByType
       : ((await this.resource.getScriptResourceValueByType(scriptRes)) as TRuntimeResourceByType);
