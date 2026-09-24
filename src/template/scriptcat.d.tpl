@@ -690,6 +690,8 @@ declare namespace GMTypes {
       totalSize: number;
     }>;
     ontimeout?: (arg1?: any) => void;
+    // 下载结束时触发（无论 onload/onerror/ontimeout 中的哪一个），在其之后调用。
+    onloadend?: Listener<object>;
   }
 
   interface NotificationThis extends NotificationDetails {
