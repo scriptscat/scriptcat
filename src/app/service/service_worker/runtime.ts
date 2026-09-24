@@ -620,6 +620,10 @@ export class RuntimeService {
   private sorter: Record<string, number> = {};
   private readonly codeCacheMap = new Map<string, TCodeCache>();
   private readonly pageLoadCaches = new Map<string, TPageLoadScriptCache>();
+  // early-start preload depends on the backing ValueStore, not merely on the script UUID.
+  // Keep both directions so metadata/status changes can remove the previous dependency in O(1).
+  private readonly earlyScriptsByStorageName = new Map<string, Set<string>>();
+  private readonly earlyStorageNameByUuid = new Map<string, string>();
   private sandboxInitializationReplayed = false;
   private readonly cachedPatterns = new Map<
     string,
@@ -833,6 +837,113 @@ export class RuntimeService {
     return matchInfo;
   }
 
+  private removeEarlyScriptStorageIndex(uuid: string): void {
+    const storageName = this.earlyStorageNameByUuid.get(uuid);
+    if (!storageName) return;
+    this.earlyStorageNameByUuid.delete(uuid);
+    const scripts = this.earlyScriptsByStorageName.get(storageName);
+    if (!scripts) return;
+    scripts.delete(uuid);
+    if (scripts.size === 0) this.earlyScriptsByStorageName.delete(storageName);
+  }
+
+  private indexEarlyScriptStorage(script: Script): void {
+    this.removeEarlyScriptStorageIndex(script.uuid);
+    if (
+      script.type !== SCRIPT_TYPE_NORMAL ||
+      script.status !== SCRIPT_STATUS_ENABLE ||
+      !isEarlyStartScript(getCombinedMeta(script.metadata, script.selfMetadata))
+    ) {
+      return;
+    }
+    const storageName = getStorageName(script);
+    let scripts = this.earlyScriptsByStorageName.get(storageName);
+    if (!scripts) {
+      scripts = new Set<string>();
+      this.earlyScriptsByStorageName.set(storageName, scripts);
+    }
+    scripts.add(script.uuid);
+    this.earlyStorageNameByUuid.set(script.uuid, storageName);
+  }
+
+  private async refreshEarlyStartSnapshots(storageName: string): Promise<void> {
+    if (!this.isUserScriptsAvailable || !this.isLoadScripts) return;
+    const indexed = this.earlyScriptsByStorageName.get(storageName);
+    if (!indexed?.size) return;
+
+    const uuids = [...indexed];
+    const scripts = await this.scriptDAO.gets(uuids);
+    const activeScripts: Script[] = [];
+    for (let index = 0; index < uuids.length; index += 1) {
+      const uuid = uuids[index];
+      const script = scripts[index];
+      if (!script) {
+        this.removeEarlyScriptStorageIndex(uuid);
+        continue;
+      }
+      // Heal the dependency index if a queued install/enable event raced this mutation.
+      this.indexEarlyScriptStorage(script);
+      if (this.earlyStorageNameByUuid.get(uuid) === storageName) activeScripts.push(script);
+    }
+    if (!activeScripts.length) return;
+
+    const candidates = (
+      await Promise.all(
+        activeScripts.map(async (script) => {
+          this.pageLoadCaches.delete(script.uuid);
+          const candidate = await this.buildCompiledResourceFromScript(script, true);
+          return candidate ? { script, candidate } : undefined;
+        })
+      )
+    ).filter((entry): entry is NonNullable<typeof entry> => !!entry);
+    if (!candidates.length) return;
+
+    let registeredScripts: RegisteredUserScriptWithJsCode[];
+    try {
+      registeredScripts = (await chrome.userScripts.getScripts({
+        ids: candidates.map(({ script }) => script.uuid),
+      })) as RegisteredUserScriptWithJsCode[];
+    } catch (e) {
+      this.logger.error("get early-start registrations for value refresh failed", { storageName }, Logger.E(e));
+      return;
+    }
+
+    const candidatesByUuid = new Map(candidates.map((entry) => [entry.script.uuid, entry]));
+    const updatedCandidates = new Map<string, (typeof candidates)[number]>();
+    const updates: RegisteredUserScriptWithJsCode[] = [];
+    for (const registered of registeredScripts) {
+      const entry = candidatesByUuid.get(registered.id);
+      const js = entry?.candidate.apiScript.js;
+      if (!entry || !js?.length) continue;
+      // Preserve the currently registered match/blacklist/world configuration. Value mutations
+      // only replace the compiled wrapper snapshot; they must not accidentally rewrite routing.
+      updates.push({ ...registered, js });
+      updatedCandidates.set(registered.id, entry);
+    }
+    if (!updates.length) return;
+
+    try {
+      // One API call keeps all early scripts sharing the same ValueStore on the same generation.
+      await chrome.userScripts.update(updates);
+    } catch (e) {
+      this.logger.error("refresh early-start registrations after value update failed", { storageName }, Logger.E(e));
+      return;
+    }
+
+    await Promise.all(
+      [...updatedCandidates.values()].map(async ({ candidate, script }) => {
+        try {
+          await this.compiledResourceDAO.save(candidate.compiledResource);
+        } catch (e) {
+          // Registration is already fresh. A failed cache write must not roll the browser
+          // registration back; pageLoad will rebuild the cache on the next miss.
+          this.pageLoadCaches.delete(script.uuid);
+          this.logger.error("save early-start compiled resource after value refresh failed", { uuid: script.uuid }, Logger.E(e));
+        }
+      })
+    );
+  }
+
   async waitInit() {
     const [cRuntimeStartFlag, storedNamespace, allScripts] = await Promise.all([
       cacheInstance.get<boolean>("runtimeStartFlag"),
@@ -845,10 +956,13 @@ export class RuntimeService {
     const shouldCleanUpPreviousRegister = storedNamespace !== CompiledResourceNamespace;
     const unregisterScriptIds: string[] = [];
     const enabledNormalScripts: Script[] = [];
+    this.earlyScriptsByStorageName.clear();
+    this.earlyStorageNameByUuid.clear();
 
     // 阶段一：刻意保持全同步——在引入任何 await 之前，先完成脚本分类、排序更新与反注册目标的计算，
     // 避免日后有人不小心往循环里加入 await 而破坏这里的执行时序。
     for (const script of allScripts) {
+      this.indexEarlyScriptStorage(script);
       const isNormalScript = script.type === SCRIPT_TYPE_NORMAL;
       const enable = script.status === SCRIPT_STATUS_ENABLE;
       if (!isNormalScript || !enable || shouldCleanUpPreviousRegister) {
@@ -960,6 +1074,13 @@ export class RuntimeService {
 
   public async pushValueUpdate(script: Script, sendData: ValueUpdateDataEncoded) {
     try {
+      // Promise-based GM.setValue resolves from the valueUpdate delivery below. Refresh every
+      // enabled early-start registration sharing this storageName first, so that ack is a
+      // freshness barrier without adding any roundtrip to the next document_start hot path.
+      if (sendData.valueUpdated) {
+        await this.refreshEarlyStartSnapshots(sendData.storageName);
+      }
+
       // 前台腳本 （推送值到tab）
       await deliveryStorage!.set({
         valueUpdateDelivery: {
@@ -976,17 +1097,6 @@ export class RuntimeService {
         await sendMessage(this.msgSender, "offscreen/runtime/valueUpdate", sendData);
       }
 
-      // valueUpdate 消息用于 early script 的处理
-      if (sendData.valueUpdated) {
-        if (
-          script.status === SCRIPT_STATUS_ENABLE &&
-          isEarlyStartScript(getCombinedMeta(script.metadata, script.selfMetadata))
-        ) {
-          // 如果是预加载脚本，需要更新脚本代码重新注册
-          // scriptMatchInfo 里的 value 改变 => compileInjectionCode -> injectionCode 改变
-          await this.updateResourceOnScriptChange(script);
-        }
-      }
     } catch (e) {
       this.logger.error(
         "push value update failed",
@@ -1057,6 +1167,7 @@ export class RuntimeService {
           });
           continue;
         }
+        this.indexEarlyScriptStorage(script);
         // 如果是普通脚本, 在service worker中进行注册
         // 如果是后台脚本, 在offscreen中进行处理
         // 脚本类别不会更改
@@ -1091,6 +1202,7 @@ export class RuntimeService {
       this.updateSorter((next) => {
         this.setScriptSort(next, script);
       });
+      this.indexEarlyScriptStorage(script);
       // 代码更新时脚本类别不会更改
       if (script.type === SCRIPT_TYPE_NORMAL) {
         const enable = script.status === SCRIPT_STATUS_ENABLE;
@@ -1117,6 +1229,7 @@ export class RuntimeService {
       this.updateSorter((next) => {
         for (const { uuid } of data) {
           this.revokePageBindingsForScript(uuid);
+          this.removeEarlyScriptStorageIndex(uuid);
           unregisterUuids.push(uuid);
           this.deleteScriptRuntimeCache(uuid);
           this.deleteScriptSort(next, uuid);

@@ -22,6 +22,7 @@ import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
 import { getStorageName, obtainBlackList } from "@App/pkg/utils/utils";
 import { CompiledResourceNamespace, type CompiledResource, type Resource } from "@App/app/repo/resource";
+import { encodeRValue } from "@App/pkg/utils/message_value";
 
 initTestEnv();
 
@@ -2147,26 +2148,95 @@ describe("restoreJSCodeFromCompiledResource 还原代码时的生效 metadata", 
   });
 });
 
-describe("pushValueUpdate 判断是否需要为 early-start 脚本重新编译", () => {
-  // early-start 会把 GM 值编进预注入代码，值变了必须重编；
-  // 该脚本的 early-start 可能来自用户覆写，不能只看脚本自带 metadata。
-  it("selfMetadata 覆写为 early-start 的脚本，值更新后应重新编译注册", async () => {
-    const { runtime } = _createRuntimeContext();
-    const script = _createMockScript({
-      metadata: { match: ["https://www.example.com/*"], "run-at": ["document-idle"] },
+describe("early-start value snapshot coherence", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("refreshes every enabled early-start script sharing a storageName in one userScripts.update", async () => {
+    const { runtime, mockScriptDAO } = _createRuntimeContext();
+    runtime.isUserScriptsAvailable = true;
+    runtime.isLoadScripts = true;
+    const shared = "shared-store";
+    const scriptA = _createMockScript({
+      uuid: "early-shared-a",
+      metadata: {
+        match: ["https://www.example.com/*"],
+        storagename: [shared],
+        "early-start": [""],
+        "run-at": ["document-start"],
+      },
+    });
+    const scriptB = _createMockScript({
+      uuid: "early-shared-b",
+      metadata: {
+        match: ["https://www.example.com/*"],
+        storagename: [shared],
+        "run-at": ["document-idle"],
+      },
       selfMetadata: { "early-start": [""], "run-at": ["document-start"] },
     });
-    const updateSpy = vi.spyOn(runtime, "updateResourceOnScriptChange").mockResolvedValue(undefined);
+    const normal = _createMockScript({
+      uuid: "normal-shared",
+      metadata: { match: ["https://www.example.com/*"], storagename: [shared] },
+    });
 
-    await runtime.pushValueUpdate(script, {
-      entries: [],
+    (runtime as any).indexEarlyScriptStorage(scriptA);
+    (runtime as any).indexEarlyScriptStorage(scriptB);
+    (runtime as any).indexEarlyScriptStorage(normal);
+    vi.mocked(mockScriptDAO.gets).mockResolvedValue([scriptA, scriptB]);
+
+    const candidateFor = (script: Script) =>
+      ({
+        compiledResource: { uuid: script.uuid, scriptRevision: `revision-${script.uuid}` },
+        apiScript: { id: script.uuid, js: [{ code: `fresh-${script.uuid}` }] },
+      }) as any;
+    vi.spyOn(runtime, "buildCompiledResourceFromScript").mockImplementation(async (script) => candidateFor(script));
+    vi.spyOn(runtime.compiledResourceDAO, "save").mockResolvedValue({} as CompiledResource);
+    vi.spyOn(chrome.userScripts, "getScripts").mockResolvedValue([
+      { id: scriptA.uuid, js: [{ code: "old-a" }], matches: ["https://www.example.com/*"] },
+      { id: scriptB.uuid, js: [{ code: "old-b" }], matches: ["https://www.example.com/*"] },
+    ] as any);
+    const update = vi.spyOn(chrome.userScripts, "update").mockResolvedValue(undefined);
+
+    await (runtime as any).refreshEarlyStartSnapshots(shared);
+
+    expect(mockScriptDAO.gets).toHaveBeenCalledWith([scriptA.uuid, scriptB.uuid]);
+    expect(runtime.buildCompiledResourceFromScript).toHaveBeenCalledTimes(2);
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0][0]).toEqual([
+      expect.objectContaining({ id: scriptA.uuid, js: [{ code: `fresh-${scriptA.uuid}` }] }),
+      expect.objectContaining({ id: scriptB.uuid, js: [{ code: `fresh-${scriptB.uuid}` }] }),
+    ]);
+    expect(runtime.compiledResourceDAO.save).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not deliver the mutation ack before the early snapshot refresh barrier", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createMockScript();
+    let releaseRefresh!: () => void;
+    const barrier = new Promise<void>((resolve) => {
+      releaseRefresh = resolve;
+    });
+    vi.spyOn(runtime as any, "refreshEarlyStartSnapshots").mockReturnValue(barrier);
+    const storageSet = vi.spyOn(chrome.storage.local, "set").mockResolvedValue(undefined);
+
+    const update = runtime.pushValueUpdate(script, {
+      id: "ack-after-refresh",
+      entries: [["key", encodeRValue("new"), encodeRValue("old")]],
       uuid: script.uuid,
-      storageName: "test-storage",
-      sender: { runFlag: "", tabId: -1 },
+      storageName: "shared",
+      sender: { runFlag: "origin", tabId: 1 },
       valueUpdated: true,
     });
 
-    expect(updateSpy).toHaveBeenCalledWith(script);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(storageSet).not.toHaveBeenCalled();
+
+    releaseRefresh();
+    await update;
+    expect(storageSet).toHaveBeenCalledTimes(1);
   });
 });
 
