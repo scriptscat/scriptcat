@@ -4,7 +4,7 @@ import type { ScriptLoadInfo } from "../service_worker/types";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import type { GMInfoEnv } from "./types";
 import { initEnvInfo, ScriptExecutor } from "./script_executor";
-import { compileInjectScript, compilePreInjectScript } from "./utils";
+import { compileInjectScript, compilePreInjectScript, compileScriptCode } from "./utils";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 import { pageDispatchEvent } from "@Packages/message/common";
 
@@ -40,9 +40,9 @@ function mountInjectScript(script: ScriptLoadInfo, code: string) {
   execute(window);
 }
 
-function mountPreInjectScript(script: ScriptLoadInfo) {
+function mountPreInjectScript(script: ScriptLoadInfo, scriptCode: string = "") {
   const performance = { dispatchEvent: vi.fn(() => false), addEventListener: vi.fn() };
-  const execute = new Function("window", "performance", "CustomEvent", compilePreInjectScript(script, "")) as (
+  const execute = new Function("window", "performance", "CustomEvent", compilePreInjectScript(script, scriptCode)) as (
     target: Window,
     perf: typeof performance,
     customEvent: typeof CustomEvent
@@ -678,6 +678,49 @@ describe("ScriptExecutor", () => {
       delete pageWindow[script.flag];
       delete pageWindow.__capturedExecutionContext;
       delete pageWindow.__genuineWrapperExecuted;
+    }
+  });
+
+  it("runs an early wrapper with synchronous preload state before authoritative pageLoad", () => {
+    const script = makeScript({
+      uuid: "executor-preload-first-line-uuid",
+      flag: "#-executor-preload-first-line-uuid",
+      metadata: {
+        grant: ["GM_getValue", "GM_getValues", "GM_listValues"],
+        "early-start": [""],
+        "run-at": ["document-start"],
+      },
+      value: { stored: "persisted", counter: 7 },
+      userConfig: {
+        profile: { selected: { title: "Selected", description: "", index: 0, default: "custom" } },
+      },
+      userConfigStr: '{"profile":{"selected":"custom"}}',
+    });
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    const pageWindow = window as unknown as Record<string, unknown>;
+    const code = compileScriptCode(
+      script,
+      `unsafeWindow.__earlyPreloadProbe = {
+        value: GM_getValue("stored", "DEFAULT"),
+        counter: GM_getValues(["counter"]).counter,
+        listed: GM_listValues().includes("stored"),
+        userConfigStr: GM_info.userConfigStr
+      };`
+    );
+
+    try {
+      mountPreInjectScript(script, code);
+
+      expect(executor.execEarlyScript(script.flag, initEnvInfo)).toBe(true);
+      expect(pageWindow.__earlyPreloadProbe).toEqual({
+        value: "persisted",
+        counter: 7,
+        listed: true,
+        userConfigStr: script.userConfigStr,
+      });
+    } finally {
+      delete pageWindow[script.flag];
+      delete pageWindow.__earlyPreloadProbe;
     }
   });
 
