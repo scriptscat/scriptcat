@@ -1,11 +1,19 @@
+/**
+ * Node tests do not always expose the browser global. Rspack replaces this
+ * `node:` import with `node-worker-threads-browser.ts` for browser bundles, so
+ * the Node core module is never loaded by the extension at runtime.
+ */
 import { MessageChannel as NodeMessageChannel } from "node:worker_threads";
 
 // 把 message channel 相關的都放在這裡處理
 // 安全考慮和複雜度平衡：這裡做一個 NativeMessageChannel 但不做 NativeMessagePort
 // 基於安全度考慮程度跟 Native 有不一致，故不放在 Native
 
+/** Use the browser global when available and fall back to Node's implementation in Node environments. */
 const nativeMessageChannel = typeof MessageChannel === "undefined" ? NodeMessageChannel : MessageChannel;
 
+// Keep the constructor itself unchanged: reading browser MessageChannel.prototype.port1/port2
+// invokes instance-only accessors and throws Illegal invocation during content/inject startup.
 export const NativeMessageChannel = nativeMessageChannel;
 
 // ---- IDeferToNextTaskKernel ----
