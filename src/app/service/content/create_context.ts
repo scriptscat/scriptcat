@@ -52,6 +52,7 @@ const createCapability = (api: (...args: any[]) => any, receiver: object) => {
 export type ScriptContext = IGM_Base & {
   [key: string]: any;
   setExecutionRunFlag(runFlag: string): void;
+  takePendingEarlyValueKeys(): Set<string>;
   resolveLoadScript(): void;
 };
 
@@ -59,13 +60,17 @@ type InternalScriptContext = IGM_Base & {
   [key: string]: any;
   runFlag: string;
   loadScriptResolve?: () => void;
+  pendingEarlyValueKeys?: Set<string>;
 };
 
-// context → mySandbox 投影时必须排除的内部键：四个已在 protect 中登记的 GM_Base
-// 生命周期成员，加上两个只存在于 facade、未登记在 protect 的早期启动钩子。
+// context → mySandbox 投影时必须排除的内部键：protect 中登记的 GM_Base 生命周期成员，
+// 加上只存在于 facade、未登记在 protect 的早期启动钩子。
 // 供 createProxyContext 的投影过滤，以及 exec_script.ts 的 globalInjection 碰撞检查复用。
 export const isInternalContextKey = (key: string): boolean =>
-  key === "setExecutionRunFlag" || key === "resolveLoadScript" || Native.objectHasOwn(protect, key);
+  key === "setExecutionRunFlag" ||
+  key === "takePendingEarlyValueKeys" ||
+  key === "resolveLoadScript" ||
+  Native.objectHasOwn(protect, key);
 
 // 构建沙盒上下文
 export const createContext = (
@@ -84,7 +89,8 @@ export const createContext = (
   // 如果是preDocumentStart脚本，装载loadScriptPromise
   let loadScriptPromise: Promise<void> | undefined;
   let loadScriptResolve: (() => void) | undefined;
-  if (isEarlyStartScript(scriptRes.metadata)) {
+  const earlyStart = isEarlyStartScript(scriptRes.metadata);
+  if (earlyStart) {
     loadScriptPromise = new Promise((resolve) => {
       loadScriptResolve = resolve;
     });
@@ -107,6 +113,7 @@ export const createContext = (
     grantSet: new Native.Set<string>(),
     loadScriptPromise,
     loadScriptResolve,
+    pendingEarlyValueKeys: earlyStart ? new Native.Set<string>() : undefined,
     setInvalidContext() {
       if (invalid) return;
       invalid = true;
@@ -118,6 +125,7 @@ export const createContext = (
       // 释放记忆
       this.message = null;
       this.scriptRes = null;
+      this.pendingEarlyValueKeys = undefined;
       this.valueChangeListener = null;
       this.EE = null;
     },
@@ -141,8 +149,14 @@ export const createContext = (
   publicContext.setExecutionRunFlag = (runFlag: string) => {
     context.runFlag = runFlag;
   };
+  publicContext.takePendingEarlyValueKeys = () => {
+    const keys = context.pendingEarlyValueKeys || new Native.Set<string>();
+    context.pendingEarlyValueKeys = undefined;
+    return keys;
+  };
   publicContext.resolveLoadScript = () => {
     context.loadScriptResolve?.();
+    context.loadScriptResolve = undefined;
   };
 
   const grantedAPIs: { [key: string]: any } = Native.objectCreate(null);

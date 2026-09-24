@@ -183,6 +183,77 @@ describe("ScriptExecutor", () => {
     expect(exec.execContext.GM_info).toBe(gmInfo);
   });
 
+  it("preserves synchronous early-start value writes across authoritative reconciliation", () => {
+    const initial = {
+      ...makeScript({
+        uuid: "early-rmw-uuid",
+        flag: "early-rmw-flag",
+        metadata: {
+          grant: ["GM_getValue", "GM_setValue", "GM_deleteValue"],
+          "early-start": [""],
+          "run-at": ["document-start"],
+        },
+        value: { counter: 100, deleted: "preload", untouched: "preload" },
+      }),
+      scriptRevision: "early-rmw-uuid:1:0",
+    } as TScriptInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const executor = new ScriptExecutor({ sendMessage } as unknown as Message, {} as Message);
+
+    executor.execScriptEntry({
+      scriptLoadInfo: initial,
+      scriptFlag: initial.flag,
+      envInfo: initEnvInfo,
+      scriptFunc: (_token: string, context: any) => {
+        const counter = context.GM_getValue("counter", 0);
+        context.GM_setValue("counter", counter + 1);
+        context.GM_setValue("local-only", "local");
+        context.GM_deleteValue("deleted");
+      },
+    });
+
+    const execScript = (
+      executor as unknown as {
+        execScripts: Map<
+          string,
+          {
+            scriptRes: TScriptInfo;
+            reconcileEarlyScript: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => boolean;
+          }
+        >;
+      }
+    ).execScripts.get(initial.uuid)!;
+
+    expect(execScript.scriptRes.value).toEqual({
+      counter: 101,
+      untouched: "preload",
+      "local-only": "local",
+    });
+
+    expect(
+      execScript.reconcileEarlyScript(initEnvInfo, {
+        ...initial,
+        value: {
+          counter: 999,
+          deleted: "authoritative",
+          untouched: "authoritative",
+          "server-only": "server",
+        },
+        executionHandle: "early-rmw-binding",
+        executionEnvTag: "it",
+        executionRunFlag: "early-rmw-run",
+      })
+    ).toBe(true);
+
+    expect(execScript.scriptRes.value).toEqual({
+      counter: 101,
+      untouched: "authoritative",
+      "local-only": "local",
+      "server-only": "server",
+    });
+    expect(Object.prototype.hasOwnProperty.call(execScript.scriptRes.value, "deleted")).toBe(false);
+  });
+
   it("early-start reconciliation installs new scriptRes fields without invoking an inherited setter", () => {
     // Native.objectAssign(current, scriptInfo) 对每个 key 做普通 [[Set]]；current 自身没有
     // executionHandle 这个 own key（它是本轮 reconcile 才第一次出现的字段），普通赋值会沿原型链

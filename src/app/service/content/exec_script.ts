@@ -139,9 +139,36 @@ export default class ExecScript {
       return false;
     }
 
+    // Snapshot keys the userscript synchronously changed while privileged transport was still
+    // waiting for the authoritative page binding. Untouched keys should refresh from pageLoad,
+    // but explicit local read/modify/write operations must not be rolled back in between.
+    const pendingValueKeys = this.sandboxContext?.takePendingEarlyValueKeys();
+    const pendingValueOverrides = new Native.Map<string, [boolean, unknown]>();
+    if (pendingValueKeys) {
+      pendingValueKeys.forEach((key) => {
+        const valueStore = current.value;
+        const hasValue = Native.objectHasOwn(valueStore, key);
+        pendingValueOverrides.set(key, [hasValue, hasValue ? valueStore[key] : undefined]);
+      });
+    }
+
     // current 是内部可信状态（this.scriptRes）：任何无法安全重定义的既有属性都说明契约被破坏，
     // 直接失败，绝不调用继承的 setter 或触发 "__proto__" 的原型变更语义。
     installTrustedDataPropertiesStrict(current, scriptInfo);
+
+    pendingValueOverrides.forEach((entry, key) => {
+      if (!entry[0]) {
+        if (Native.objectHasOwn(current.value, key)) delete current.value[key];
+        return;
+      }
+      const descriptor = Native.objectCreate(null) as PropertyDescriptor;
+      descriptor.configurable = true;
+      descriptor.enumerable = true;
+      descriptor.writable = true;
+      descriptor.value = entry[1];
+      Native.objectDefineProperty(current.value, key, descriptor);
+    });
+
     const updatedGMInfo = evaluateGMInfo(envInfo, current);
     const gmInfo = this.sandboxContext ? this.execContext["GM_info"] : this.named?.GM_info;
     // gmInfo 是暴露给脚本的信息面：脚本可能已经在某个字段上安装了 non-configurable setter 来

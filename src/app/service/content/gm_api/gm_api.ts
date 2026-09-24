@@ -188,6 +188,9 @@ class GM_Base implements IGM_Base {
   @GMContext.protected()
   protected loadScriptPromise: Promise<void> | undefined;
 
+  @GMContext.protected()
+  protected pendingEarlyValueKeys: Set<string> | undefined;
+
   constructor(options: any = null, obj: any = null) {
     if (obj !== integrity) throw new TypeError("Illegal invocation");
     // options 是 createContext() 构造的内部纯数据初始化选项，this 是内部可信实例：
@@ -413,6 +416,9 @@ export default class GMApi extends GM_Base {
       promise?.();
       return;
     }
+    // Before the authoritative page bootstrap resolves, GM_setValue must still have immediate
+    // local semantics. Remember the touched key so reconciliation cannot overwrite this write.
+    a.pendingEarlyValueKeys?.add(key);
     if (valChangeCounterId > 1e8) {
       // 防止 valChangeCounterId 过大导致无法正常工作
       valChangeCounterId = 0;
@@ -477,6 +483,9 @@ export default class GMApi extends GM_Base {
     }
     for (let index = 0; index < valueEntries.length; index += 1) {
       const [key, value] = valueEntries[index];
+      // Same compatibility rule as GM_setValue: the userscript-visible local write wins until
+      // the queued authoritative write is flushed after bootstrap.
+      a.pendingEarlyValueKeys?.add(key);
       let value_ = value;
       if (value_ === undefined) {
         if (Native.objectHasOwn(valueStore, key)) delete valueStore[key];
