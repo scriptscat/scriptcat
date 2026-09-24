@@ -839,7 +839,7 @@ export class RuntimeService {
 
   private removeEarlyScriptStorageIndex(uuid: string): void {
     const storageName = this.earlyStorageNameByUuid.get(uuid);
-    if (!storageName) return;
+    if (storageName === undefined) return;
     this.earlyStorageNameByUuid.delete(uuid);
     const scripts = this.earlyScriptsByStorageName.get(storageName);
     if (!scripts) return;
@@ -938,7 +938,11 @@ export class RuntimeService {
           // Registration is already fresh. A failed cache write must not roll the browser
           // registration back; pageLoad will rebuild the cache on the next miss.
           this.pageLoadCaches.delete(script.uuid);
-          this.logger.error("save early-start compiled resource after value refresh failed", { uuid: script.uuid }, Logger.E(e));
+          this.logger.error(
+            "save early-start compiled resource after value refresh failed",
+            { uuid: script.uuid },
+            Logger.E(e)
+          );
         }
       })
     );
@@ -1096,7 +1100,6 @@ export class RuntimeService {
         // 推送到offscreen中
         await sendMessage(this.msgSender, "offscreen/runtime/valueUpdate", sendData);
       }
-
     } catch (e) {
       this.logger.error(
         "push value update failed",
@@ -1510,7 +1513,9 @@ export class RuntimeService {
     // scriptRevision identifies executable/static preload material. GM storage is a separate,
     // mutable generation: changing only scriptRes.value must update the early wrapper snapshot
     // without making the code/resource identity appear to change.
-    const revisionScriptRes = isEarlyStartScript(scriptRes.metadata) ? { ...scriptRes, value: {} } : scriptRes;
+    const revisionScriptRes = isEarlyStartScript(scriptRes.metadata)
+      ? { ...scriptRes, value: {} }
+      : scriptRes;
     const compiledCode = compileInjectionCode(revisionScriptRes, scriptRes.code, scriptMatchInfo.scriptUrlPatterns);
     const scriptRevision = this.getCompiledScriptRevision(
       revisionScriptRes,

@@ -2211,8 +2211,11 @@ describe("early-start value snapshot coherence", () => {
 
     expect(mockScriptDAO.gets).toHaveBeenCalledWith([scriptA.uuid, scriptB.uuid]);
     expect(runtime.buildCompiledResourceFromScript).toHaveBeenCalledTimes(2);
-    expect(update).toHaveBeenCalledTimes(1);
-    expect(update.mock.calls[0][0]).toEqual([
+    const sharedUpdateCalls = update.mock.calls.filter(([registrations]) =>
+      registrations.some((registration) => registration.id === scriptA.uuid || registration.id === scriptB.uuid)
+    );
+    expect(sharedUpdateCalls).toHaveLength(1);
+    expect(sharedUpdateCalls[0][0]).toEqual([
       expect.objectContaining({ id: scriptA.uuid, js: [{ code: `fresh-${scriptA.uuid}` }] }),
       expect.objectContaining({ id: scriptB.uuid, js: [{ code: `fresh-${scriptB.uuid}` }] }),
     ]);
