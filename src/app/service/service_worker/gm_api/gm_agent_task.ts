@@ -36,7 +36,7 @@ class GMAgentTaskApi {
     if (!this.agentService) {
       throw new Error("AgentService is not available");
     }
-    return this.agentService.handleAgentTaskApi(request.params[0]);
+    return this.agentService.handleAgentTaskApi(request.params[0], request.script.uuid);
   }
 }
 

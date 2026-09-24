@@ -500,6 +500,20 @@ export class AgentChatRepo extends OPFSRepo {
     }
   }
 
+  // 用户脚本只能读取自己拥有的会话消息声明过的附件；附件文件本身不携带 owner 元数据，
+  // 因此必须以持久化消息中的所有权字段作为授权依据，不能仅凭可猜测的附件 ID 或借用引用放行。
+  async isAttachmentAccessibleToScript(id: string, scriptUuid: string): Promise<boolean> {
+    if (!id || !scriptUuid) return false;
+    for (const conversation of await this.listConversations()) {
+      if (conversation.ownerScriptUuid !== scriptUuid) continue;
+      const snapshot = await this.getMessageSnapshot(conversation.id, conversation.generation);
+      if (collectMessageAttachmentIds(snapshot.messages, isLegacyGeneration(conversation.generation)).has(id)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   // 删除单个附件（同时清理新旧路径）
   async deleteAttachment(id: string): Promise<void> {
     // 新路径: agents/workspace/uploads/{id}

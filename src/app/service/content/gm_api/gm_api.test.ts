@@ -3,11 +3,12 @@ import ExecScript from "../exec_script";
 import type { ScriptLoadInfo } from "@App/app/service/service_worker/types";
 import type { GMInfoEnv, ScriptFunc } from "../types";
 import { compileScript, compileScriptCode } from "../utils";
-import type { Message } from "@Packages/message/types";
+import type { Message, MessageConnect } from "@Packages/message/types";
 import { encodeRValue } from "@App/pkg/utils/message_value";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { ScriptRunResource } from "@App/app/repo/scripts";
 import GMApi from "./gm_api";
+import { parseSerializedDocumentResponse } from "./gm_xhr";
 const nilFn: ScriptFunc = () => {};
 
 const scriptRes = {
@@ -31,6 +32,273 @@ const envInfo: GMInfoEnv = {
   },
   isIncognito: false,
 };
+
+describe("early-start page RPC", () => {
+  it("assigns a monotonic sequence to each page GM request and connection", async () => {
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
+    const connectMessage = vi.fn().mockResolvedValue({} as MessageConnect);
+    const script = {
+      ...scriptRes,
+      uuid: "sequenced-page-script",
+      executionHandle: "page-binding",
+      executionEnvTag: "it",
+    } as ScriptLoadInfo;
+    const api = new GMApi(
+      "scripting",
+      { sendMessage, connect: connectMessage } as unknown as Message,
+      {} as Message,
+      script
+    );
+
+    await api.sendMessage("GM_log", ["first"]);
+    await api.connect("GM_xmlhttpRequest", []);
+
+    expect(sendMessage.mock.calls[0][0].data).toMatchObject({ version: 2, sequence: 1 });
+    expect(connectMessage.mock.calls[0][0].data).toMatchObject({ version: 2, sequence: 2 });
+  });
+
+  it("waits for the page binding before opening a long-lived connection", async () => {
+    let release!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const connection = {} as MessageConnect;
+    const connectMessage = vi.fn().mockResolvedValue(connection);
+    const script = {
+      ...scriptRes,
+      uuid: "early-start-script",
+      executionHandle: "page-binding",
+      executionEnvTag: "it",
+    } as ScriptLoadInfo;
+    const api = new GMApi("scripting", { connect: connectMessage } as unknown as Message, {} as Message, script);
+    Object.defineProperty(api, "loadScriptPromise", { configurable: true, value: ready, writable: true });
+
+    const pending = api.connect("GM_xmlhttpRequest", []);
+    expect(connectMessage).not.toHaveBeenCalled();
+
+    release();
+    await expect(pending).resolves.toBe(connection);
+    expect(connectMessage).toHaveBeenCalledWith({
+      action: "scripting/runtime/gmApi",
+      data: expect.objectContaining({
+        api: "GM_xmlhttpRequest",
+        handle: "page-binding",
+        version: 2,
+        sequence: 1,
+      }),
+    });
+  });
+
+  it("cancels a waiting long-lived connection when its context is invalidated", async () => {
+    let release!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const connectMessage = vi.fn();
+    const script = {
+      ...scriptRes,
+      uuid: "early-start-invalidated-connection",
+      executionHandle: "page-binding",
+      executionEnvTag: "it",
+    } as ScriptLoadInfo;
+    const api = new GMApi("scripting", { connect: connectMessage } as unknown as Message, {} as Message, script);
+    Object.defineProperty(api, "loadScriptPromise", { configurable: true, value: ready, writable: true });
+    let rejected = false;
+
+    const pending = api.connect("GM_xmlhttpRequest", []).catch((error: unknown) => {
+      rejected = error instanceof Error && error.message === "Invalid Context";
+    });
+    api.setInvalidContext();
+    release();
+    await vi.waitFor(() => expect(rejected).toBe(true), { timeout: 100 });
+    await pending;
+
+    expect(connectMessage).not.toHaveBeenCalled();
+  });
+
+  it("uses the authoritative run flag for early-start async value acknowledgments", async () => {
+    const script = {
+      ...scriptRes,
+      uuid: "early-start-value-script",
+      scriptRevision: "early-start-value-script:1:0",
+      metadata: { grant: ["GM.setValue"], "early-start": [""], "run-at": ["document-start"] },
+      executionHandle: undefined,
+      executionEnvTag: undefined,
+      executionRunFlag: undefined,
+    } as ScriptLoadInfo;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: { sendMessage: mockSendMessage } as unknown as Message,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+
+    exec.scriptFunc = function (_token: string, context: any) {
+      return context.GM.setValue("a", 123);
+    } as unknown as ScriptFunc;
+    const result = exec.exec();
+    await Promise.resolve();
+    expect(mockSendMessage).not.toHaveBeenCalled();
+
+    expect(
+      exec.reconcileEarlyScript(envInfo, {
+        ...script,
+        scriptRevision: "early-start-value-script:1:0",
+        executionHandle: "page-binding",
+        executionEnvTag: "it",
+        executionRunFlag: "canonical-run",
+      } as any)
+    ).toBe(true);
+    await Promise.resolve();
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+
+    const request = mockSendMessage.mock.calls[0][0].data;
+    exec.valueUpdate({
+      id: request.params[0],
+      entries: [["a", encodeRValue(123), encodeRValue(undefined)]],
+      uuid: script.uuid,
+      storageName: script.uuid,
+      sender: { runFlag: "canonical-run", tabId: -2 },
+      valueUpdated: true,
+    });
+
+    await expect(result).resolves.toBeUndefined();
+  });
+});
+
+describe("page RPC v2 wire identity (Commit 3)", () => {
+  // Wire identity is `handle` only, on every transport: neither the native SW hop (prefix
+  // "serviceWorker" — MAIN native or USER_SCRIPT, which is always native) nor the MAIN fallback
+  // hop through the content-script PageRpcRegistry (prefix "scripting") may duplicate it as
+  // `executionHandle`, and neither may carry a page-supplied requestId/uuid/runFlag/envTag.
+  // Canonical identity is resolved solely from `handle` + the real sender, by the SW.
+  it.each([
+    ["serviceWorker" as const, "main-native-script", "main-binding"],
+    ["scripting" as const, "main-fallback-script", "main-binding"],
+  ])("sendMessage over the %s transport carries only the v2 handle", async (prefix, uuid, handle) => {
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
+    const script = {
+      ...scriptRes,
+      uuid,
+      executionHandle: handle,
+      executionEnvTag: "it",
+    } as ScriptLoadInfo;
+    const api = new GMApi(prefix, { sendMessage } as unknown as Message, {} as Message, script);
+
+    await api.sendMessage("GM_setValue", ["a", 1]);
+
+    const data = sendMessage.mock.calls[0][0].data;
+    expect(Reflect.ownKeys(data)).toEqual(["version", "sequence", "handle", "api", "params"]);
+    expect(data).toMatchObject({ version: 2, sequence: 1, handle, api: "GM_setValue" });
+  });
+
+  it.each([
+    ["serviceWorker" as const, "main-native-connect-script", "main-binding"],
+    ["scripting" as const, "main-fallback-connect-script", "main-binding"],
+  ])("connect over the %s transport carries only the v2 handle", async (prefix, uuid, handle) => {
+    const connectMessage = vi.fn().mockResolvedValue({} as MessageConnect);
+    const script = {
+      ...scriptRes,
+      uuid,
+      executionHandle: handle,
+      executionEnvTag: "it",
+    } as ScriptLoadInfo;
+    const api = new GMApi(prefix, { connect: connectMessage } as unknown as Message, {} as Message, script);
+
+    await api.connect("GM_xmlhttpRequest", []);
+
+    const data = connectMessage.mock.calls[0][0].data;
+    expect(Reflect.ownKeys(data)).toEqual(["version", "sequence", "handle", "api", "params"]);
+    expect(data).toMatchObject({ version: 2, handle, api: "GM_xmlhttpRequest" });
+  });
+
+  it("USER_SCRIPT (ct) is always native and still carries only the v2 handle (regression)", async () => {
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
+    const script = {
+      ...scriptRes,
+      uuid: "ct-script",
+      executionHandle: "ct-binding",
+      executionEnvTag: "ct",
+    } as ScriptLoadInfo;
+    const api = new GMApi("serviceWorker", { sendMessage } as unknown as Message, {} as Message, script);
+
+    await api.sendMessage("GM_setValue", ["a", 1]);
+
+    const data = sendMessage.mock.calls[0][0].data;
+    expect(data.handle).toBe("ct-binding");
+    expect(Reflect.ownKeys(data)).toEqual(["version", "sequence", "handle", "api", "params"]);
+  });
+
+  it("a request with no executionHandle keeps the legacy uuid/runFlag shape", async () => {
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
+    const script = {
+      ...scriptRes,
+      uuid: "legacy-script",
+      executionHandle: undefined,
+      executionEnvTag: undefined,
+    } as ScriptLoadInfo;
+    const api = new GMApi("serviceWorker", { sendMessage } as unknown as Message, {} as Message, script);
+
+    await api.sendMessage("GM_setValue", ["a", 1]);
+
+    const data = sendMessage.mock.calls[0][0].data;
+    expect(data).toMatchObject({
+      uuid: "legacy-script",
+      api: "GM_setValue",
+      params: ["a", 1],
+    });
+    expect(data.version).toBeUndefined();
+    expect(data.handle).toBeUndefined();
+  });
+});
+
+describe("CAT_fetchDocument", () => {
+  it("rebuilds documents from a data-only response instead of a relatedTarget reference", async () => {
+    const script = Object.assign({}, scriptRes, {
+      executionEnvTag: "it",
+      metadata: { grant: ["CAT_fetchDocument"] },
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({
+      code: 0,
+      data: {
+        text: '<!doctype html><html><body><main data-source="serialized">ok</main></body></html>',
+        contentType: "text/html",
+      },
+    });
+    const api = new GMApi("scripting", { sendMessage } as unknown as Message, {} as Message, script);
+
+    const document = await api.CAT_fetchDocument(api, "https://example.test/document");
+
+    expect(document?.querySelector("main")?.getAttribute("data-source")).toBe("serialized");
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "scripting/runtime/gmApi",
+        data: expect.objectContaining({ api: "CAT_fetchDocument", params: ["https://example.test/document", false] }),
+      })
+    );
+  });
+
+  it("does not execute accessors in a forged serialized response", () => {
+    const getter = vi.fn(() => "secret");
+    const data = { contentType: "text/html" } as Record<string, unknown>;
+    Object.defineProperty(data, "text", { configurable: true, enumerable: true, get: getter });
+
+    expect(parseSerializedDocumentResponse(data)).toBeUndefined();
+    expect(getter).not.toHaveBeenCalled();
+
+    const proxy = new Proxy(
+      { text: "<html />", contentType: "text/html" },
+      {
+        getOwnPropertyDescriptor: () => {
+          throw new Error("proxy trap");
+        },
+      }
+    );
+    expect(parseSerializedDocumentResponse(proxy)).toBeUndefined();
+  });
+});
 
 const makeResource = (url: string, content: string, type: "require" | "require-css" | "resource") => ({
   url,
@@ -59,10 +327,10 @@ describe("GM Resource API", () => {
     } as unknown as ScriptRunResource;
     const api = new GMApi("test", {} as Message, {} as Message, script);
 
-    expect(api.GM_getResourceText(name)).toBe("declared resource");
-    expect(api.GM_getResourceURL(name)).toContain("ZGVjbGFyZWQgcmVzb3VyY2U=");
-    expect(await api["GM.getResourceText"](name)).toBe("declared resource");
-    expect(await api["GM.getResourceUrl"](name)).toContain("ZGVjbGFyZWQgcmVzb3VyY2U=");
+    expect(api.GM_getResourceText(api, name)).toBe("declared resource");
+    expect(api.GM_getResourceURL(api, name)).toContain("ZGVjbGFyZWQgcmVzb3VyY2U=");
+    expect(await api["GM.getResourceText"](api, name)).toBe("declared resource");
+    expect(await api["GM.getResourceUrl"](api, name)).toContain("ZGVjbGFyZWQgcmVzb3VyY2U=");
 
     const legacyScript = {
       ...script,
@@ -71,7 +339,7 @@ describe("GM Resource API", () => {
     } as unknown as ScriptRunResource;
     const legacyApi = new GMApi("test", {} as Message, {} as Message, legacyScript);
 
-    expect(legacyApi.GM_getResourceText(name)).toBe("legacy resource");
+    expect(legacyApi.GM_getResourceText(legacyApi, name)).toBe("legacy resource");
   });
 });
 
@@ -114,26 +382,26 @@ describe.concurrent("@grant GM", () => {
       ["GM_xmlhttpRequest"]: this.GM_xmlhttpRequest || function nil(){},
       ["GM.xmlhttpRequest"]: this.GM.xmlhttpRequest || function nil(){},
     }`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     // getValue
-    expect(ret.GM_getValue?.name).toEqual("bound GM_getValue");
+    expect(ret.GM_getValue?.name).toEqual("GM_getValue");
     // getTab / getTabs / saveTab
-    expect(ret.GM_getTab?.name).toEqual("bound GM_getTab");
-    expect(ret.GM_getTabs?.name).toEqual("bound GM_getTabs");
-    expect(ret.GM_saveTab?.name).toEqual("bound GM_saveTab");
+    expect(ret.GM_getTab?.name).toEqual("GM_getTab");
+    expect(ret.GM_getTabs?.name).toEqual("GM_getTabs");
+    expect(ret.GM_saveTab?.name).toEqual("GM_saveTab");
     // cookie
-    expect(ret.GM_cookie?.name).toEqual("bound GM_cookie");
-    expect(ret["GM_cookie.list"]?.name).toEqual("bound GM_cookie.list");
+    expect(ret.GM_cookie?.name).toEqual("GM_cookie");
+    expect(ret["GM_cookie.list"]?.name).toEqual("GM_cookie.list");
     // GM_与GM.应该都在
-    expect(ret["GM_addElement"]?.name).toEqual("bound GM_addElement");
-    expect(ret["GM.addElement"]?.name).toEqual("bound GM.addElement");
-    expect(ret["GM_openInTab"]?.name).toEqual("bound GM_openInTab");
-    expect(ret["GM.openInTab"]?.name).toEqual("bound GM.openInTab");
-    expect(ret["GM_log"]?.name).toEqual("bound GM_log");
-    expect(ret["GM.log"]?.name).toEqual("bound GM.log");
-    expect(ret["GM_notification"]?.name).toEqual("bound GM_notification");
-    expect(ret["GM.notification"]?.name).toEqual("bound GM.notification");
+    expect(ret["GM_addElement"]?.name).toEqual("GM_addElement");
+    expect(ret["GM.addElement"]?.name).toEqual("GM.addElement");
+    expect(ret["GM_openInTab"]?.name).toEqual("GM_openInTab");
+    expect(ret["GM.openInTab"]?.name).toEqual("GM.openInTab");
+    expect(ret["GM_log"]?.name).toEqual("GM_log");
+    expect(ret["GM.log"]?.name).toEqual("GM.log");
+    expect(ret["GM_notification"]?.name).toEqual("GM_notification");
+    expect(ret["GM.notification"]?.name).toEqual("GM.notification");
     // 没有grant应返回 nil
     expect(ret["GM_xmlhttpRequest"]?.name).toEqual("nil");
     expect(ret["GM.xmlhttpRequest"]?.name).toEqual("nil");
@@ -176,26 +444,26 @@ describe.concurrent("@grant GM", () => {
       ["GM_xmlhttpRequest"]: this.GM_xmlhttpRequest || function nil(){},
       ["GM.xmlhttpRequest"]: this.GM.xmlhttpRequest || function nil(){},
     }`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     // getValue
-    expect(ret["GM.getValue"]?.name).toEqual("bound GM.getValue");
+    expect(ret["GM.getValue"]?.name).toEqual("GM.getValue");
     // getTab / getTabs / saveTab
-    expect(ret["GM.getTab"]?.name).toEqual("bound GM.getTab");
-    expect(ret["GM.getTabs"]?.name).toEqual("bound GM.getTabs");
-    expect(ret["GM.saveTab"]?.name).toEqual("bound GM.saveTab");
+    expect(ret["GM.getTab"]?.name).toEqual("GM.getTab");
+    expect(ret["GM.getTabs"]?.name).toEqual("GM.getTabs");
+    expect(ret["GM.saveTab"]?.name).toEqual("GM.saveTab");
     // cookie
-    expect(ret["GM.cookie"]?.name).toEqual("bound GM.cookie");
-    expect(ret["GM.cookie"]?.list?.name).toEqual("bound GM.cookie.list");
+    expect(ret["GM.cookie"]?.name).toEqual("GM.cookie");
+    expect(ret["GM.cookie"]?.list?.name).toEqual("GM.cookie.list");
     // GM_与GM.应该都在
-    expect(ret["GM_addElement"]?.name).toEqual("bound GM_addElement");
-    expect(ret["GM.addElement"]?.name).toEqual("bound GM.addElement");
-    expect(ret["GM_openInTab"]?.name).toEqual("bound GM_openInTab");
-    expect(ret["GM.openInTab"]?.name).toEqual("bound GM.openInTab");
-    expect(ret["GM_log"]?.name).toEqual("bound GM_log");
-    expect(ret["GM.log"]?.name).toEqual("bound GM.log");
-    expect(ret["GM_notification"]?.name).toEqual("bound GM_notification");
-    expect(ret["GM.notification"]?.name).toEqual("bound GM.notification");
+    expect(ret["GM_addElement"]?.name).toEqual("GM_addElement");
+    expect(ret["GM.addElement"]?.name).toEqual("GM.addElement");
+    expect(ret["GM_openInTab"]?.name).toEqual("GM_openInTab");
+    expect(ret["GM.openInTab"]?.name).toEqual("GM.openInTab");
+    expect(ret["GM_log"]?.name).toEqual("GM_log");
+    expect(ret["GM.log"]?.name).toEqual("GM.log");
+    expect(ret["GM_notification"]?.name).toEqual("GM_notification");
+    expect(ret["GM.notification"]?.name).toEqual("GM.notification");
     // 没有grant应返回 nil
     expect(ret["GM_xmlhttpRequest"]?.name).toEqual("nil");
     expect(ret["GM.xmlhttpRequest"]?.name).toEqual("nil");
@@ -214,7 +482,7 @@ describe.concurrent("window.*", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual(expect.any(Function));
   });
@@ -233,7 +501,7 @@ describe.concurrent("GM Api", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual("ok");
   });
@@ -249,7 +517,7 @@ describe.concurrent("GM Api", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual("ok!");
   });
@@ -266,7 +534,7 @@ describe.concurrent("GM Api", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual("test1-test2-test3");
   });
@@ -287,7 +555,7 @@ describe.concurrent("GM Api", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual("test5-test2-test3-test1"); // TM也没有sort
   });
@@ -304,7 +572,7 @@ describe.concurrent("GM Api", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual("test1-test2-test3");
   });
@@ -325,7 +593,7 @@ describe.concurrent("GM Api", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual("test5-test2-test3-test1"); // TM也没有sort
   });
@@ -342,14 +610,14 @@ describe.concurrent("GM Api", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret.test1).toEqual("23");
     expect(ret.test2).toEqual(45);
     expect(ret.test3).toEqual("67");
     // object default
     script.code = `return GM_getValues({test4: "default",test2:123});`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret2 = await exec.exec();
     expect(ret2.test1).toBeUndefined();
     expect(ret2.test2).toEqual(45);
@@ -368,7 +636,7 @@ describe.concurrent("GM Api", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret.test1).toEqual("23");
     expect(ret.test2).toEqual(45);
@@ -390,12 +658,12 @@ describe.concurrent("early-script", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     // 抛出错误
     await expect(exec.exec()).rejects.toThrowError();
   });
   it.concurrent("成功", async () => {
-    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    const script = Object.assign({}, scriptRes, { scriptRevision: "script-uuid:1:0" }) as ScriptLoadInfo;
     script.metadata = {};
     script.metadata["early-start"] = [""];
     script.metadata["run-at"] = ["document-start"];
@@ -408,10 +676,18 @@ describe.concurrent("early-script", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = exec.exec();
     // 触发envInfo
-    exec.updateEarlyScriptGMInfo(envInfo);
+    expect(
+      exec.reconcileEarlyScript(envInfo, {
+        ...script,
+        scriptRevision: "script-uuid:1:0",
+        executionHandle: "page-binding",
+        executionEnvTag: "it",
+        executionRunFlag: "page-run",
+      } as any)
+    ).toBe(true);
     expect(await ret).toEqual(123);
   });
 });
@@ -434,7 +710,7 @@ describe.concurrent("GM_menu", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const retPromise = exec.exec();
 
     // 验证 sendMessage 是否被调用
@@ -470,6 +746,39 @@ describe.concurrent("GM_menu", () => {
     expect(await retPromise).toEqual(123);
   });
 
+  it.concurrent("注册菜单不会执行选项 getter", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_registerMenuCommand"];
+    script.code = `
+      let getterCalls = 0;
+      const options = { accessKey: "s" };
+      Object.defineProperty(options, "secret", { enumerable: true, get() { getterCalls += 1; return "forged"; } });
+      GM_registerMenuCommand("safe", () => {}, options);
+      return getterCalls;
+    `;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = { sendMessage: mockSendMessage } as unknown as Message;
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
+
+    await expect(exec.exec()).resolves.toBe(0);
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          api: "GM_registerMenuCommand",
+          params: [expect.any(String), "safe", expect.objectContaining({ accessKey: "s" })],
+        }),
+      })
+    );
+    expect(mockSendMessage.mock.calls[0][0].data.params[2]).not.toHaveProperty("secret");
+  });
+
   it.concurrent("取消注册菜单", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_registerMenuCommand", "GM_unregisterMenuCommand"];
@@ -489,7 +798,7 @@ describe.concurrent("GM_menu", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = exec.exec();
     // 验证 sendMessage 是否被调用
     expect(mockSendMessage).toHaveBeenCalled();
@@ -516,7 +825,7 @@ describe.concurrent("GM_menu", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const retPromise = exec.exec();
 
     // 验证 sendMessage 是否被调用
@@ -584,13 +893,54 @@ describe.concurrent("GM_menu", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual({ id1: "abc", id2: "abc", id3: 1, id4: 2, id5: "3", id6: 3, id7: 3, id8: 4 });
   });
 });
 
 describe.concurrent("GM_value", () => {
+  it.each(["__proto__", "constructor", "prototype"])("stores %s as an ordinary value key", (key) => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_getValue", "GM_setValue"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const stored = { leaked: "secret" };
+
+    api.GM_setValue(api, key, stored);
+
+    expect(Object.prototype.hasOwnProperty.call(script.value, key)).toBe(true);
+    expect(Object.getPrototypeOf(script.value)).toBe(Object.prototype);
+    expect(api.GM_getValue(api, key)).toEqual(stored);
+    expect(api.GM_getValue(api, "leaked")).toBeUndefined();
+  });
+
+  it("returns __proto__ as an own key without changing the result prototype", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_getValue", "GM_setValue", "GM_getValues"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const stored = { leaked: "secret" };
+
+    api.GM_setValue(api, "__proto__", stored);
+
+    const selected = api.GM_getValues(api, ["__proto__"]);
+    const defaults = Object.create(null) as Record<string, unknown>;
+    defaults.__proto__ = "fallback";
+    const withDefaults = api.GM_getValues(api, defaults);
+
+    expect(Object.getPrototypeOf(selected)).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(selected, "__proto__")).toBe(true);
+    expect(selected.__proto__).toEqual(stored);
+    expect(Object.getPrototypeOf(withDefaults)).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(withDefaults, "__proto__")).toBe(true);
+    expect(withDefaults.__proto__).toEqual(stored);
+  });
+
   it.concurrent("GM_setValue", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValue", "GM_setValue"];
@@ -618,7 +968,7 @@ describe.concurrent("GM_value", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
@@ -652,14 +1002,14 @@ describe.concurrent("GM_value", () => {
       })
     );
 
-    // 第三次调用：设置值为 Proxy 对象（应失败）
+    // 第三次调用：plain-object Proxy 走 JSON fallback，保持 userscript compatibility。
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
         action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValue",
-          params: [expect.any(String), "proxy-key", {}], // Proxy 会被转换为空对象
+          params: [expect.any(String), "proxy-key", {}],
           runFlag: expect.any(String),
           uuid: undefined,
         },
@@ -753,7 +1103,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
@@ -846,6 +1196,248 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     });
   });
 
+  it("GM_setValue preserves legacy getter clone semantics at the userscript boundary", () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_getValue", "GM_setValue"];
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const getter = vi.fn(() => "secret");
+    const payload = { normal: 1 } as Record<string, unknown>;
+    Object.defineProperty(payload, "secret", { configurable: true, enumerable: true, get: getter });
+
+    api.GM_setValue(api, "compat", payload);
+
+    expect(getter).toHaveBeenCalledTimes(1);
+    expect(api.GM_getValue(api, "compat")).toEqual({ normal: 1, secret: "secret" });
+  });
+
+  it("GM_setValue JSON-falls back for Proxy-wrapped plain objects", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_getValue", "GM_setValue"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const traps = { ownKeys: 0, getOwnPropertyDescriptor: 0, get: 0 };
+    const payload = new Proxy(
+      { a: 1, nested: { b: 2 } },
+      {
+        ownKeys(target) {
+          traps.ownKeys += 1;
+          return Reflect.ownKeys(target);
+        },
+        getOwnPropertyDescriptor(target, key) {
+          traps.getOwnPropertyDescriptor += 1;
+          return Reflect.getOwnPropertyDescriptor(target, key);
+        },
+        get(target, key, receiver) {
+          traps.get += 1;
+          return Reflect.get(target, key, receiver);
+        },
+      }
+    );
+
+    api.GM_setValue(api, "proxy", payload);
+
+    expect(api.GM_getValue(api, "proxy")).toEqual({ a: 1, nested: { b: 2 } });
+    expect(traps.ownKeys).toBeGreaterThan(0);
+    expect(traps.getOwnPropertyDescriptor).toBeGreaterThan(0);
+    expect(traps.get).toBeGreaterThan(0);
+  });
+
+  it("GM.setValues turns accessor failures into Promise rejection instead of a synchronous throw", async () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM.setValues"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const payload = {} as Record<string, unknown>;
+    Object.defineProperty(payload, "broken", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error("accessor failed");
+      },
+    });
+
+    let result!: Promise<void>;
+    expect(() => {
+      result = api["GM.setValues"](api, payload);
+    }).not.toThrow();
+
+    await expect(result).rejects.toThrow("accessor failed");
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("GM_setValues invokes top-level enumerable accessors once", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_setValues"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const getter = vi.fn(() => "secret");
+    const payload = { valid: 1 } as Record<string, unknown>;
+    Object.defineProperty(payload, "secret", { configurable: true, enumerable: true, get: getter });
+
+    api.GM_setValues(api, payload);
+
+    expect(getter).toHaveBeenCalledTimes(1);
+    expect(script.value).toEqual({ valid: 1, secret: "secret" });
+  });
+
+  it("GM_getValue does not substitute the default for an existing undefined value", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_getValue"] },
+      value: Object.create(null),
+    }) as ScriptLoadInfo;
+    Object.defineProperty(script.value, "symbol", {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: undefined,
+    });
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+
+    expect(api.GM_listValues(api)).toContain("symbol");
+    expect(api.GM_getValue(api, "symbol", "__DEFAULT__")).toBeUndefined();
+  });
+
+  it("GM_setValues does not trust a hooked Array.prototype.push for transport", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_setValues"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const originalPush = Array.prototype.push;
+    Array.prototype.push = function (...items: unknown[]): number {
+      return originalPush.call(this, ...items, ["injected", encodeRValue("forged")]);
+    };
+
+    try {
+      api.GM_setValues(api, { valid: 1 });
+    } finally {
+      Array.prototype.push = originalPush;
+    }
+
+    expect(script.value).toEqual({ valid: 1 });
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ params: [expect.any(String), [["valid", [0, 1]]]] }) })
+    );
+  });
+
+  it("normalizes a top-level Function to ScriptCat delete semantics immediately", () => {
+    const script = Object.assign({}, scriptRes, { value: { executable: "OLD" } }) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_setValue"];
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const executable = () => "secret";
+
+    api.GM_setValue(api, "executable", executable);
+
+    expect(Object.hasOwn(script.value, "executable")).toBe(false);
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ params: [expect.any(String), "executable"] }) })
+    );
+  });
+
+  it("normalizes a top-level Symbol to ScriptCat delete semantics immediately", () => {
+    const script = Object.assign({}, scriptRes, { value: { symbol: "OLD" } }) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_setValue"];
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+
+    api.GM_setValue(api, "symbol", Symbol("secret"));
+
+    expect(Object.hasOwn(script.value, "symbol")).toBe(false);
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ params: [expect.any(String), "symbol"] }) })
+    );
+  });
+
+  it("normalizes nested unsupported values with Tampermonkey-style plain object/array semantics", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_getValue", "GM_setValue"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+
+    api.GM_setValue(api, "object", {
+      before: 1,
+      fn() {
+        return 2;
+      },
+      symbol: Symbol("nested"),
+      undef: undefined,
+      after: 3,
+      deep: {
+        before: 4,
+        fn() {
+          return 5;
+        },
+        symbol: Symbol("deep"),
+        undef: undefined,
+        after: 6,
+      },
+    });
+    api.GM_setValue(api, "array", [1, () => 2, Symbol("nested"), undefined, 5]);
+
+    expect(api.GM_getValue(api, "object")).toEqual({
+      before: 1,
+      after: 3,
+      deep: { before: 4, after: 6 },
+    });
+    expect(api.GM_getValue(api, "array")).toEqual([1, null, null, null, 5]);
+  });
+
+  it("GM_setValues deletes Function/Symbol entries after normalization instead of keeping transient undefined", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_setValues"] },
+      value: { fn: "OLD_FN", symbol: "OLD_SYMBOL", keep: "OLD_KEEP" },
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+
+    api.GM_setValues(api, {
+      fn: () => "new",
+      symbol: Symbol("new"),
+      keep: "NEW_KEEP",
+    });
+
+    expect(script.value).toEqual({ keep: "NEW_KEEP" });
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          params: [
+            expect.any(String),
+            [
+              ["fn", encodeRValue(undefined)],
+              ["symbol", encodeRValue(undefined)],
+              ["keep", encodeRValue("NEW_KEEP")],
+            ],
+          ],
+        }),
+      })
+    );
+  });
+
+  it("GM_setValues deletes existing falsy values when given undefined", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_setValues"] },
+      value: { zero: 0, no: false, empty: "", nil: null },
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+
+    api.GM_setValues(api, { zero: undefined, no: undefined, empty: undefined, nil: undefined });
+
+    expect(script.value).toEqual({});
+  });
+
   it.concurrent("GM_setValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValues", "GM_setValues"];
@@ -873,7 +1465,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
@@ -928,7 +1520,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       })
     );
 
-    // 第三次调用：设置值为 Proxy 对象（应失败）
+    // 第三次调用：plain-object Proxy 走 JSON fallback。
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
@@ -1001,7 +1593,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
@@ -1075,7 +1667,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
@@ -1137,6 +1729,9 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const script = Object.assign({ uuid: uuidv4() }, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValue", "GM_setValue", "GM_addValueChangeListener"];
     script.metadata.storageName = ["testStorage"];
+    script.executionHandle = "page-binding";
+    script.executionEnvTag = "it";
+    script.executionRunFlag = "canonical-run";
     script.code = `
     return new Promise(resolve=>{
       GM_addValueChangeListener("param1", (name, oldValue, newValue, remote)=>{
@@ -1156,7 +1751,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const retPromise = exec.exec();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     // 模拟值变化
@@ -1165,7 +1760,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       entries: [["param1", encodeRValue(123), encodeRValue(undefined)]],
       uuid: script.uuid,
       storageName: script.uuid,
-      sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+      sender: { runFlag: script.executionRunFlag, tabId: -2 },
       valueUpdated: true,
     });
     const ret = await retPromise;
@@ -1195,7 +1790,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     // remote = true
     const retPromise = exec.exec();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
@@ -1211,11 +1806,36 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const ret2 = await retPromise;
     expect(ret2).toEqual({ name: "param2", oldValue: undefined, newValue: 456, remote: true });
   });
-  it.concurrent("异步GM.setValue，等待回调", async () => {
+
+  it.concurrent("value change listeners receive snapshots instead of the cached object", () => {
+    const script = Object.assign({ uuid: uuidv4() }, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_getValue", "GM_addValueChangeListener"];
+    script.value = {};
+    const api = new GMApi("test", {} as Message, {} as Message, script);
+    api.GM_addValueChangeListener(api, "snapshot", (_name, _oldValue, newValue) => {
+      const snapshot = newValue as { nested: { value: number } };
+      snapshot.nested.value = 99;
+    });
+
+    api.valueUpdate({
+      entries: [["snapshot", encodeRValue({ nested: { value: 1 } }), encodeRValue(undefined)]],
+      uuid: script.uuid,
+      storageName: script.uuid,
+      sender: { runFlag: "remote", tabId: -2 },
+      valueUpdated: true,
+    });
+
+    expect(api.GM_getValue(api, "snapshot")).toEqual({ nested: { value: 1 } });
+  });
+  it.concurrent("异步GM.setValue，等待RPC完成而不是valueUpdate广播", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM.getValue", "GM.setValue"];
     script.code = `await GM.setValue("a", 123); return await GM.getValue("a");`;
-    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    let resolveRpc!: (value: unknown) => void;
+    const rpcBarrier = new Promise((resolve) => {
+      resolveRpc = resolve;
+    });
+    const mockSendMessage = vi.fn().mockReturnValue(rpcBarrier);
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
@@ -1226,31 +1846,133 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const retPromise = exec.exec();
 
-    await Promise.resolve(); // 等待一轮微任务，让GM.setValue执行
+    await Promise.resolve();
 
-    expect(mockSendMessage).toHaveBeenCalled();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
-    // 获取调用参数
-    const actualCall = mockSendMessage.mock.calls[0][0];
-    const id = actualCall.data.params[0];
-
-    expect(id).toBeTypeOf("string");
-    expect(id.length).greaterThan(0);
-    // 触发valueUpdate
-    exec.valueUpdate({
-      id: id,
-      entries: [["a", encodeRValue(123), encodeRValue(undefined)]],
-      uuid: script.uuid,
-      storageName: script.uuid,
-      sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
-      valueUpdated: true,
+    let settled = false;
+    void retPromise.then(() => {
+      settled = true;
     });
+    await Promise.resolve();
+    expect(settled).toBe(false);
 
+    resolveRpc({ code: 0 });
     const ret = await retPromise;
     expect(ret).toEqual(123);
+  });
+});
+
+describe("GM_value hostile intrinsics", () => {
+  it("GM_getValues 直接赋值到 result 时不会触发 Object.prototype 上的继承 setter", () => {
+    // result 是 Native.objectCreate(null) 建出的纯字典，setOwnValue 改成直接赋值后，
+    // 即使 Object.prototype 被投毒了同名 setter，写入也必须落在 result 的自有属性上，
+    // 不会被继承 setter 拦截——这正是 result 在数组路径和默认值路径都保持空原型的原因。
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_getValue", "GM_setValue", "GM_getValues"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    api.GM_setValue(api, "poisonedKey", "own-value");
+
+    const previousDescriptor = Object.getOwnPropertyDescriptor(Object.prototype, "poisonedKey");
+    let setterCalls = 0;
+    Object.defineProperty(Object.prototype, "poisonedKey", {
+      configurable: true,
+      set() {
+        setterCalls += 1;
+      },
+    });
+    let selected: Record<string, unknown>;
+    let withDefault: Record<string, unknown>;
+    try {
+      selected = api.GM_getValues(api, ["poisonedKey"]);
+      withDefault = api.GM_getValues(api, { poisonedKey: "fallback" });
+    } finally {
+      if (previousDescriptor) Object.defineProperty(Object.prototype, "poisonedKey", previousDescriptor);
+      else Reflect.deleteProperty(Object.prototype, "poisonedKey");
+    }
+
+    expect(setterCalls).toBe(0);
+    expect(Object.getPrototypeOf(selected!)).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(selected!, "poisonedKey")).toBe(true);
+    expect(selected!.poisonedKey).toBe("own-value");
+    expect(Object.getPrototypeOf(withDefault!)).toBeNull();
+    expect(withDefault!.poisonedKey).toBe("own-value");
+  });
+
+  it("GM_setValues avoids inherited numeric setters for its entry arrays", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_setValues"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const api = new GMApi("test", {} as Message, {} as Message, script as unknown as ScriptRunResource);
+    let sentParams: unknown[] | undefined;
+    api.sendMessage = (_name: string, params: any[]) => {
+      sentParams = params;
+      return Promise.resolve(undefined);
+    };
+    const defineProperty = Object.defineProperty;
+    const previousIndexDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, "0");
+    let setterCalls = 0;
+
+    defineProperty(Array.prototype, "0", {
+      configurable: true,
+      set() {
+        setterCalls += 1;
+      },
+    });
+    try {
+      api.GM_setValues(api, { valid: 1 });
+    } finally {
+      if (previousIndexDescriptor) defineProperty(Array.prototype, "0", previousIndexDescriptor);
+      else Reflect.deleteProperty(Array.prototype, "0");
+    }
+
+    expect(setterCalls).toBe(0);
+    expect(sentParams).toEqual([expect.any(String), [["valid", [0, 1]]]]);
+  });
+});
+
+describe("GM_openInTab DTO", () => {
+  it("does not execute accessor options", () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_openInTab"];
+    const getter = vi.fn(() => "forged");
+    const options = { active: true } as Record<string, unknown>;
+    Object.defineProperty(options, "secret", { enumerable: true, configurable: true, get: getter });
+    const sendMessage = vi.fn().mockResolvedValue(1);
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script);
+
+    api.GM_openInTab(api, "https://example.com", options as never);
+
+    expect(getter).not.toHaveBeenCalled();
+    const sentOptions = sendMessage.mock.calls[0][0].data.params[1];
+    expect(sentOptions.active).toBe(true);
+    expect(Object.getOwnPropertyDescriptor(sentOptions, "secret")).toBeUndefined();
+  });
+});
+
+describe("GM_notification DTO", () => {
+  it("does not execute accessor details", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_notification"];
+    const getter = vi.fn(() => "forged");
+    const details = { text: "safe" } as Record<string, unknown>;
+    Object.defineProperty(details, "secret", { enumerable: true, configurable: true, get: getter });
+    const sendMessage = vi.fn().mockResolvedValue("notification-id");
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script);
+
+    api.GM_notification(api, details as never);
+    await Promise.resolve();
+
+    expect(getter).not.toHaveBeenCalled();
+    const sentDetails = sendMessage.mock.calls[0][0].data.params[0];
+    expect(sentDetails.text).toBe("safe");
+    expect(Object.getOwnPropertyDescriptor(sentDetails, "secret")).toBeUndefined();
   });
 });
 
@@ -1275,7 +1997,7 @@ describe("@grant GM_download", () => {
       });
       setTimeout(() => resolve({ onloadCalled, error: "TIMEOUT" }), 100);
     })`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret.onloadCalled).toEqual(false);
     expect(ret.error).toEqual("unknown");
@@ -1295,7 +2017,7 @@ describe("@grant GM_download", () => {
       () => ({ resolved: true }),
       () => ({ resolved: false })
     )`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret.resolved).toEqual(false);
   });
@@ -1317,7 +2039,7 @@ describe("@grant CAT.agent.conversation", () => {
       create: typeof CAT.agent.conversation.create,
       get: typeof CAT.agent.conversation.get,
     }`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret.CAT).toEqual("object");
     expect(ret.create).toEqual("function");
@@ -1349,7 +2071,7 @@ describe("@grant CAT.agent.dom", () => {
       scroll: typeof CAT.agent.dom.scroll,
       waitFor: typeof CAT.agent.dom.waitFor,
     }`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret.CAT).toEqual("object");
     expect(ret.agent).toEqual("object");
@@ -1380,7 +2102,7 @@ describe("@grant CAT.agent.dom", () => {
       envInfo,
     });
     script.code = `return CAT.agent.dom.readPage({ tabId: 1, mode: "summary", maxLength: 2000 });`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual({ title: "Test", url: "https://example.com" });
     expect(mockSendMessage).toHaveBeenCalledWith(
@@ -1411,7 +2133,7 @@ describe("@grant CAT.agent.dom", () => {
       envInfo,
     });
     script.code = `return { hasCat: typeof CAT !== "undefined" && CAT?.agent?.dom?.readPage !== undefined }`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret.hasCat).toEqual(false);
   });

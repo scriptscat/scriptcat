@@ -15,6 +15,15 @@ import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import type { TKeyValuePair } from "@App/pkg/utils/message_value";
 import { decodeRValue, R_UNDEFINED, encodeRValue } from "@App/pkg/utils/message_value";
 
+const setOwnValue = (store: Record<string, any>, key: string, value: any): void => {
+  Object.defineProperty(store, key, {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value,
+  });
+};
+
 export type TSetValuesParams = {
   uuid: string;
   id?: string;
@@ -40,11 +49,12 @@ export class ValueService {
     this.valueDAO.enableCache();
   }
 
-  async getScriptValueDetails(script: Script) {
-    let data: { [key: string]: any } = {};
-    const ret = await this.valueDAO.get(getStorageName(script));
-    if (ret) {
-      data = ret.data;
+  materializeScriptValue(script: Script, rawValueStore: ValueStore = {}): Record<string, any> {
+    // data/newValues 是同一个 Object.create(null) 建出的纯字典，没有可被继承 setter 或
+    // __proto__ 劫持的原型，逐键直接赋值即可，不需要 setOwnValue 的 defineProperty。
+    const data: { [key: string]: any } = Object.create(null);
+    for (const key of Object.keys(rawValueStore)) {
+      data[key] = rawValueStore[key];
     }
     const newValues = data;
     // 和userconfig组装
@@ -69,15 +79,24 @@ export class ValueService {
         }
       }
     }
-    return [newValues, ret] as const;
+    return newValues;
+  }
+
+  async getScriptValueDetails(script: Script) {
+    const ret = await this.valueDAO.get(getStorageName(script));
+    return [this.materializeScriptValue(script, ret?.data), ret] as const;
   }
 
   getScriptValue(script: Script): Promise<Record<string, any>> {
     return this.getScriptValueDetails(script).then((res) => res[0]);
   }
 
-  async pushValueUpdate<T extends ValueUpdateDataEncoded>(script: Script, sendData: T) {
-    return this.runtime!.pushValueUpdate(script, sendData);
+  async pushValueUpdate<T extends ValueUpdateDataEncoded>(
+    script: Script,
+    sendData: T,
+    committedValueStore?: ValueStore
+  ) {
+    return this.runtime!.pushValueUpdate(script, sendData, committedValueStore);
   }
 
   // 批量设置
@@ -96,23 +115,27 @@ export class ValueService {
     }
     // 查询老的值
     const storageName = getStorageName(script);
-    let oldValueRecord: ValueStore = {};
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
-    const entries = [] as ValueUpdateDataREntry[];
-    const _flag = await stackAsyncTask<boolean>(cacheKey, async () => {
+    // DB commit、runtime value delivery 与 early-start registered snapshot refresh 必须在
+    // 同一条 storageName 队列中完成。否则 W2 可以在 W1 尚未更新 userScripts registration
+    // 时先提交 DB，随后 W1 的较旧 snapshot 又最后写入 registration，造成 generation 倒退。
+    await stackAsyncTask<void>(cacheKey, async () => {
+      const entries = [] as ValueUpdateDataREntry[];
+      let oldValueRecord: ValueStore = {};
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
+      let changed = false;
       if (!valueModel) {
         const now = Date.now();
         const dataModel: ValueStore = {};
         for (const [key, rTyped1] of keyValuePairs) {
           const value = decodeRValue(rTyped1);
           if (value !== undefined) {
-            dataModel[key] = value;
+            setOwnValue(dataModel, key, value);
             entries.push([key, rTyped1, R_UNDEFINED]);
           }
         }
-        // 即使是空 dataModel 也进行更新
-        // 由于没entries, valueUpdated 是 false, 但 valueDAO 会有一个空的 valueModel 记录 updatetime
+        // 即使是空 dataModel 也进行更新。
+        // entries 为空时 valueUpdated=false，但仍保留 mutation delivery 以维持现有 cache/listener 语义。
         valueModel = {
           uuid: uuid,
           storageName: storageName,
@@ -120,8 +143,8 @@ export class ValueService {
           createtime: ts ? Math.min(ts, now) : now,
           updatetime: ts ? Math.min(ts, now) : now,
         };
+        changed = true;
       } else {
-        let changed = false;
         let dataModel = (oldValueRecord = valueModel.data);
         dataModel = { ...dataModel }; // 每次储存使用新参考
         const containedKeys = new Set<string>();
@@ -134,7 +157,7 @@ export class ValueService {
           if (value === undefined) {
             delete dataModel[key];
           } else {
-            dataModel[key] = value;
+            setOwnValue(dataModel, key, value);
           }
           const rTyped2 = encodeRValue(oldValue);
           entries.push([key, rTyped1, rTyped2]);
@@ -151,23 +174,31 @@ export class ValueService {
             }
           }
         }
-        if (!changed) return false;
-        valueModel.data = dataModel; // 每次储存使用新参考
+        if (changed) valueModel.data = dataModel; // 每次储存使用新参考
       }
-      await this.valueDAO.save(storageName, valueModel);
-      return true;
+
+      if (changed) {
+        await this.valueDAO.save(storageName, valueModel);
+      }
+
+      // 推送到所有加载了本 storage 的 context，并等待 Runtime 完成 early-start snapshot refresh。
+      // Promise-based GM.setValue 由这次 SW RPC 的返回值完成，因此 registration refresh 仍是
+      // completion barrier；legacy 同步 GM_setValue 继续立即返回，后台写入仍走同一序列化链。
+      const sendData = {
+        id,
+        entries,
+        uuid,
+        storageName,
+        sender: valueSender,
+        valueUpdated: entries.length > 0,
+      } as ValueUpdateDataEncoded;
+      if (this.runtime) {
+        await this.pushValueUpdate(script, sendData, valueModel.data);
+      } else {
+        // Unit-level/custom callers that replace pushValueUpdate before init keep the old call shape.
+        await this.pushValueUpdate(script, sendData);
+      }
     });
-    // 推送到所有加载了本脚本的tab中
-    const valueUpdated = entries.length > 0;
-    const sendData = {
-      id,
-      entries: entries,
-      uuid,
-      storageName,
-      sender: valueSender,
-      valueUpdated,
-    } as ValueUpdateDataEncoded;
-    this.pushValueUpdate(script, sendData);
   }
 
   setScriptValues(params: Pick<TSetValuesParams, "uuid" | "keyValuePairs" | "isReplace" | "ts">, _sender: IGetSender) {

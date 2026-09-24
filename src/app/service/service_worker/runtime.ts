@@ -1,9 +1,25 @@
-import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo, ScriptMenu } from "./types";
+import type {
+  EmitEventRequest,
+  ScriptLoadInfo,
+  ScriptMatchInfo,
+  ScriptMenu,
+  ServiceWorkerExecutionBinding,
+} from "./types";
 import type { IMessageQueue } from "@Packages/message/message_queue";
-import type { Group, IGetSender } from "@Packages/message/server";
-import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
+import { RequestSequenceWindow } from "@Packages/message/request_sequence_window";
+import { GetSenderType, type Group, type IGetSender } from "@Packages/message/server";
+import type { ExtMessageSender, MessageConnect, MessageSend } from "@Packages/message/types";
 import type { TClientPageLoadInfo } from "@App/app/repo/scripts";
-import type { Script, ScriptDAO, ScriptRunResource, ScriptSite, TScriptInfo, UserConfig } from "@App/app/repo/scripts";
+import type {
+  SCMetadata,
+  Script,
+  ScriptDAO,
+  ScriptRunResource,
+  ScriptSite,
+  TScriptInfo,
+  ValueStore,
+  UserConfig,
+} from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { type ValueService } from "./value";
 import GMApi, { GMExternalDependencies } from "./gm_api/gm_api";
@@ -34,10 +50,12 @@ import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
 import type { CompileScriptCodeResource } from "../content/utils";
+import { getExtensionOrigin, getPageRpcAllowedAPIs, type ExtensionOrigin } from "../content/page_rpc";
 import {
   compileInjectScriptByFlag,
   compileScriptCodeByResource,
   compileScriptletCode,
+  getEffectiveScriptGrants,
   isContextMenuScript,
   isEarlyStartScript,
   isInjectIntoContent,
@@ -60,6 +78,8 @@ import { CompiledResourceDAO, CompiledResourceNamespace } from "@App/app/repo/re
 import { setOnTabURLChanged } from "./url_monitor";
 import { scriptToMenu, type TPopupPageLoadInfo, type TPopupPageRestoreInfo } from "./popup_scriptmenu";
 import { getExtensionUserAgentData } from "../extension/extension_env";
+import { uuidv4 } from "@App/pkg/utils/uuid";
+import { sha256OfText } from "@App/pkg/utils/crypto";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
 
@@ -89,8 +109,21 @@ type TLocalResourceCache = {
   sha512: string | undefined;
 };
 
+type EarlySnapshotRefreshResult = { ok: true; updated: string[] } | { ok: false; updated: string[]; error: unknown };
+
+const EARLY_VALUE_READ_GRANTS = new Set([
+  "GM_getValue",
+  "GM.getValue",
+  "GM_getValues",
+  "GM.getValues",
+  "GM_listValues",
+  "GM.listValues",
+]);
+
 type TPageLoadScriptCache = {
   scriptCacheKey: string;
+  scriptRevision: string;
+  originalMetadata: SCMetadata;
   scriptUrlPatterns: URLRuleEntry[];
   originalUrlPatterns: URLRuleEntry[] | null;
   code: string;
@@ -123,6 +156,22 @@ export type TScriptsForTab = {
   scriptmenus: ScriptMenu[];
 } | null;
 
+type UserScriptSession = {
+  scripts: TScriptInfo[];
+  envInfo: GMInfoEnv;
+  extensionOrigin?: ExtensionOrigin;
+  reconnectToken: string;
+  envTag: "it" | "ct";
+  url: string;
+  tabId: number;
+  frameId?: number;
+  documentId?: string;
+  transport: "userScript" | "extension";
+  // 断线窗口内按 storageName 合并值更新，重连握手完成后再投递。
+  pendingValueUpdates: Map<string, ValueUpdateDataEncoded>;
+};
+type UserScriptBootstrap = Omit<UserScriptSession, "transport">;
+
 const bgScriptStorageNames = new Set<string>();
 
 // For Firefox, StorageArea.setAccessLevel is not implemented.
@@ -134,17 +183,463 @@ export class RuntimeService {
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
   private gmApi?: GMApi;
+  // 句柄绑定到 tab/frame/document；页面导航、脚本变更或窗口关闭时必须整体撤销。
+  private readonly pageExecutionBindings = new Map<string, ServiceWorkerExecutionBinding>();
+  // 原生 page/content 端口只保留各自签发的句柄，回调发送前再按该集合过滤一次。
+  private readonly userScriptConnections = new Map<
+    string,
+    {
+      connection: MessageConnect;
+      handles: Set<string>;
+      envTag: "it" | "ct";
+      tabId: number;
+      frameId?: number;
+      documentId?: string;
+      ready: boolean;
+    }
+  >();
+  private readonly userScriptBootstraps = new Map<string, UserScriptBootstrap>();
+  // 连接断开后保留当前文档的已验证资料与待投递值更新，供 USER_SCRIPT 通过原生消息重连；导航或脚本撤销会同步清除。
+  private readonly userScriptSessions = new Map<string, UserScriptSession>();
+  // Only the newest load for a tab/frame/environment may issue bindings; navigation can resolve old requests late.
+  private readonly pageLoadSequences = new Map<string, number>();
 
   getGMApi(): GMApi | undefined {
     return this.gmApi;
   }
 
+  private revokePageBindings(sender: IGetSender, envTag?: "it" | "ct"): void {
+    // pageLoad 是文档切换信号；按 tab/frame 退休旧句柄，避免旧文档继续使用上一页的权限。
+    const source = sender.getSender();
+    const tabId = source?.tab?.id;
+    const frameId = source?.frameId;
+    for (const [handle, binding] of this.pageExecutionBindings) {
+      if (
+        binding.tabId === tabId &&
+        binding.frameId === frameId &&
+        (envTag === undefined || binding.envTag === envTag || (envTag === "it" && binding.envTag === "ct"))
+      ) {
+        this.pageExecutionBindings.delete(handle);
+      }
+    }
+    if (envTag === "it") {
+      for (const [key, entry] of this.userScriptConnections) {
+        if (entry.tabId === tabId && entry.frameId === frameId) {
+          entry.connection.disconnect(true);
+          this.userScriptConnections.delete(key);
+          this.userScriptSessions.delete(key);
+        }
+      }
+      for (const [key, session] of this.userScriptSessions) {
+        if (session.tabId === tabId && session.frameId === frameId) this.userScriptSessions.delete(key);
+      }
+    }
+    if (envTag !== "ct") {
+      for (const [token, bootstrap] of this.userScriptBootstraps) {
+        if (bootstrap.tabId === tabId && bootstrap.frameId === frameId) this.userScriptBootstraps.delete(token);
+      }
+    }
+  }
+
+  revokePageBindingsForTab(tabId: number): void {
+    for (const [handle, binding] of this.pageExecutionBindings) {
+      if (binding.tabId === tabId) this.pageExecutionBindings.delete(handle);
+    }
+    for (const [key, entry] of this.userScriptConnections) {
+      if (entry.tabId === tabId) {
+        entry.connection.disconnect(true);
+        this.userScriptConnections.delete(key);
+        this.userScriptSessions.delete(key);
+      }
+    }
+    for (const [token, bootstrap] of this.userScriptBootstraps) {
+      if (bootstrap.tabId === tabId) this.userScriptBootstraps.delete(token);
+    }
+    for (const [key, session] of this.userScriptSessions) {
+      if (session.tabId === tabId) this.userScriptSessions.delete(key);
+    }
+    const prefix = `${tabId}:`;
+    for (const key of this.pageLoadSequences.keys()) {
+      if (key.startsWith(prefix)) this.pageLoadSequences.delete(key);
+    }
+  }
+
+  private beginPageLoadSequence(sender: IGetSender, envTag: "it" | "ct" | undefined): [string, number] | undefined {
+    const tabId = sender.getSender()?.tab?.id;
+    if (typeof tabId !== "number") return undefined;
+    const key = `${tabId}:${sender.getSender()?.frameId ?? -1}:${envTag ?? "it"}`;
+    const sequence = (this.pageLoadSequences.get(key) ?? 0) + 1;
+    this.pageLoadSequences.set(key, sequence);
+    return [key, sequence];
+  }
+
+  private userScriptConnectionKey(
+    tabId: number,
+    frameId: number | undefined,
+    documentId: string | undefined,
+    envTag: "it" | "ct"
+  ): string {
+    return `${tabId}:${frameId ?? -1}:${documentId ?? ""}:${envTag}`;
+  }
+
+  /** Register the native USER_SCRIPT channel used for private bootstrap and callbacks; fallback ports remain token-bound. */
+  registerUserScriptConnection(data: unknown, sender: IGetSender): boolean {
+    // bootstrap token 只允许对应 tab/frame/document 使用一次；documentId 缺失时以 URL 作为文档身份，并且必须覆盖本次下发的全部句柄。
+    if (!sender.isType(GetSenderType.EXTCONNECT)) return false;
+    if (data === null || typeof data !== "object") return false;
+    const handshake = data as { world?: unknown; bootstrapToken?: unknown; transport?: unknown };
+    const origin = sender.getConnectOrigin?.();
+    const isExtensionFallback = origin === "extension" && handshake.transport === "extension";
+    if (origin === "userScript" ? handshake.transport !== undefined : !isExtensionFallback) return false;
+    if (
+      Object.keys(data).length !== (isExtensionFallback ? 3 : 2) ||
+      typeof handshake.bootstrapToken !== "string" ||
+      handshake.bootstrapToken.length === 0 ||
+      handshake.bootstrapToken.length > 256
+    ) {
+      return false;
+    }
+    const source = sender.getSender();
+    const connection = sender.getConnect();
+    const tabId = source?.tab?.id;
+    if (!source || typeof tabId !== "number" || !connection) return false;
+    const bootstrap = this.userScriptBootstraps.get(handshake.bootstrapToken);
+    if (
+      !bootstrap ||
+      bootstrap.tabId !== tabId ||
+      bootstrap.frameId !== source.frameId ||
+      bootstrap.documentId !== source.documentId ||
+      (bootstrap.documentId === undefined &&
+        (typeof source.url !== "string" || source.url.length === 0 || bootstrap.url !== source.url))
+    ) {
+      return false;
+    }
+    // 原生 user-script session 只服务 USER_SCRIPT world；MAIN 统一走 keyed page bridge。
+    if (bootstrap.envTag !== "ct" || handshake.world !== "USER_SCRIPT") return false;
+    const handles = new Set<string>();
+    for (const script of bootstrap.scripts) {
+      const handle = script.executionHandle;
+      if (typeof handle !== "string" || handle.length === 0 || handle.length > 256) return false;
+      const binding = this.pageExecutionBindings.get(handle);
+      if (
+        !binding ||
+        binding.envTag !== bootstrap.envTag ||
+        binding.tabId !== tabId ||
+        binding.frameId !== source.frameId ||
+        binding.documentId !== source.documentId
+      ) {
+        return false;
+      }
+      handles.add(handle);
+    }
+    if (handles.size === 0) return false;
+    const frameId = source.frameId;
+    const documentId = source.documentId;
+    const key = this.userScriptConnectionKey(tabId, frameId, documentId, bootstrap.envTag);
+    const session = { ...bootstrap, transport: isExtensionFallback ? ("extension" as const) : ("userScript" as const) };
+    this.userScriptSessions.set(key, session);
+    this.userScriptBootstraps.delete(handshake.bootstrapToken);
+    const previous = this.userScriptConnections.get(key);
+    if (previous) previous.connection.disconnect(true);
+    const entry = { connection, handles, envTag: bootstrap.envTag, tabId, frameId, documentId, ready: false };
+    this.userScriptConnections.set(key, entry);
+    connection.onDisconnect(() => {
+      if (this.userScriptConnections.get(key)?.connection === connection) this.userScriptConnections.delete(key);
+    });
+    let bootstrapped = false;
+    connection.onMessage((packet) => {
+      if (
+        bootstrapped ||
+        packet === null ||
+        typeof packet !== "object" ||
+        Object.keys(packet).length !== 1 ||
+        packet.action !== "userScript/bootstrap"
+      ) {
+        return;
+      }
+      bootstrapped = true;
+      try {
+        const pageLoadData = {
+          scripts: bootstrap.scripts,
+          envInfo: bootstrap.envInfo,
+          reconnectToken: bootstrap.reconnectToken,
+          extensionOrigin: bootstrap.extensionOrigin,
+        };
+        connection.sendMessage({
+          action: "content/pageLoad",
+          data: pageLoadData,
+        });
+        entry.ready = true;
+        this.flushPendingUserScriptValueUpdates(key, entry);
+      } catch {
+        this.userScriptConnections.delete(key);
+      }
+    });
+    return true;
+  }
+
+  reconnectUserScript(data: unknown, sender: IGetSender): { bootstrapToken: string } | undefined {
+    if (!sender.isType(GetSenderType.RUNTIME)) {
+      return undefined;
+    }
+    if (
+      data === null ||
+      typeof data !== "object" ||
+      Object.keys(data).length !== 1 ||
+      typeof (data as { reconnectToken?: unknown }).reconnectToken !== "string" ||
+      (data as { reconnectToken: string }).reconnectToken.length === 0 ||
+      (data as { reconnectToken: string }).reconnectToken.length > 256
+    ) {
+      return undefined;
+    }
+    const source = sender.getSender();
+    const tabId = source?.tab?.id;
+    if (!source || typeof tabId !== "number") return undefined;
+    let key: string | undefined;
+    let session: UserScriptSession | undefined;
+    for (const [candidateKey, candidateSession] of this.userScriptSessions) {
+      if (
+        candidateSession.tabId === tabId &&
+        candidateSession.frameId === source.frameId &&
+        candidateSession.documentId === source.documentId &&
+        (candidateSession.documentId !== undefined ||
+          (typeof source.url === "string" && source.url.length > 0 && candidateSession.url === source.url)) &&
+        candidateSession.reconnectToken === (data as { reconnectToken: string }).reconnectToken
+      ) {
+        key = candidateKey;
+        session = candidateSession;
+        break;
+      }
+    }
+    if (!key || !session) return undefined;
+    if (sender.getConnectOrigin?.() !== session.transport) return undefined;
+    for (const script of session.scripts) {
+      const handle = script.executionHandle;
+      const binding = typeof handle === "string" ? this.pageExecutionBindings.get(handle) : undefined;
+      if (
+        !binding ||
+        binding.envTag !== session.envTag ||
+        binding.tabId !== tabId ||
+        binding.frameId !== source.frameId ||
+        binding.documentId !== source.documentId
+      ) {
+        this.userScriptSessions.delete(key);
+        return undefined;
+      }
+    }
+    const bootstrapToken = uuidv4();
+    const nextSession = { ...session, reconnectToken: uuidv4() };
+    for (const [token, bootstrap] of this.userScriptBootstraps) {
+      if (
+        bootstrap.tabId === session.tabId &&
+        bootstrap.frameId === session.frameId &&
+        bootstrap.documentId === session.documentId
+      ) {
+        this.userScriptBootstraps.delete(token);
+      }
+    }
+    this.userScriptSessions.set(key, nextSession);
+    this.userScriptBootstraps.set(bootstrapToken, nextSession);
+    return { bootstrapToken };
+  }
+
+  private queuePendingUserScriptValueUpdate(key: string, data: ValueUpdateDataEncoded): void {
+    const session = this.userScriptSessions.get(key);
+    if (!session) return;
+    const previous = session.pendingValueUpdates.get(data.storageName);
+    if (!previous) {
+      session.pendingValueUpdates.set(data.storageName, data);
+      return;
+    }
+    const entries: ValueUpdateDataEncoded["entries"] = previous.entries.map((entry) => [entry[0], entry[1], entry[2]]);
+    const entryIndexes = new Map<string, number>();
+    for (let index = 0; index < entries.length; index += 1) entryIndexes.set(entries[index][0], index);
+    for (const entry of data.entries) {
+      const index = entryIndexes.get(entry[0]);
+      if (index === undefined) {
+        entryIndexes.set(entry[0], entries.length);
+        entries.push([entry[0], entry[1], entry[2]]);
+      } else {
+        entries[index] = [entry[0], entry[1], entries[index][2]];
+      }
+    }
+    session.pendingValueUpdates.set(data.storageName, {
+      ...data,
+      entries,
+      valueUpdated: previous.valueUpdated || data.valueUpdated,
+    });
+  }
+
+  private flushPendingUserScriptValueUpdates(
+    key: string,
+    entry: { connection: MessageConnect; envTag: "it" | "ct" }
+  ): void {
+    const session = this.userScriptSessions.get(key);
+    if (!session) return;
+    for (const [storageName, data] of session.pendingValueUpdates) {
+      entry.connection.sendMessage({
+        action: `${entry.envTag === "it" ? "inject" : "content"}/runtime/valueUpdate`,
+        data,
+      });
+      session.pendingValueUpdates.delete(storageName);
+    }
+  }
+
+  private sendUserScriptMessage(to: ExtMessageSender | undefined, action: string, data: unknown): void {
+    const dataRecord =
+      typeof data === "object" && data !== null ? (data as { uuid?: unknown; storageName?: unknown }) : undefined;
+    const targetUuid = action === "runtime/emitEvent" ? dataRecord?.uuid : undefined;
+    const targetStorageName = action === "runtime/valueUpdate" ? dataRecord?.storageName : undefined;
+    const valueUpdate =
+      action === "runtime/valueUpdate" && typeof dataRecord?.storageName === "string"
+        ? (data as ValueUpdateDataEncoded)
+        : undefined;
+    // 先按页面定位，再按句柄对应的脚本或 storageName 过滤，避免跨脚本广播私有回调。
+    for (const [key, entry] of this.userScriptConnections) {
+      if (
+        to &&
+        (entry.tabId !== to.tabId ||
+          (to.frameId !== undefined && entry.frameId !== to.frameId) ||
+          (to.documentId !== undefined && entry.documentId !== to.documentId))
+      ) {
+        continue;
+      }
+      let bindingMatches = false;
+      for (const handle of entry.handles) {
+        const binding = this.pageExecutionBindings.get(handle);
+        if (
+          binding &&
+          ((targetUuid !== undefined && targetUuid === binding.uuid) ||
+            (targetStorageName !== undefined && targetStorageName === binding.storageName))
+        ) {
+          bindingMatches = true;
+          break;
+        }
+      }
+      if (!bindingMatches) continue;
+      if (!entry.ready) {
+        if (valueUpdate) this.queuePendingUserScriptValueUpdate(key, valueUpdate);
+        continue;
+      }
+      try {
+        entry.connection.sendMessage({ action: `${entry.envTag === "it" ? "inject" : "content"}/${action}`, data });
+      } catch {
+        this.userScriptConnections.delete(key);
+        if (valueUpdate) this.queuePendingUserScriptValueUpdate(key, valueUpdate);
+      }
+    }
+    if (!valueUpdate) return;
+    for (const [key, session] of this.userScriptSessions) {
+      if (this.userScriptConnections.has(key)) continue;
+      if (
+        to &&
+        (session.tabId !== to.tabId ||
+          (to.frameId !== undefined && session.frameId !== to.frameId) ||
+          (to.documentId !== undefined && session.documentId !== to.documentId))
+      ) {
+        continue;
+      }
+      let bindingMatches = false;
+      for (const script of session.scripts) {
+        const handle = script.executionHandle;
+        const binding = typeof handle === "string" ? this.pageExecutionBindings.get(handle) : undefined;
+        if (
+          binding &&
+          ((targetUuid !== undefined && targetUuid === binding.uuid) ||
+            (targetStorageName !== undefined && targetStorageName === binding.storageName))
+        ) {
+          bindingMatches = true;
+          break;
+        }
+      }
+      if (bindingMatches) this.queuePendingUserScriptValueUpdate(key, valueUpdate);
+    }
+  }
+
+  private revokePageBindingsForScript(uuid: string): void {
+    for (const [handle, binding] of this.pageExecutionBindings) {
+      if (binding.uuid === uuid) this.pageExecutionBindings.delete(handle);
+    }
+    for (const [key, entry] of this.userScriptConnections) {
+      // 脚本撤销后同步裁剪句柄集；没有任何有效句柄的端口必须关闭，避免残留授权接收器。
+      for (const handle of entry.handles) {
+        const binding = this.pageExecutionBindings.get(handle);
+        if (!binding || binding.uuid === uuid) entry.handles.delete(handle);
+      }
+      if (entry.handles.size === 0) {
+        entry.connection.disconnect(true);
+        this.userScriptConnections.delete(key);
+      }
+    }
+    for (const [token, bootstrap] of this.userScriptBootstraps) {
+      if (bootstrap.scripts.some((script) => script.uuid === uuid)) this.userScriptBootstraps.delete(token);
+    }
+    for (const [key, session] of this.userScriptSessions) {
+      if (session.scripts.some((script) => script.uuid === uuid)) this.userScriptSessions.delete(key);
+    }
+  }
+
+  private issuePageBinding(
+    uuid: string,
+    envTag: "it" | "ct",
+    storageName: string,
+    allowedAPIs: readonly string[],
+    sender: IGetSender
+  ): ServiceWorkerExecutionBinding {
+    const source = sender.getSender();
+    const tabId = source?.tab?.id;
+    const url = source?.url;
+    if (typeof tabId !== "number" || typeof url !== "string" || url.length === 0) {
+      throw new Error("page execution binding requires a tab and URL");
+    }
+    // 每次 pageLoad 都签发新句柄和 runFlag；它们共同绑定当前文档的授权生命周期。
+    const handle = uuidv4();
+    const binding = {
+      handle,
+      uuid,
+      envTag,
+      runFlag: uuidv4(),
+      url,
+      tabId,
+      frameId: source?.frameId,
+      documentId: source?.documentId,
+      storageName,
+      allowedAPIs: new Set(allowedAPIs),
+      requestSequenceWindow: new RequestSequenceWindow(),
+    } satisfies ServiceWorkerExecutionBinding;
+    this.pageExecutionBindings.set(handle, binding);
+    return binding;
+  }
+
+  resolvePageExecutionBinding(handle: string, sender: IGetSender): ServiceWorkerExecutionBinding | undefined {
+    const binding = this.pageExecutionBindings.get(handle);
+    const source = sender.getSender();
+    if (
+      !binding ||
+      !source?.tab ||
+      source.tab.id !== binding.tabId ||
+      source.frameId !== binding.frameId ||
+      (binding.documentId === undefined && source.url !== binding.url)
+    )
+      return undefined;
+    if (binding.documentId !== undefined && source.documentId !== binding.documentId) return undefined;
+    return binding;
+  }
+
   private readonly disabledMatcherTaskKey = `runtime_disabled_matcher:${Math.random()}`;
+  // Script/code updates and value-only wrapper refreshes both mutate chrome.userScripts.
+  // Serialize them so an older build cannot finish after a newer registration mutation.
+  private readonly earlyRegistrationTaskKey = `runtime_early_registration:${Math.random()}`;
   private disabledMatcher: UrlMatch<string> | null = null;
   private disabledMatcherVersion = 0;
   private sorter: Record<string, number> = {};
   private readonly codeCacheMap = new Map<string, TCodeCache>();
   private readonly pageLoadCaches = new Map<string, TPageLoadScriptCache>();
+  // Only early-start scripts that can synchronously read GM storage need value snapshots refreshed.
+  // Keep both directions so metadata/status/grant changes can remove the previous dependency in O(1).
+  private readonly earlyScriptsByStorageName = new Map<string, Set<string>>();
+  private readonly earlyStorageNameByUuid = new Map<string, string>();
+  private readonly dirtyEarlyStorageNames = new Set<string>();
   private sandboxInitializationReplayed = false;
   private readonly cachedPatterns = new Map<
     string,
@@ -358,6 +853,204 @@ export class RuntimeService {
     return matchInfo;
   }
 
+  private removeEarlyScriptStorageIndex(uuid: string): void {
+    const storageName = this.earlyStorageNameByUuid.get(uuid);
+    if (storageName === undefined) return;
+    this.earlyStorageNameByUuid.delete(uuid);
+    const scripts = this.earlyScriptsByStorageName.get(storageName);
+    if (!scripts) return;
+    scripts.delete(uuid);
+    if (scripts.size === 0) this.earlyScriptsByStorageName.delete(storageName);
+  }
+
+  private indexEarlyScriptStorage(script: Script): void {
+    this.removeEarlyScriptStorageIndex(script.uuid);
+    const metadata = getCombinedMeta(script.metadata, script.selfMetadata);
+    if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE || !isEarlyStartScript(metadata)) {
+      return;
+    }
+
+    if (!getEffectiveScriptGrants(metadata).some((grant) => EARLY_VALUE_READ_GRANTS.has(grant))) return;
+
+    const storageName = getStorageName(script);
+    let scripts = this.earlyScriptsByStorageName.get(storageName);
+    if (!scripts) {
+      scripts = new Set<string>();
+      this.earlyScriptsByStorageName.set(storageName, scripts);
+    }
+    scripts.add(script.uuid);
+    this.earlyStorageNameByUuid.set(script.uuid, storageName);
+  }
+
+  private refreshEarlyStartSnapshots(
+    storageName: string,
+    committedValueStore?: ValueStore
+  ): Promise<EarlySnapshotRefreshResult> {
+    return stackAsyncTask<EarlySnapshotRefreshResult>(this.earlyRegistrationTaskKey, () =>
+      this.refreshEarlyStartSnapshotsNow(storageName, committedValueStore)
+    );
+  }
+
+  private async recoverEarlyStartSnapshotRegistrations(
+    storageName: string,
+    candidates: Array<{
+      script: Script;
+      candidate: { apiScript: chrome.userScripts.RegisteredUserScript };
+    }>,
+    originalError: unknown,
+    committedValueStore?: ValueStore
+  ): Promise<EarlySnapshotRefreshResult> {
+    const ids = candidates.map(({ script }) => script.uuid);
+    try {
+      const registered = await chrome.userScripts.getScripts({ ids });
+      const registeredIds = new Set(registered.map(({ id }) => id));
+      const existingUpdates = candidates
+        .filter(({ script }) => registeredIds.has(script.uuid))
+        .map(({ script, candidate }) => ({
+          id: script.uuid,
+          js: candidate.apiScript.js,
+        }));
+      const missingCandidates = candidates.filter(({ script }) => !registeredIds.has(script.uuid));
+      const missingRegistrations = (
+        await Promise.all(
+          missingCandidates.map(async ({ script }) => {
+            const effectiveValue =
+              committedValueStore === undefined
+                ? undefined
+                : this.value.materializeScriptValue(script, committedValueStore);
+            return (await this.buildCompiledResourceFromScript(script, true, effectiveValue))?.apiScript;
+          })
+        )
+      ).filter((registration): registration is chrome.userScripts.RegisteredUserScript => !!registration);
+
+      if (existingUpdates.length) await chrome.userScripts.update(existingUpdates);
+      if (missingRegistrations.length !== missingCandidates.length) {
+        throw new Error("failed to rebuild a missing early-start registration");
+      }
+      if (missingRegistrations.length) await chrome.userScripts.register(missingRegistrations);
+
+      this.dirtyEarlyStorageNames.delete(storageName);
+      return { ok: true, updated: ids };
+    } catch (recoveryError) {
+      this.dirtyEarlyStorageNames.add(storageName);
+      this.logger.error(
+        "repair early-start registrations after value update failed",
+        { storageName, ids },
+        Logger.E(recoveryError)
+      );
+      return { ok: false, updated: [], error: recoveryError || originalError };
+    }
+  }
+
+  private async refreshEarlyStartSnapshotsNow(
+    storageName: string,
+    committedValueStore?: ValueStore
+  ): Promise<EarlySnapshotRefreshResult> {
+    if (!this.isUserScriptsAvailable || !this.isLoadScripts) {
+      return { ok: true, updated: [] };
+    }
+    const indexed = this.earlyScriptsByStorageName.get(storageName);
+    if (!indexed?.size) {
+      this.dirtyEarlyStorageNames.delete(storageName);
+      return { ok: true, updated: [] };
+    }
+
+    const uuids = [...indexed];
+    let scripts: Array<Script | undefined>;
+    try {
+      scripts = await this.scriptDAO.gets(uuids);
+    } catch (error) {
+      this.dirtyEarlyStorageNames.add(storageName);
+      return { ok: false, updated: [], error };
+    }
+
+    const activeScripts: Script[] = [];
+    for (let index = 0; index < uuids.length; index += 1) {
+      const uuid = uuids[index];
+      const script = scripts[index];
+      if (!script) {
+        this.removeEarlyScriptStorageIndex(uuid);
+        continue;
+      }
+      // Heal the dependency index if a queued install/enable event raced this mutation.
+      this.indexEarlyScriptStorage(script);
+      if (this.earlyStorageNameByUuid.get(uuid) === storageName) activeScripts.push(script);
+    }
+    if (!activeScripts.length) {
+      this.dirtyEarlyStorageNames.delete(storageName);
+      return { ok: true, updated: [] };
+    }
+
+    const buildResults = await Promise.allSettled(
+      activeScripts.map(async (script) => {
+        const effectiveValue =
+          committedValueStore === undefined
+            ? undefined
+            : this.value.materializeScriptValue(script, committedValueStore);
+        const scriptRes = buildScriptRunResourceBasic(script);
+        const cache = this.pageLoadCaches.get(script.uuid);
+        if (cache?.scriptCacheKey === this.getPageLoadScriptCacheKey(scriptRes)) {
+          const cachedScriptRes = this.createPageLoadScriptInfo(scriptRes, cache);
+          cachedScriptRes.value = effectiveValue ?? (await this.value.getScriptValue(script));
+          return {
+            script,
+            candidate: {
+              apiScript: {
+                id: script.uuid,
+                js: [
+                  {
+                    code: compileInjectionCode(cachedScriptRes, cache.code, cache.scriptUrlPatterns),
+                  },
+                ],
+              } as chrome.userScripts.RegisteredUserScript,
+            },
+          };
+        }
+
+        const candidate = await this.buildCompiledResourceFromScript(script, true, effectiveValue);
+        return candidate ? { script, candidate } : undefined;
+      })
+    );
+    const failedBuild = buildResults.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failedBuild) {
+      this.dirtyEarlyStorageNames.add(storageName);
+      this.logger.error(
+        "build early-start snapshot after value update failed",
+        { storageName },
+        Logger.E(failedBuild.reason)
+      );
+      return { ok: false, updated: [], error: failedBuild.reason };
+    }
+
+    const candidates = buildResults
+      .map((result) => (result.status === "fulfilled" ? result.value : undefined))
+      .filter((entry): entry is NonNullable<typeof entry> => !!entry);
+    if (!candidates.length) {
+      this.dirtyEarlyStorageNames.delete(storageName);
+      return { ok: true, updated: [] };
+    }
+
+    const updates = candidates.map(({ script, candidate }) => ({
+      id: script.uuid,
+      js: candidate.apiScript.js,
+    }));
+
+    try {
+      // update() is a partial update: omitted routing/world fields keep their registered values.
+      // One batch therefore refreshes a shared ValueStore generation without a getScripts() roundtrip.
+      await chrome.userScripts.update(updates);
+      this.dirtyEarlyStorageNames.delete(storageName);
+      return { ok: true, updated: candidates.map(({ script }) => script.uuid) };
+    } catch (error) {
+      this.logger.error(
+        "refresh early-start registrations after value update failed; attempting repair",
+        { storageName, ids: candidates.map(({ script }) => script.uuid) },
+        Logger.E(error)
+      );
+      return this.recoverEarlyStartSnapshotRegistrations(storageName, candidates, error, committedValueStore);
+    }
+  }
+
   async waitInit() {
     const [cRuntimeStartFlag, storedNamespace, allScripts] = await Promise.all([
       cacheInstance.get<boolean>("runtimeStartFlag"),
@@ -370,10 +1063,13 @@ export class RuntimeService {
     const shouldCleanUpPreviousRegister = storedNamespace !== CompiledResourceNamespace;
     const unregisterScriptIds: string[] = [];
     const enabledNormalScripts: Script[] = [];
+    this.earlyScriptsByStorageName.clear();
+    this.earlyStorageNameByUuid.clear();
 
     // 阶段一：刻意保持全同步——在引入任何 await 之前，先完成脚本分类、排序更新与反注册目标的计算，
     // 避免日后有人不小心往循环里加入 await 而破坏这里的执行时序。
     for (const script of allScripts) {
+      this.indexEarlyScriptStorage(script);
       const isNormalScript = script.type === SCRIPT_TYPE_NORMAL;
       const enable = script.status === SCRIPT_STATUS_ENABLE;
       if (!isNormalScript || !enable || shouldCleanUpPreviousRegister) {
@@ -397,7 +1093,7 @@ export class RuntimeService {
         const uuid = script.uuid;
         let compiledResource = await this.compiledResourceDAO.get(uuid);
         if (!compiledResource) {
-          const ret = await this.buildAndSaveCompiledResourceFromScript(script, false);
+          const ret = await this.buildCompiledResourceFromScript(script, false);
           if (!ret) return;
           compiledResource = ret.compiledResource;
         }
@@ -455,53 +1151,109 @@ export class RuntimeService {
     if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE) {
       throw new Error("Invalid Calling of updateResourceOnScriptChange");
     }
-    // 安装，启用，或earlyStartScript的value更新
-    const ret = await this.buildAndSaveCompiledResourceFromScript(script, true);
-    if (!ret) {
-      // 空匹配覆盖（match 与 include 均为空）时脚本不再匹配任何站点。内存 matcher 里只剩
-      // 供 Popup 恢复用的原始规则，这里再清掉持久化的 CompiledResource 并注销浏览器旧注册，
-      // 否则 SW 重启后 waitInit 会信任旧资源、让旧范围复活。
-      await this.compiledResourceDAO.delete(script.uuid);
-      await this.unregistryPageScripts([script.uuid]);
+    const update = async () => {
+      this.pageLoadCaches.delete(script.uuid);
+      // 安装，启用，或earlyStartScript的value更新
+      const scriptRes = buildScriptRunResourceBasic(script);
+      const patterns = scriptURLPatternResults(scriptRes);
+      if (patterns) {
+        this.scriptMatchEntry(scriptRes, patterns);
+      } else {
+        void this.applyScriptMatchInfo(scriptRes);
+      }
+      const ret = await this.buildCompiledResourceFromScript(script, true);
+      if (!ret) {
+        // 空匹配覆盖（match 与 include 均为空）时脚本不再匹配任何站点。内存 matcher 里只剩
+        // 供 Popup 恢复用的原始规则，这里再清掉持久化的 CompiledResource 并注销浏览器旧注册，
+        // 否则 SW 重启后 waitInit 会信任旧资源、让旧范围复活。
+        await this.compiledResourceDAO.delete(script.uuid);
+        await this.unregistryPageScripts([script.uuid]);
+        return;
+      }
+      const { apiScript } = ret;
+      if (await this.loadPageScript(script, apiScript!)) {
+        try {
+          await this.compiledResourceDAO.save(ret.compiledResource);
+        } catch (e) {
+          this.logger.error("save compiled resource after registration failed", { uuid: script.uuid }, Logger.E(e));
+        }
+      }
+    };
+    const metadata = getCombinedMeta(script.metadata, script.selfMetadata);
+    if (isEarlyStartScript(metadata)) {
+      await stackAsyncTask(this.earlyRegistrationTaskKey, update);
+      const storageName = getStorageName(script);
+      if (this.dirtyEarlyStorageNames.has(storageName)) {
+        await this.refreshEarlyStartSnapshots(storageName);
+      }
       return;
     }
-    const { apiScript } = ret;
-    await this.loadPageScript(script, apiScript!);
+    await update();
   }
 
-  public async pushValueUpdate(script: Script, sendData: ValueUpdateDataEncoded) {
+  public async pushValueUpdate(script: Script, sendData: ValueUpdateDataEncoded, committedValueStore?: ValueStore) {
+    if (sendData.valueUpdated) {
+      try {
+        const refresh = await this.refreshEarlyStartSnapshots(sendData.storageName, committedValueStore);
+        if (!refresh.ok) {
+          // Storage commit already succeeded. Keep userscript storage semantics successful, but mark
+          // the registration dirty and keep delivery channels alive so listeners/cache updates do not hang.
+          this.logger.error(
+            "early-start snapshot remains dirty after value update",
+            { uuid: script.uuid, storageName: sendData.storageName },
+            Logger.E(refresh.error)
+          );
+        }
+      } catch (error) {
+        // Snapshot maintenance is not the storage transaction. Once ValueDAO.save() succeeded,
+        // an unexpected registration/cache failure must not turn GM.setValue into a rejected write.
+        this.dirtyEarlyStorageNames.add(sendData.storageName);
+        this.logger.error(
+          "unexpected early-start snapshot refresh failure",
+          { uuid: script.uuid, storageName: sendData.storageName },
+          Logger.E(error)
+        );
+      }
+    }
+
+    // Delivery is cache/listener propagation only. No channel is allowed to become the completion
+    // signal for GM.setValue, and one broken channel must not suppress the others.
     try {
-      // 前台腳本 （推送值到tab）
       await deliveryStorage!.set({
         valueUpdateDelivery: {
           rId: `${Date.now()}.${Math.random()}`, // 用于区分不同的更新，确保 deliveryStorage.onChanged 必能触发
           sendData,
         },
       });
-
-      // 後台腳本
-      if (bgScriptStorageNames.has(sendData.storageName)) {
-        // 推送到offscreen中
-        await sendMessage(this.msgSender, "offscreen/runtime/valueUpdate", sendData);
-      }
-
-      // valueUpdate 消息用于 early script 的处理
-      if (sendData.valueUpdated) {
-        if (
-          script.status === SCRIPT_STATUS_ENABLE &&
-          isEarlyStartScript(getCombinedMeta(script.metadata, script.selfMetadata))
-        ) {
-          // 如果是预加载脚本，需要更新脚本代码重新注册
-          // scriptMatchInfo 里的 value 改变 => compileInjectionCode -> injectionCode 改变
-          await this.updateResourceOnScriptChange(script);
-        }
-      }
-    } catch (e) {
+    } catch (error) {
       this.logger.error(
-        "push value update failed",
+        "deliver value update to extension contexts failed",
         { uuid: script.uuid, storageName: sendData.storageName },
-        Logger.E(e)
+        Logger.E(error)
       );
+    }
+
+    try {
+      // USER_SCRIPT 看不到 scripting world 的页面广播，改经原生扩展连接投递同一份编码 DTO。
+      this.sendUserScriptMessage(undefined, "runtime/valueUpdate", sendData);
+    } catch (error) {
+      this.logger.error(
+        "deliver value update to USER_SCRIPT contexts failed",
+        { uuid: script.uuid, storageName: sendData.storageName },
+        Logger.E(error)
+      );
+    }
+
+    if (bgScriptStorageNames.has(sendData.storageName)) {
+      try {
+        await sendMessage(this.msgSender, "offscreen/runtime/valueUpdate", sendData);
+      } catch (error) {
+        this.logger.error(
+          "deliver value update to background contexts failed",
+          { uuid: script.uuid, storageName: sendData.storageName },
+          Logger.E(error)
+        );
+      }
     }
   }
 
@@ -527,7 +1279,8 @@ export class RuntimeService {
       this.msgSender,
       this.mq,
       this.value,
-      new GMExternalDependencies(this)
+      new GMExternalDependencies(this),
+      this.resolvePageExecutionBinding.bind(this)
     );
     permission.init();
     this.gmApi.start();
@@ -536,6 +1289,8 @@ export class RuntimeService {
     this.group.on("runScript", this.runScript.bind(this));
     this.group.on("pageLoad", this.pageLoad.bind(this));
     this.group.on("pageShow", this.pageShow.bind(this));
+    this.group.on("registerUserScript", this.registerUserScriptConnection.bind(this));
+    this.group.on("reconnectUserScript", this.reconnectUserScript.bind(this));
 
     // 监听脚本开启
     this.mq.subscribe<TEnableScript[]>("enableScripts", async (data) => {
@@ -548,6 +1303,7 @@ export class RuntimeService {
 
       const unregisterUuids = [] as string[];
       for (const { uuid, enable } of data) {
+        this.revokePageBindingsForScript(uuid);
         const script = await this.scriptDAO.get(uuid);
         if (!script) {
           this.logger.error("script enable failed, script not found", {
@@ -562,6 +1318,7 @@ export class RuntimeService {
           });
           continue;
         }
+        this.indexEarlyScriptStorage(script);
         // 如果是普通脚本, 在service worker中进行注册
         // 如果是后台脚本, 在offscreen中进行处理
         // 脚本类别不会更改
@@ -582,6 +1339,7 @@ export class RuntimeService {
     // 监听脚本安装
     this.mq.subscribe<TInstallScript>("installScript", async (data) => {
       const uuid = data.script.uuid;
+      this.revokePageBindingsForScript(uuid);
       this.invalidateDisabledMatcher();
       this.deleteScriptRuntimeCache(uuid);
 
@@ -595,6 +1353,7 @@ export class RuntimeService {
       this.updateSorter((next) => {
         this.setScriptSort(next, script);
       });
+      this.indexEarlyScriptStorage(script);
       // 代码更新时脚本类别不会更改
       if (script.type === SCRIPT_TYPE_NORMAL) {
         const enable = script.status === SCRIPT_STATUS_ENABLE;
@@ -620,6 +1379,8 @@ export class RuntimeService {
       const unregisterUuids = [] as string[];
       this.updateSorter((next) => {
         for (const { uuid } of data) {
+          this.revokePageBindingsForScript(uuid);
+          this.removeEarlyScriptStorageIndex(uuid);
           unregisterUuids.push(uuid);
           this.deleteScriptRuntimeCache(uuid);
           this.deleteScriptSort(next, uuid);
@@ -844,6 +1605,12 @@ export class RuntimeService {
 
   // 取消脚本注册
   async unregisterUserscripts() {
+    this.pageExecutionBindings.clear();
+    this.userScriptSessions.clear();
+    for (const [key, entry] of this.userScriptConnections) {
+      entry.connection.disconnect(true);
+      this.userScriptConnections.delete(key);
+    }
     // 检查 registered 避免重复操作增加系统开支
     // 已成功注册(true)或是未知有无注册(null)的情况下执行
     if (runtimeGlobal.registerState !== RuntimeRegisterCode.UNREGISTER_DONE) {
@@ -854,14 +1621,22 @@ export class RuntimeService {
     }
   }
 
-  async buildAndSaveCompiledResourceFromScript(script: Script, withCode: boolean = false) {
-    const scriptRes = withCode ? await this.script.buildScriptRunResource(script) : buildScriptRunResourceBasic(script);
-    const resources = withCode
-      ? scriptRes.resourceByType?.require || scriptRes.resource
-      : (await this.resource.getScriptResourceValueByType(scriptRes)).require;
+  async buildCompiledResourceFromScript(
+    script: Script,
+    withCode: boolean = false,
+    valueOverride?: Record<string, any>
+  ) {
+    const scriptRes = withCode
+      ? await this.script.buildScriptRunResource(script, valueOverride)
+      : buildScriptRunResourceBasic(script);
+    const resourceByType = withCode
+      ? scriptRes.resourceByType
+      : ((await this.resource.getScriptResourceValueByType(scriptRes)) as TRuntimeResourceByType);
+    const resources = resourceByType?.require || scriptRes.resource;
     const resourceUrls = (script.metadata["require"] || []).map((res) => resources[res]?.url).filter((res) => res);
-    const scriptMatchInfo = await this.applyScriptMatchInfo(scriptRes);
-    if (!scriptMatchInfo) return undefined;
+    const patterns = scriptURLPatternResults(scriptRes);
+    if (!patterns) return undefined;
+    const scriptMatchInfo = this.createMatchInfoEntry(scriptRes, patterns);
     // 生效规则一条 inclusion 都不剩（用户把当前站点从匹配中移除后可能如此）时不能注册：
     // getApiMatchesAndGlobs 对没有 match pattern 的规则集会退回 *://*/*，注册出去等于全站运行。
     if (!scriptMatchInfo.scriptUrlPatterns.some((rule) => rule.ruleType & RuleTypeBit.INCLUSION)) return undefined;
@@ -870,10 +1645,6 @@ export class RuntimeService {
     const registerScript = res.registerScript;
 
     let jsCode = "";
-    if (withCode) {
-      const code = compileInjectionCode(scriptRes, scriptRes.code, scriptMatchInfo.scriptUrlPatterns);
-      registerScript.js![0].code = jsCode = code;
-    }
 
     // 过滤掉matches为空的脚本
     if (!registerScript.matches || registerScript.matches.length === 0) {
@@ -884,11 +1655,43 @@ export class RuntimeService {
       return undefined;
     }
 
+    delete scriptRes.scriptRevision;
+
+    if (!withCode) {
+      const scriptCode = await this.script.scriptCodeDAO.get(script.uuid);
+      scriptRes.code = scriptCode?.code || "";
+      scriptRes.resourceByType = resourceByType;
+      scriptRes.resource = resourceByType ? this.mergeRuntimeResourceByType(resourceByType) : {};
+    }
+
+    // scriptRevision identifies executable/static preload material. GM storage is a separate,
+    // mutable generation: changing only scriptRes.value must update the early wrapper snapshot
+    // without making the code/resource identity appear to change.
+    const revisionScriptRes = isEarlyStartScript(scriptRes.metadata) ? { ...scriptRes, value: {} } : scriptRes;
+    const compiledCode = compileInjectionCode(revisionScriptRes, scriptRes.code, scriptMatchInfo.scriptUrlPatterns);
+    const scriptRevision = this.getCompiledScriptRevision(
+      revisionScriptRes,
+      compiledCode,
+      scriptMatchInfo.scriptUrlPatterns,
+      script.metadata
+    );
+    scriptRes.scriptRevision = scriptRevision;
+    if (withCode) {
+      // compiledCode（哈希输入）是在 scriptRevision 尚未写回前算的，不能直接拿去注册；
+      // 普通脚本和 early-start 脚本都要在这里补一次编译，让最终注册的 wrapper 带上刚算出的 revision。
+      registerScript.js![0].code = jsCode = compileInjectionCode(
+        scriptRes,
+        scriptRes.code,
+        scriptMatchInfo.scriptUrlPatterns
+      );
+    }
+
     const scriptUrlPatterns = scriptMatchInfo.scriptUrlPatterns;
     const originalUrlPatterns = scriptMatchInfo.originalUrlPatterns;
     const result = {
       flag: scriptRes.flag,
       name: script.name,
+      scriptRevision,
       require: resourceUrls, // 仅储存url
       uuid: script.uuid,
       matches: registerScript.matches || [],
@@ -902,9 +1705,42 @@ export class RuntimeService {
       originalUrlPatterns: scriptUrlPatterns === originalUrlPatterns ? null : originalUrlPatterns,
     } as CompiledResource;
 
-    this.compiledResourceDAO.save(result);
+    return { compiledResource: result, jsCode, apiScript: registerScript, scriptRes, patterns };
+  }
 
-    return { compiledResource: result, jsCode, apiScript: registerScript };
+  private getCompiledScriptRevision(
+    scriptRes: ScriptRunResource,
+    compiledCode: string,
+    scriptUrlPatterns: URLRuleEntry[],
+    originalMetadata: SCMetadata = scriptRes.originalMetadata
+  ) {
+    const resourceByType = scriptRes.resourceByType as TRuntimeResourceByType | undefined;
+    const resources = Object.entries(resourceByType || { require: scriptRes.resource })
+      .flatMap(([type, byKey]) =>
+        Object.entries(byKey || {}).map(([key, resource]) => [
+          type,
+          key,
+          resource.url,
+          resource.content,
+          resource.base64 || "",
+          resource.contentType,
+        ])
+      )
+      .sort(([typeA, keyA], [typeB, keyB]) => {
+        const left = `${typeA}:${keyA}`;
+        const right = `${typeB}:${keyB}`;
+        return left < right ? -1 : left > right ? 1 : 0;
+      });
+    return sha256OfText(
+      JSON.stringify({
+        compiledCode,
+        metadata: scriptRes.metadata,
+        originalMetadata,
+        selfMetadata: scriptRes.selfMetadata || null,
+        scriptUrlPatterns,
+        requiredResources: resources,
+      })
+    );
   }
 
   // 从CompiledResource中还原脚本代码
@@ -924,6 +1760,7 @@ export class RuntimeService {
     if (isEarlyStartScript(metadata)) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
+      scriptRes.scriptRevision = result.scriptRevision;
       return compileInjectionCode(scriptRes, scriptRes.code, result.scriptUrlPatterns);
     }
 
@@ -943,7 +1780,9 @@ export class RuntimeService {
         code: originalCode?.code || "",
         require,
         isContextMenu: isContextMenuScript(metadata),
-      })
+      }),
+      false,
+      result.uuid
     );
   }
 
@@ -957,43 +1796,31 @@ export class RuntimeService {
     const list = await this.scriptDAO.all();
     // 按照脚本顺序位置排序
     list.sort((a, b) => a.sort - b.sort);
+    const compiledResourceCandidates = new Map<
+      string,
+      NonNullable<Awaited<ReturnType<RuntimeService["buildCompiledResourceFromScript"]>>>
+    >();
     const registerScripts = await Promise.all(
       list.map(async (script) => {
         if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE) {
           return undefined;
         }
-        let resultCode = "";
-        let result = await this.compiledResourceDAO.get(script.uuid);
-        if (!result || !result.scriptUrlPatterns?.length) {
-          // 按常理不会跑这个
-          const ret = await this.buildAndSaveCompiledResourceFromScript(script, true);
-          if (!ret) return undefined;
-          result = ret.compiledResource;
-          resultCode = ret.jsCode;
-        } else {
-          resultCode = await this.restoreJSCodeFromCompiledResource(script, result);
-        }
-        if (!resultCode) return undefined;
-        const registerScript = {
-          id: result.uuid,
-          js: [{ code: resultCode }],
-          matches: result.matches,
-          includeGlobs: result.includeGlobs,
-          excludeMatches: [...result.excludeMatches, ...excludeMatches],
-          excludeGlobs: [...result.excludeGlobs, ...excludeGlobs],
-          allFrames: result.allFrames,
-          world: result.world,
-        } as chrome.userScripts.RegisteredUserScript;
-        if (result.runAt) {
-          registerScript.runAt = result.runAt as chrome.extensionTypes.RunAt;
-        }
+        const candidate = await this.buildCompiledResourceFromScript(script, true);
+        if (!candidate) return undefined;
+        compiledResourceCandidates.set(script.uuid, candidate);
+        const registerScript = candidate.apiScript;
+        registerScript.excludeMatches = [...(registerScript.excludeMatches || []), ...excludeMatches];
+        registerScript.excludeGlobs = [...(registerScript.excludeGlobs || []), ...excludeGlobs];
         return registerScript;
       })
     ).then(async (res) => {
       // 过滤掉undefined和未开启的
       return res.filter((item) => item) as chrome.userScripts.RegisteredUserScript[];
     });
-    return registerScripts;
+    return {
+      registerScripts,
+      compiledResourceCandidates: [...compiledResourceCandidates.values()],
+    };
   }
 
   // 获取content.js和inject.js的脚本注册信息
@@ -1112,7 +1939,8 @@ export class RuntimeService {
       excludeGlobs: this.blacklistExcludeGlobs,
     };
 
-    const particularScriptList = await this.getParticularScriptList(options);
+    const { registerScripts: particularScriptList, compiledResourceCandidates } =
+      await this.getParticularScriptList(options);
     // getContentAndInjectScript依赖loadScriptMatchInfo
     // 需要等getParticularScriptList完成后再执行
     const { inject: injectScriptList, content: contentScriptList } = await this.getContentAndInjectScript(options);
@@ -1120,19 +1948,25 @@ export class RuntimeService {
     const list: chrome.userScripts.RegisteredUserScript[] = [...particularScriptList, ...injectScriptList];
 
     let failed = false;
+    const registeredScriptIds = new Set<string>();
     try {
       await chrome.userScripts.register(list);
+      for (const candidate of compiledResourceCandidates) {
+        if (candidate) registeredScriptIds.add(candidate.compiledResource.uuid);
+      }
     } catch (e: any) {
       this.logger.error("batch registration error", Logger.E(e));
       // 批量注册失败则退回单个注册
       for (const script of list) {
         try {
           await chrome.userScripts.register([script]);
+          registeredScriptIds.add(script.id);
         } catch (e: any) {
           if (e.message?.includes("Duplicate script ID")) {
             // 如果是重复注册, 则更新
             try {
               await chrome.userScripts.update([script]);
+              registeredScriptIds.add(script.id);
             } catch (e) {
               failed = true;
               this.logger.error("update error", Logger.E(e));
@@ -1141,6 +1975,19 @@ export class RuntimeService {
             this.logger.error("register error", Logger.E(e));
           }
         }
+      }
+    }
+    for (const candidate of compiledResourceCandidates) {
+      if (!candidate || !registeredScriptIds.has(candidate.compiledResource.uuid)) continue;
+      this.scriptMatchEntry(candidate.scriptRes, candidate.patterns);
+      try {
+        await this.compiledResourceDAO.save(candidate.compiledResource);
+      } catch (e) {
+        this.logger.error(
+          "save compiled resource after registration failed",
+          { uuid: candidate.compiledResource.uuid },
+          Logger.E(e)
+        );
       }
     }
     if (contentScriptList.length > 0) {
@@ -1160,6 +2007,7 @@ export class RuntimeService {
       // 如果是-1, 代表给offscreen发送消息
       return sendMessage(this.msgSender, "offscreen/runtime/emitEvent", req);
     }
+    this.sendUserScriptMessage(to, "runtime/emitEvent", req);
     return sendMessage(
       new ExtensionContentMessageSend(to.tabId, {
         documentId: to.documentId,
@@ -1266,17 +2114,26 @@ export class RuntimeService {
     }
   }
 
-  async pageLoad(_: any, sender: IGetSender): Promise<TClientPageLoadInfo> {
+  async pageLoad(data: { envTag?: "it" | "ct" } | undefined, sender: IGetSender): Promise<TClientPageLoadInfo> {
+    // USER_SCRIPT 只能通过一次性 bootstrap 获取 content-world 资料，不能自行请求 pageLoad。
+    if (sender.getConnectOrigin?.() === "userScript") return { ok: false };
     const chromeSender = sender.getSender();
     const url = chromeSender?.url;
     if (!url) {
       // 异常加载
       return { ok: false };
     }
-    const tabId = chromeSender.tab?.id || -1;
+    const tabId = chromeSender.tab?.id ?? -1;
     const frameId = chromeSender.frameId;
     const incognito = chromeSender.tab?.incognito ?? false;
+    const pageLoadSequence = this.beginPageLoadSequence(sender, data?.envTag);
     const res = await this.getScriptsForTab({ url, tabId, frameId, incognito });
+    if (pageLoadSequence && this.pageLoadSequences.get(pageLoadSequence[0]) !== pageLoadSequence[1]) {
+      return { ok: false };
+    }
+
+    // 即使新 URL 没有匹配脚本也要退休旧绑定，关闭不提供 documentId 的浏览器复用窗口。
+    this.revokePageBindings(sender, data?.envTag);
 
     this.mq.emit<TPopupPageLoadInfo>("popupPageLoadUpdate", {
       tabId: tabId,
@@ -1286,12 +2143,48 @@ export class RuntimeService {
     });
 
     if (res) {
+      const prepareScripts = (scripts: TScriptInfo[], envTag: "it" | "ct") =>
+        scripts.map((script) => {
+          const binding = this.issuePageBinding(
+            script.uuid,
+            envTag,
+            getStorageName(script),
+            getPageRpcAllowedAPIs(getEffectiveScriptGrants(script.metadata)),
+            sender
+          );
+          return {
+            ...script,
+            executionHandle: binding.handle,
+            executionEnvTag: envTag,
+            executionRunFlag: binding.runFlag,
+          };
+        });
+      const injectScriptList = data?.envTag === "ct" ? [] : prepareScripts(res.injectScriptList, "it");
+      const contentScriptList = prepareScripts(res.contentScriptList, "ct");
+      let userScriptBootstrapToken: string | undefined;
+      if (data?.envTag === "it" && contentScriptList.length > 0) {
+        const token = uuidv4();
+        this.userScriptBootstraps.set(token, {
+          scripts: contentScriptList,
+          envInfo: res.envInfo,
+          extensionOrigin: getExtensionOrigin(),
+          reconnectToken: token,
+          envTag: "ct",
+          url,
+          tabId,
+          frameId,
+          documentId: chromeSender.documentId,
+          pendingValueUpdates: new Map(),
+        });
+        userScriptBootstrapToken = token;
+      }
       // 返回脚本资料，在页面加载
       return {
         ok: true,
-        injectScriptList: res.injectScriptList,
-        contentScriptList: res.contentScriptList,
+        injectScriptList,
+        contentScriptList: data?.envTag === "it" ? [] : contentScriptList,
         envInfo: res.envInfo,
+        userScriptBootstrapToken,
       };
     } else {
       // 没有脚本资料，不需要加载
@@ -1308,7 +2201,7 @@ export class RuntimeService {
     const url = chromeSender?.url;
     if (!url) return;
     this.mq.emit<TPopupPageRestoreInfo>("popupPageRestored", {
-      tabId: chromeSender.tab?.id || -1,
+      tabId: chromeSender.tab?.id ?? -1,
       frameId: chromeSender.frameId,
       url,
     });
@@ -1417,7 +2310,8 @@ export class RuntimeService {
   private async buildPageLoadScriptCache(
     scriptRes: ScriptRunResource,
     compiledResource: CompiledResource,
-    scriptCacheKey: string
+    scriptCacheKey: string,
+    originalMetadata: SCMetadata = scriptRes.originalMetadata
   ): Promise<TPageLoadScriptCache | undefined> {
     const [resourceByType, codeInfo] = await Promise.all([
       this.resource.getScriptResourceValueByType(scriptRes) as Promise<TRuntimeResourceByType>,
@@ -1432,6 +2326,8 @@ export class RuntimeService {
     });
     return {
       scriptCacheKey,
+      scriptRevision: compiledResource.scriptRevision,
+      originalMetadata,
       scriptUrlPatterns,
       originalUrlPatterns,
       code: codeInfo.code,
@@ -1447,6 +2343,7 @@ export class RuntimeService {
     const resourceByType = this.cloneRuntimeResourceByType(cache.resourceByType);
     return {
       ...scriptRes,
+      scriptRevision: cache.scriptRevision,
       scriptUrlPatterns: cache.scriptUrlPatterns,
       originalUrlPatterns: cache.originalUrlPatterns === null ? cache.scriptUrlPatterns : cache.originalUrlPatterns,
       code: cache.code,
@@ -1473,17 +2370,28 @@ export class RuntimeService {
   }
 
   // 每次页面加载都重新拉取 file:/// 本地资源；sha512 未变则跳过。
-  // 注意：发现变化时会就地更新共享的 pageLoadCaches 缓存对象（cache.resourceByType / localResource.sha512），
-  // 使后续加载直接复用最新内容。重复写入的是同一次拉取的结果，幂等。
   private async refreshLocalResourcesForPageLoad(
-    enableScriptList: (ScriptLoadInfo & { scriptUrlPatterns: URLRuleEntry[] })[],
-    scriptCodes: Record<string, string>
+    enableScriptList: (ScriptLoadInfo & { scriptUrlPatterns: URLRuleEntry[] })[]
   ) {
-    const scriptsWithUpdatedResources = new Map<string, ScriptLoadInfo & { scriptUrlPatterns: URLRuleEntry[] }>();
+    const scriptsWithUpdatedResources = new Map<
+      string,
+      { scriptRes: ScriptLoadInfo & { scriptUrlPatterns: URLRuleEntry[] }; cache: TPageLoadScriptCache }
+    >();
     await Promise.all(
       enableScriptList.map(async (scriptRes) => {
-        const cache = this.pageLoadCaches.get(scriptRes.uuid);
-        if (!cache?.localResources.length) return;
+        const currentCache = this.pageLoadCaches.get(scriptRes.uuid);
+        if (!currentCache?.localResources.length) return;
+        const cache: TPageLoadScriptCache = {
+          ...currentCache,
+          localResources: currentCache.localResources.map((resource) => ({ ...resource })),
+          resourceByType: this.cloneRuntimeResourceByType(currentCache.resourceByType),
+        };
+        const candidate: ScriptLoadInfo & { scriptUrlPatterns: URLRuleEntry[] } = {
+          ...scriptRes,
+          resourceByType: this.cloneRuntimeResourceByType(scriptRes.resourceByType as TRuntimeResourceByType),
+          resource: {},
+        };
+        candidate.resource = this.mergeRuntimeResourceByType(candidate.resourceByType!);
         let resourceUpdated = false;
         await Promise.all(
           cache.localResources.map(async (localResource) => {
@@ -1504,10 +2412,8 @@ export class RuntimeService {
               }
               localResource.sha512 = updatedResource.hash?.sha512;
               cache.resourceByType[localResource.type][localResource.resourceKey] = nextResource;
-              if (scriptRes.resourceByType) {
-                scriptRes.resourceByType[localResource.type][localResource.resourceKey] = { ...nextResource };
-              }
-              scriptRes.resource[localResource.resourceKey] = { ...nextResource };
+              candidate.resourceByType![localResource.type][localResource.resourceKey] = { ...nextResource };
+              candidate.resource[localResource.resourceKey] = { ...nextResource };
               resourceUpdated = true;
             } catch (e) {
               this.logger.error(
@@ -1519,8 +2425,16 @@ export class RuntimeService {
           })
         );
         if (resourceUpdated) {
-          scriptsWithUpdatedResources.set(scriptRes.uuid, scriptRes);
-          scriptCodes[scriptRes.uuid] = cache.code;
+          delete candidate.scriptRevision;
+          const baseCode = compileInjectionCode(candidate, cache.code, candidate.scriptUrlPatterns);
+          cache.scriptRevision = this.getCompiledScriptRevision(
+            candidate,
+            baseCode,
+            candidate.scriptUrlPatterns,
+            cache.originalMetadata
+          );
+          candidate.scriptRevision = cache.scriptRevision;
+          scriptsWithUpdatedResources.set(scriptRes.uuid, { scriptRes: candidate, cache });
         }
       })
     );
@@ -1580,13 +2494,16 @@ export class RuntimeService {
       const compiledResources = await this.compiledResourceDAO.gets(cacheMisses.map((miss) => miss.script.uuid));
       await Promise.all(
         cacheMisses.map(async (miss, missIndex) => {
-          let compiledResource = compiledResources[missIndex];
-          if (!compiledResource?.scriptUrlPatterns?.length) {
-            const ret = await this.buildAndSaveCompiledResourceFromScript(miss.script, false);
-            compiledResource = ret?.compiledResource;
-          }
-          if (!compiledResource?.scriptUrlPatterns?.length) return;
-          const cache = await this.buildPageLoadScriptCache(miss.scriptRes, compiledResource, miss.scriptCacheKey);
+          const compiledResource = compiledResources[missIndex];
+          if (!compiledResource?.scriptUrlPatterns?.length || !compiledResource.scriptRevision) return;
+          const candidate = await this.buildCompiledResourceFromScript(miss.script, true);
+          if (candidate?.compiledResource.scriptRevision !== compiledResource.scriptRevision) return;
+          const cache = await this.buildPageLoadScriptCache(
+            miss.scriptRes,
+            compiledResource,
+            miss.scriptCacheKey,
+            miss.script.metadata
+          );
           if (!cache) return;
           this.pageLoadCaches.set(miss.script.uuid, cache);
           enableScriptListByIndex[miss.index] = this.createPageLoadScriptInfo(miss.scriptRes, cache);
@@ -1601,9 +2518,8 @@ export class RuntimeService {
     // 没有任何启用脚本
     if (!enableScriptList.length) return null;
 
-    const scriptCodes = {} as Record<string, string>;
     // 更新资源使用了file协议的脚本
-    const scriptsWithUpdatedResources = await this.refreshLocalResourcesForPageLoad(enableScriptList, scriptCodes);
+    const scriptsWithUpdatedResources = await this.refreshLocalResourcesForPageLoad(enableScriptList);
 
     const { value } = this;
     await Promise.all(
@@ -1614,31 +2530,44 @@ export class RuntimeService {
     );
 
     if (scriptsWithUpdatedResources.size) {
-      const scriptRegisterInfoList = (
-        (await chrome.userScripts.getScripts({
+      let registeredScripts: RegisteredUserScriptWithJsCode[] = [];
+      try {
+        registeredScripts = (await chrome.userScripts.getScripts({
           ids: [...scriptsWithUpdatedResources.keys()],
-        })) as RegisteredUserScriptWithJsCode[]
-      ).filter((scriptRegisterInfo) => {
-        const targetUUID = scriptRegisterInfo.id;
-        const scriptRes = scriptsWithUpdatedResources.get(targetUUID);
-        const scriptDAOCode = scriptCodes[targetUUID];
-        if (scriptRes && scriptDAOCode) {
-          const scriptInjectCode = compileInjectionCode(scriptRes, scriptDAOCode, scriptRes.scriptUrlPatterns);
-          scriptRegisterInfo.js = [
-            {
-              code: scriptInjectCode,
-            },
-          ];
-          return true;
-        }
-        return false;
-      });
-      // 批量更新
-      if (scriptRegisterInfoList.length) {
+        })) as RegisteredUserScriptWithJsCode[];
+      } catch (e) {
+        this.logger.error("get registered userscripts error", Logger.E(e));
+      }
+      for (const scriptRegisterInfo of registeredScripts) {
+        const { id: uuid } = scriptRegisterInfo;
+        const candidate = scriptsWithUpdatedResources.get(uuid);
+        if (!candidate) continue;
+        const code = compileInjectionCode(
+          candidate.scriptRes,
+          candidate.cache.code,
+          candidate.scriptRes.scriptUrlPatterns
+        );
+        scriptRegisterInfo.js = [{ code }];
         try {
-          await chrome.userScripts.update(scriptRegisterInfoList);
+          await chrome.userScripts.update([scriptRegisterInfo]);
         } catch (e) {
-          this.logger.error("update registered userscripts error", Logger.E(e));
+          this.logger.error("update registered userscript error", { uuid }, Logger.E(e));
+          continue;
+        }
+
+        this.pageLoadCaches.set(uuid, candidate.cache);
+        const scriptIndex = enableScriptList.findIndex((script) => script.uuid === uuid);
+        if (scriptIndex >= 0) {
+          enableScriptList[scriptIndex] = { ...candidate.scriptRes, value: enableScriptList[scriptIndex].value };
+        }
+        try {
+          const compiledResource = await this.compiledResourceDAO.get(uuid);
+          if (compiledResource) {
+            compiledResource.scriptRevision = candidate.cache.scriptRevision;
+            await this.compiledResourceDAO.save(compiledResource);
+          }
+        } catch (e) {
+          this.logger.error("save compiled resource revision failed", { uuid }, Logger.E(e));
         }
       }
     }
@@ -1767,16 +2696,13 @@ export class RuntimeService {
 
   // 加载页面脚本, 会把脚本信息放入缓存中
   // 如果脚本开启, 则注册脚本
-  async loadPageScript(script: Script, registerScript_: chrome.userScripts.RegisteredUserScript) {
+  async loadPageScript(script: Script, registerScript_: chrome.userScripts.RegisteredUserScript): Promise<boolean> {
     // 如果脚本开启, 则注册脚本
     if (!this.isUserScriptsAvailable || !this.isLoadScripts || script.status !== SCRIPT_STATUS_ENABLE) {
-      return;
+      return false;
     }
     const { name, uuid } = script;
     const registerScript = registerScript_;
-    const res: chrome.userScripts.RegisteredUserScript | undefined = (
-      await chrome.userScripts.getScripts({ ids: [uuid] })
-    )?.[0];
     const logger = LoggerCore.logger({
       name,
       registerMatch: {
@@ -1784,18 +2710,19 @@ export class RuntimeService {
         excludeMatches: registerScript.excludeMatches,
       },
     });
-    if (res) {
-      try {
+    try {
+      const res: chrome.userScripts.RegisteredUserScript | undefined = (
+        await chrome.userScripts.getScripts({ ids: [uuid] })
+      )?.[0];
+      if (res) {
         await chrome.userScripts.update([registerScript]);
-      } catch (e) {
-        logger.error("update registerScript error", Logger.E(e));
-      }
-    } else {
-      try {
+      } else {
         await chrome.userScripts.register([registerScript]);
-      } catch (e) {
-        logger.error("registerScript error", Logger.E(e));
       }
+      return true;
+    } catch (e) {
+      logger.error("registerScript error", Logger.E(e));
+      return false;
     }
   }
 

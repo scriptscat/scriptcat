@@ -32,7 +32,7 @@ function makeScript(overrides: Partial<ScriptLoadInfo> = {}): ScriptLoadInfo {
 
 function setExecCode(exec: ExecScript, script: ScriptLoadInfo, code: string): void {
   script.code = code;
-  exec.scriptFunc = compileScript(compileScriptCode(script));
+  exec.scriptFunc = compileScript(compileScriptCode(script), true);
 }
 
 function makeExec(code: string, grant?: string[]): { exec: ExecScript; script: ScriptLoadInfo } {
@@ -67,6 +67,22 @@ describe.concurrent("GM_info", () => {
     expect(ret.GM_info.version).toEqual(ExtVersion);
     expect(ret.GM_info.script.version).toEqual("1.0.0");
     expect(ret._this).not.toEqual(global);
+  });
+
+  it.concurrent("does not resolve a mutable script function call property", async () => {
+    const { exec } = makeExec("return this;");
+    const scriptFunc = function (_token: string, context: unknown) {
+      return context;
+    } as ScriptFunc & { call?: unknown };
+    Object.defineProperty(scriptFunc, "call", {
+      configurable: true,
+      value: () => {
+        throw new Error("poisoned call");
+      },
+    });
+    exec.scriptFunc = scriptFunc;
+
+    expect(await exec.exec()).toBe(exec.execContext);
   });
 });
 
@@ -564,5 +580,83 @@ return [str.match(reg), RegExp.$1];`);
     expect(ret2.onfocus).toEqual(expect.any(Function));
     expect(ret2.onresize).toBeNull();
     expect(ret2.onblur).toBeNull();
+  });
+});
+
+describe("getEffectiveScriptGrants consumer (P1-2)", () => {
+  it("context-menu + grant none builds a sandbox with GM_registerMenuCommand instead of the bare GM.info branch", () => {
+    const script = makeScript({
+      metadata: { grant: ["none"], "run-at": ["context-menu"], version: ["1.0.0"] },
+    });
+    const message = {} as Message;
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message,
+      contentMsg: message,
+      code: nilFn,
+      envInfo,
+    });
+
+    // 只有当 effective grants 内含 GM_registerMenuCommand 且不再是纯 "none" 时才会走 sandboxContext 分支。
+    expect(exec.sandboxContext).not.toBeUndefined();
+    expect(exec.named).toBeUndefined();
+  });
+});
+
+describe("globalInjection", () => {
+  it("接受合法的注入键，并投影到脚本沙盒", () => {
+    const script = makeScript({ metadata: { grant: ["GM_getValue"], version: ["1.0.0"] } });
+    const message = {} as Message;
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message,
+      contentMsg: message,
+      code: nilFn,
+      envInfo,
+      globalInjection: { customGlobal: () => "injected" },
+    });
+
+    expect(exec.sandboxContext).not.toBeUndefined();
+    expect((exec.sandboxContext as unknown as { customGlobal: () => string }).customGlobal()).toBe("injected");
+
+    exec.exec();
+    expect((exec.execContext as { customGlobal: () => string }).customGlobal()).toBe("injected");
+  });
+
+  it("撞上已存在的内部生命周期键时立即抛出 TypeError，而不是静默跳过", () => {
+    const script = makeScript({ metadata: { grant: ["GM_getValue"], version: ["1.0.0"] } });
+    const message = {} as Message;
+
+    expect(
+      () =>
+        new ExecScript(script, {
+          envPrefix: "scripting",
+          message,
+          contentMsg: message,
+          code: nilFn,
+          envInfo,
+          globalInjection: { setInvalidContext: () => undefined },
+        })
+    ).toThrow(TypeError);
+  });
+
+  it("使用 protect 登记但当前不在 facade 上的键时不抛错（保留原 Object.assign 行为）", () => {
+    // message/scriptRes/runFlag 等是 GM_Base 的 @protected 成员，但从不出现在
+    // createContext() 返回的 publicContext 自身键上；沿用旧 Object.assign 语义，
+    // 不能把这类不存在的键也当成"内部键碰撞"而新增拒绝。
+    const script = makeScript({ metadata: { grant: ["GM_getValue"], version: ["1.0.0"] } });
+    const message = {} as Message;
+
+    expect(
+      () =>
+        new ExecScript(script, {
+          envPrefix: "scripting",
+          message,
+          contentMsg: message,
+          code: nilFn,
+          envInfo,
+          globalInjection: { message: "not-a-real-message-object" },
+        })
+    ).not.toThrow();
   });
 });

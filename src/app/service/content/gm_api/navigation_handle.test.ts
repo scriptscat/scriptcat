@@ -40,13 +40,15 @@ describe("attachNavigateHandler", () => {
       listeners,
       dispatched,
       // 模拟触发 navigate 事件
-      fireNavigate(destUrl: string) {
-        // 更新 location.href 模拟浏览器行为
-        currentHref = destUrl;
+      fireNavigate(destUrl: string, updateHref = true) {
+        if (updateHref) currentHref = destUrl;
         const ev = { type: "navigate", destination: { url: destUrl } } as any;
         for (const fn of listeners["navigate"] || []) {
           fn(ev);
         }
+      },
+      updateHref(url: string) {
+        currentHref = url;
       },
     };
   };
@@ -92,6 +94,50 @@ describe("attachNavigateHandler", () => {
     const ev = mock.dispatched[0] as UrlChangeEvent;
     expect(ev.type).toBe("urlchange");
     expect(ev.url).toBe("https://example.com/new");
+  });
+
+  it("href 延迟更新时应在下一任务中读取新 URL", async () => {
+    const mock = createMockWin("https://example.com/");
+    attachNavigateHandler(mock.win);
+
+    mock.fireNavigate("https://example.com/new", false);
+    mock.updateHref("https://example.com/new");
+
+    await vi.waitFor(() => {
+      expect(mock.dispatched).toHaveLength(1);
+    });
+    expect((mock.dispatched[0] as UrlChangeEvent).url).toBe("https://example.com/new");
+  });
+
+  it("重叠的延迟导航应复用一次 task 并只派发最新 URL", async () => {
+    const mock = createMockWin("https://example.com/");
+    attachNavigateHandler(mock.win);
+
+    mock.fireNavigate("https://example.com/first", false);
+    mock.fireNavigate("https://example.com/last", false);
+    mock.updateHref("https://example.com/last");
+
+    await vi.waitFor(() => {
+      expect(mock.dispatched).toHaveLength(1);
+    });
+    expect((mock.dispatched[0] as UrlChangeEvent).url).toBe("https://example.com/last");
+  });
+
+  it("dispatchEvent 的 bind 屬性被改寫時仍能派發事件", async () => {
+    const mock = createMockWin("https://example.com/");
+    Object.defineProperty(mock.win.dispatchEvent, "bind", {
+      configurable: true,
+      value: () => {
+        throw new Error("poisoned bind");
+      },
+    });
+
+    attachNavigateHandler(mock.win);
+    mock.fireNavigate("https://example.com/new");
+
+    await vi.waitFor(() => {
+      expect(mock.dispatched).toHaveLength(1);
+    });
   });
 
   it("URL 未变化时不应派发事件", async () => {

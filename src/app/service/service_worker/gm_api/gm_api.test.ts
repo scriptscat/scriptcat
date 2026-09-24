@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { type IGetSender } from "@Packages/message/server";
 import { type ExtMessageSender } from "@Packages/message/types";
+import { RequestSequenceWindow, REQUEST_SEQUENCE_WINDOW_SIZE } from "@Packages/message/request_sequence_window";
 import GMApi, {
   ConnectMatch,
   getConnectMatched,
@@ -9,6 +10,11 @@ import GMApi, {
 } from "./gm_api";
 import { PermissionVerifyApiGet, type ConfirmParam } from "../permission_verify";
 import type { GMApiRequest } from "../types";
+import GMAgentApi from "./gm_agent";
+import GMAgentDomApi from "./gm_agent_dom";
+import GMAgentModelApi from "./gm_agent_model";
+import GMAgentOPFSApi from "./gm_agent_opfs";
+import GMAgentSkillsApi from "./gm_agent_skills";
 // 触发所有 GM API 装饰器注册（与 gm_api.ts 中的 import 保持同步）
 import "./gm_api";
 
@@ -121,6 +127,367 @@ describe.concurrent("GM API 注册完整性", () => {
     for (const name of agentApis) {
       expect(PermissionVerifyApiGet(name), `${name} 应已注册`).toBeDefined();
     }
+  });
+});
+
+describe("CAT.agent.conversation identity binding", () => {
+  it("overrides a forged payload owner with the authenticated script", async () => {
+    const handleConversationApi = vi.fn().mockResolvedValue(null);
+    const api = { agentService: { handleConversationApi } } as unknown as GMApi;
+    const request = {
+      params: [{ action: "get", id: "conv-1", scriptUuid: "forged" }],
+      script: { uuid: "script-authenticated" },
+    } as unknown as GMApiRequest;
+
+    await GMAgentApi.prototype.CAT_agentConversation.call(api, request, makeSender());
+
+    expect(handleConversationApi).toHaveBeenCalledWith({
+      action: "get",
+      id: "conv-1",
+      scriptUuid: "script-authenticated",
+    });
+  });
+
+  it("binds streaming chat and background attach to the authenticated script", async () => {
+    const handleConversationChatFromGmApi = vi.fn().mockResolvedValue(undefined);
+    const handleAttachToConversationFromGmApi = vi.fn().mockResolvedValue(undefined);
+    const api = {
+      agentService: { handleConversationChatFromGmApi, handleAttachToConversationFromGmApi },
+    } as unknown as GMApi;
+    const chatRequest = {
+      params: [{ conversationId: "conv-1", message: "hi", scriptUuid: "forged" }],
+      script: { uuid: "script-authenticated" },
+    } as unknown as GMApiRequest;
+    const attachRequest = {
+      params: [{ conversationId: "conv-1", generation: "gen-1", scriptUuid: "forged" }],
+      script: { uuid: "script-authenticated" },
+    } as unknown as GMApiRequest;
+    const sender = makeSender();
+
+    await GMAgentApi.prototype.CAT_agentConversationChat.call(api, chatRequest, sender);
+    await GMAgentApi.prototype.CAT_agentAttachToConversation.call(api, attachRequest, sender);
+
+    expect(handleConversationChatFromGmApi).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: "conv-1", scriptUuid: "script-authenticated" }),
+      sender
+    );
+    expect(handleAttachToConversationFromGmApi).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: "conv-1", scriptUuid: "script-authenticated" }),
+      sender
+    );
+  });
+});
+
+describe("CAT agent identity binding", () => {
+  it("overrides forged nested scriptUuid values for every agent service boundary", async () => {
+    const handleDomApi = vi.fn().mockResolvedValue(undefined);
+    const handleModelApi = vi.fn().mockResolvedValue(undefined);
+    const handleSkillsApi = vi.fn().mockResolvedValue(undefined);
+    const handleOPFSApi = vi.fn().mockResolvedValue(undefined);
+    const api = {
+      agentService: { handleDomApi, handleModelApi, handleSkillsApi, handleOPFSApi },
+    } as unknown as GMApi;
+    const script = { uuid: "script-authenticated" };
+    const sender = makeSender();
+
+    await GMAgentDomApi.prototype.CAT_agentDom.call(
+      api,
+      { params: [{ action: "listTabs", scriptUuid: "forged" }], script } as unknown as GMApiRequest,
+      sender
+    );
+    await GMAgentModelApi.prototype.CAT_agentModel.call(
+      api,
+      { params: [{ action: "list", scriptUuid: "forged" }], script } as unknown as GMApiRequest,
+      sender
+    );
+    await GMAgentSkillsApi.prototype.CAT_agentSkills.call(
+      api,
+      { params: [{ action: "list", scriptUuid: "forged" }], script } as unknown as GMApiRequest,
+      sender
+    );
+    await GMAgentOPFSApi.prototype.CAT_agentOPFS.call(
+      api,
+      { params: [{ action: "list", scriptUuid: "forged" }], script } as unknown as GMApiRequest,
+      sender
+    );
+
+    expect(handleDomApi).toHaveBeenCalledWith({ action: "listTabs", scriptUuid: "script-authenticated" });
+    expect(handleModelApi).toHaveBeenCalledWith({ action: "list", scriptUuid: "script-authenticated" });
+    expect(handleSkillsApi).toHaveBeenCalledWith({ action: "list", scriptUuid: "script-authenticated" });
+    expect(handleOPFSApi).toHaveBeenCalledWith({ action: "list", scriptUuid: "script-authenticated" }, sender);
+  });
+});
+
+describe("page execution binding gate", () => {
+  it("rejects a page-originated request that has no binding handle", async () => {
+    const api = Object.create(GMApi.prototype) as GMApi;
+    Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab });
+
+    await expect(
+      api.handlerRequest({ uuid: "script-a", api: "GM_getTab", params: [], runFlag: "forged" }, sender)
+    ).rejects.toThrow("page execution binding is required");
+  });
+
+  it("rejects an unknown page binding before parsing or invoking a GM API", async () => {
+    const api = Object.create(GMApi.prototype) as GMApi;
+    Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
+    const resolveBinding = vi.fn().mockReturnValue(undefined);
+    Object.defineProperty(api, "resolvePageExecutionBinding", { configurable: true, value: resolveBinding });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab });
+
+    await expect(
+      api.handlerRequest(
+        {
+          uuid: "forged",
+          api: "GM_getTab",
+          params: [],
+          runFlag: "forged",
+          handle: "missing",
+          version: 2,
+          sequence: 1,
+        },
+        sender
+      )
+    ).rejects.toThrow("page execution binding is invalid");
+    expect(resolveBinding).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a page API that is outside the binding capability set", async () => {
+    const api = Object.create(GMApi.prototype) as GMApi;
+    Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
+    const parseRequest = vi.fn();
+    Object.defineProperty(api, "parseRequest", { configurable: true, value: parseRequest });
+    const binding = {
+      handle: "handle-a",
+      uuid: "script-a",
+      envTag: "it" as const,
+      runFlag: "run-a",
+      tabId: 42,
+      frameId: 0,
+      allowedAPIs: new Set(["GM_getTab"]),
+      requestSequenceWindow: new RequestSequenceWindow(),
+    };
+    Object.defineProperty(api, "resolvePageExecutionBinding", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(binding),
+    });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab, frameId: 0 });
+
+    await expect(
+      api.handlerRequest(
+        {
+          uuid: "forged",
+          api: "GM_log",
+          params: ["hello"],
+          runFlag: "forged",
+          handle: "handle-a",
+          version: 2,
+          sequence: 1,
+        },
+        sender
+      )
+    ).rejects.toThrow("API is not granted to this execution");
+    expect(parseRequest).not.toHaveBeenCalled();
+  });
+
+  it("resolves canonical identity from the binding and ignores a page-forged uuid/runFlag", async () => {
+    // wire 身份只有 handle；即使页面在直连 SW 的原生通道里伪造 uuid/runFlag，
+    // handlerRequest 也必须整体用 binding 的 canonical 值覆盖，而不是校验后放行伪造值。
+    const api = Object.create(GMApi.prototype) as GMApi;
+    Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
+    Object.defineProperty(api, "permissionVerify", {
+      configurable: true,
+      value: { verify: vi.fn().mockResolvedValue(undefined) },
+    });
+    const parseRequest = vi.fn().mockResolvedValue({
+      uuid: "script-a",
+      api: "GM_log",
+      params: ["hello"],
+      script: { uuid: "script-a", name: "script-a" },
+    });
+    Object.defineProperty(api, "parseRequest", { configurable: true, value: parseRequest });
+    const binding = {
+      handle: "handle-a",
+      uuid: "script-a",
+      envTag: "it" as const,
+      runFlag: "run-a",
+      tabId: 42,
+      frameId: 0,
+      allowedAPIs: new Set(["GM_log"]),
+      requestSequenceWindow: new RequestSequenceWindow(),
+    };
+    Object.defineProperty(api, "resolvePageExecutionBinding", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(binding),
+    });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab, frameId: 0 });
+
+    await expect(
+      api.handlerRequest(
+        {
+          uuid: "script-b",
+          api: "GM_log",
+          params: ["hello"],
+          runFlag: "forged",
+          handle: "handle-a",
+          version: 2,
+          sequence: 1,
+        },
+        sender
+      )
+    ).resolves.toBe(true);
+    expect(parseRequest).toHaveBeenCalledWith(expect.objectContaining({ uuid: "script-a", runFlag: "run-a" }));
+  });
+
+  it("rejects a replayed page sequence before invoking the GM API", async () => {
+    const api = Object.create(GMApi.prototype) as GMApi;
+    Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
+    Object.defineProperty(api, "permissionVerify", {
+      configurable: true,
+      value: { verify: vi.fn().mockResolvedValue(undefined) },
+    });
+    Object.defineProperty(api, "parseRequest", {
+      configurable: true,
+      value: vi.fn().mockResolvedValue({
+        uuid: "script-a",
+        api: "GM_log",
+        params: ["hello"],
+        script: { uuid: "script-a", name: "script-a" },
+      }),
+    });
+    const binding = {
+      handle: "handle-a",
+      uuid: "script-a",
+      envTag: "it" as const,
+      runFlag: "run-a",
+      tabId: 42,
+      frameId: 0,
+      allowedAPIs: new Set(["GM_log"]),
+      requestSequenceWindow: new RequestSequenceWindow(),
+    };
+    Object.defineProperty(api, "resolvePageExecutionBinding", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(binding),
+    });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab, frameId: 0 });
+
+    const request = {
+      uuid: "forged",
+      api: "GM_log",
+      params: ["hello"],
+      runFlag: "forged",
+      handle: "handle-a",
+      version: 2 as const,
+      sequence: 1,
+    };
+    await expect(api.handlerRequest(request, sender)).resolves.toBe(true);
+    await expect(api.handlerRequest(request, sender)).rejects.toThrow("page RPC sequence was already used");
+  });
+
+  it("accepts a large forward sequence gap on a fresh binding and still rejects its replay", async () => {
+    // broker-only 请求（如 CAT_createBlobUrl）会消耗上下文序列号但从不到达 SW，
+    // 因此合法的 SW 端请求可能一次性领先超过 4096；该跳跃必须被接受，
+    // 但接受后的重复提交仍须被拒绝为 replay。
+    const api = Object.create(GMApi.prototype) as GMApi;
+    Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
+    Object.defineProperty(api, "permissionVerify", {
+      configurable: true,
+      value: { verify: vi.fn().mockResolvedValue(undefined) },
+    });
+    const parseRequest = vi.fn().mockResolvedValue({
+      uuid: "script-a",
+      api: "GM_log",
+      params: ["hello"],
+      script: { uuid: "script-a", name: "script-a" },
+    });
+    Object.defineProperty(api, "parseRequest", { configurable: true, value: parseRequest });
+    const binding = {
+      handle: "handle-a",
+      uuid: "script-a",
+      envTag: "it" as const,
+      runFlag: "run-a",
+      tabId: 42,
+      frameId: 0,
+      allowedAPIs: new Set(["GM_log"]),
+      requestSequenceWindow: new RequestSequenceWindow(),
+    };
+    Object.defineProperty(api, "resolvePageExecutionBinding", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(binding),
+    });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab, frameId: 0 });
+
+    const request = {
+      uuid: "forged",
+      api: "GM_log",
+      params: ["hello"],
+      runFlag: "forged",
+      handle: "handle-a",
+      version: 2 as const,
+      sequence: REQUEST_SEQUENCE_WINDOW_SIZE + 1,
+    };
+
+    await expect(api.handlerRequest(request, sender)).resolves.toBe(true);
+    expect(parseRequest).toHaveBeenCalledTimes(1);
+
+    await expect(api.handlerRequest(request, sender)).rejects.toThrow("page RPC sequence was already used");
+    expect(parseRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a too-old sequence at the SW boundary once the binding advances a full window", async () => {
+    const api = Object.create(GMApi.prototype) as GMApi;
+    Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
+    Object.defineProperty(api, "permissionVerify", {
+      configurable: true,
+      value: { verify: vi.fn().mockResolvedValue(undefined) },
+    });
+    const parseRequest = vi.fn().mockResolvedValue({
+      uuid: "script-a",
+      api: "GM_log",
+      params: ["hello"],
+      script: { uuid: "script-a", name: "script-a" },
+    });
+    Object.defineProperty(api, "parseRequest", { configurable: true, value: parseRequest });
+    const binding = {
+      handle: "handle-a",
+      uuid: "script-a",
+      envTag: "it" as const,
+      runFlag: "run-a",
+      tabId: 42,
+      frameId: 0,
+      allowedAPIs: new Set(["GM_log"]),
+      requestSequenceWindow: new RequestSequenceWindow(),
+    };
+    Object.defineProperty(api, "resolvePageExecutionBinding", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(binding),
+    });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab, frameId: 0 });
+
+    const makeRequest = (sequence: number) => ({
+      uuid: "forged",
+      api: "GM_log",
+      params: ["hello"],
+      runFlag: "forged",
+      handle: "handle-a",
+      version: 2 as const,
+      sequence,
+    });
+
+    await expect(api.handlerRequest(makeRequest(1), sender)).resolves.toBe(true);
+    await expect(api.handlerRequest(makeRequest(REQUEST_SEQUENCE_WINDOW_SIZE + 1), sender)).resolves.toBe(true);
+    expect(parseRequest).toHaveBeenCalledTimes(2);
+
+    await expect(api.handlerRequest(makeRequest(1), sender)).rejects.toThrow("replay window");
+    expect(parseRequest).toHaveBeenCalledTimes(2);
   });
 });
 

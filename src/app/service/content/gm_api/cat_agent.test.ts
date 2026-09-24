@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ConversationInstance } from "./cat_agent";
+import { ConversationInstance, type ConversationStreamChunk } from "./cat_agent";
 import type { Conversation, StreamChunk } from "@App/app/service/agent/core/types";
 import type { MessageConnect } from "@Packages/message/types";
 
@@ -65,6 +65,33 @@ function createInstance(
 }
 
 describe("ConversationInstance 命令机制", () => {
+  it("不会把通用 GM 传输能力作为实例属性暴露", () => {
+    const { instance } = createInstance();
+    const ownNames = Object.getOwnPropertyNames(instance);
+
+    expect(ownNames).not.toContain("gmSendMessage");
+    expect(ownNames).not.toContain("gmConnect");
+    expect(ownNames).not.toContain("conv");
+    expect(ownNames).not.toContain("scriptUuid");
+    expect(ownNames).not.toContain("toolHandlers");
+    expect(ownNames).not.toContain("toolDefs");
+    expect(ownNames).not.toContain("messageHistory");
+  });
+
+  it("does not let public mutation replace private conversation state", async () => {
+    const { instance } = createEphemeralInstance();
+    const exposed = instance as unknown as Record<string, unknown>;
+    exposed.messageHistory = [{ role: "user", content: "forged" }];
+    exposed.toolHandlers = new Map([["forged", vi.fn()]]);
+    exposed.toolDefs = [{ name: "forged", description: "forged", parameters: {} }];
+
+    await instance.chat("real");
+
+    const messages = await instance.getMessages();
+    expect(messages[0]).toMatchObject({ role: "user", content: "real" });
+    expect(messages).not.toContainEqual({ role: "user", content: "forged" });
+  });
+
   it("内置 /new 命令清空消息历史", async () => {
     const { instance, gmSendMessage } = createInstance();
 
@@ -981,5 +1008,120 @@ describe("ConversationInstance tool_call_complete 结果净化", () => {
     });
     expect(completionChunk?.toolCall).not.toHaveProperty("type");
     expect(completionChunk?.toolCall).not.toHaveProperty("subAgent");
+  });
+});
+
+describe("ConversationInstance 在页面桥接处校验 CAT 流事件（cat_stream_event.ts 的集成验证）", () => {
+  it("chat() 丢弃携带 own '__proto__' 数据属性的伪造事件，不产生副作用，后续正常事件仍正确处理", async () => {
+    const forged: Record<string, unknown> = { type: "content_delta", delta: "POLLUTED" };
+    Object.defineProperty(forged, "__proto__", {
+      configurable: true,
+      enumerable: true,
+      value: { forgedPrototype: true },
+    });
+    const conn = mockConnectWithSequence([
+      { delayMs: 0, data: forged },
+      { delayMs: 1, data: { type: "content_delta", delta: "real reply" } },
+      { delayMs: 2, data: { type: "done", usage: { inputTokens: 1, outputTokens: 1 }, durationMs: 10 } },
+    ]);
+    const { instance } = createInstance(undefined, conn);
+
+    const reply = await instance.chat("hi");
+
+    expect(reply.content).toBe("real reply");
+  });
+
+  it("chat() 丢弃携带 own '__proto__' 的伪造 error 事件；后续真实 error 事件产生的 Error 原型不受污染", async () => {
+    const forgedError: Record<string, unknown> = { type: "error", message: "forged" };
+    Object.defineProperty(forgedError, "__proto__", {
+      configurable: true,
+      enumerable: true,
+      value: { forgedPrototype: true },
+    });
+    const conn = mockConnectWithSequence([
+      { delayMs: 0, data: forgedError },
+      { delayMs: 1, data: { type: "error", message: "real error" } },
+    ]);
+    const { instance } = createInstance(undefined, conn);
+
+    const err = await instance.chat("hi").catch((e) => e);
+
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).toBe("real error");
+    expect(Object.getPrototypeOf(err)).toBe(Error.prototype);
+    expect((err as any).forgedPrototype).toBeUndefined();
+  });
+
+  it("chatStream() 丢弃携带未知字段的伪造事件，不影响后续 chunk 序列", async () => {
+    const forged = { type: "content_delta", delta: "POLLUTED", unexpectedField: "x" };
+    const conn = mockConnectWithSequence([
+      { delayMs: 0, data: forged },
+      { delayMs: 1, data: { type: "content_delta", delta: "real" } },
+      { delayMs: 2, data: { type: "done", usage: { inputTokens: 1, outputTokens: 1 }, durationMs: 10 } },
+    ]);
+    const { instance } = createInstance(undefined, conn);
+
+    const stream = await instance.chatStream("hi");
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of stream) chunks.push(chunk);
+
+    expect(chunks).toEqual([
+      { type: "content_delta", content: "real" },
+      { type: "done", usage: { inputTokens: 1, outputTokens: 1 }, durationMs: 10 },
+    ]);
+  });
+
+  it("attach() 丢弃携带未知嵌套 ToolCall 字段的伪造 sync 事件，不重置/结算流，后续正常事件仍继续", async () => {
+    // sync 分支的副作用面比其它分支大得多（reset 工具调用重建、替换 streamingMessage 快照、
+    // done 状态判定、必要时 disconnect），仅用顶层 content_delta 的伪造事件验证不足以证明
+    // 这个分支在校验失败时同样不产生任何副作用，需要单独覆盖。
+    const forgedSync = {
+      type: "sync",
+      streamingMessage: {
+        content: "",
+        toolCalls: [{ id: "tc-1", name: "t", arguments: "", unexpectedField: "x" }],
+      },
+      tasks: [],
+      status: "running",
+    };
+    const conn = mockConnectWithSequence([
+      { delayMs: 0, data: forgedSync },
+      { delayMs: 1, data: { type: "content_delta", delta: "real" } },
+      { delayMs: 2, data: { type: "done", usage: { inputTokens: 1, outputTokens: 1 }, durationMs: 10 } },
+    ]);
+    const gmConnect = vi.fn().mockResolvedValue(conn);
+    const instance = new ConversationInstance(
+      mockConversation(),
+      vi.fn().mockResolvedValue(undefined),
+      gmConnect,
+      "uuid"
+    );
+
+    const stream = await instance.attach();
+    const chunks: ConversationStreamChunk[] = [];
+    for await (const chunk of stream) chunks.push(chunk);
+
+    // 没有 sync chunk：伪造事件被在校验层丢弃，从未进入 push()/reset() 逻辑
+    expect(chunks.some((chunk) => chunk.type === "sync")).toBe(false);
+    expect(chunks).toEqual([
+      { type: "content_delta", content: "real" },
+      { type: "done", usage: { inputTokens: 1, outputTokens: 1 }, durationMs: 10 },
+    ]);
+  });
+
+  it("已声明但当前 CAT switch 未处理的事件变体（如 retry）通过校验后被忽略，后续正常事件仍继续处理", async () => {
+    // 区分"协议合法"与"消费者当前关心"：validator 不应该因为 switch 里没有对应 case
+    // 就把一个已声明的合法协议事件当成结构错误拒绝掉。
+    const conn = mockConnectWithSequence([
+      { delayMs: 0, data: { type: "retry", attempt: 1, maxRetries: 3, error: "timeout", delayMs: 100 } },
+      { delayMs: 1, data: { type: "content_delta", delta: "real" } },
+      { delayMs: 2, data: { type: "done", usage: { inputTokens: 1, outputTokens: 1 }, durationMs: 10 } },
+    ]);
+    const { instance } = createInstance(undefined, conn);
+
+    const reply = await instance.chat("hi");
+
+    expect(reply.content).toBe("real");
+    expect(reply.durationMs).toBe(10);
   });
 });

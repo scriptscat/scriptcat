@@ -1,6 +1,11 @@
 import type { Message, MessageConnect, RuntimeMessageSender, TMessage } from "./types";
 import { uuidv4 } from "@App/pkg/utils/uuid";
-import { type PostMessage, type WindowMessageBody, WindowMessageConnect } from "./window_message";
+import {
+  parseWindowMessageBody,
+  type PostMessage,
+  type WindowMessageBody,
+  WindowMessageConnect,
+} from "./window_message";
 import EventEmitter from "eventemitter3";
 import { DefinedFlags } from "@App/app/service/service_worker/runtime.consts";
 import {
@@ -78,6 +83,9 @@ export class CustomEventMessage implements Message {
   }
 
   messageHandle(data: WindowMessageBody, target: PostMessage) {
+    const safeData = parseWindowMessageBody(data);
+    if (!safeData) return;
+    data = safeData;
     // 处理消息
     if (data.type === "sendMessage") {
       // 接收到消息

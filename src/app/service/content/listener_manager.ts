@@ -1,47 +1,49 @@
-// 把 valueChangeListener 抽出来做一个高效执行的Class
-// 删除会较慢但执行会较快
-export class ListenerManager<T extends (key: string, ...args: any[]) => void> {
-  private counterId = 0;
-  private readonly listeners = new Map<string, Map<number, T>>();
+import { Native } from "./global";
 
-  public add(key: string, handler: T): number {
+// 把 valueChangeListener 抽出来做一个高效执行的Class。
+// 固定为 GMTypes.ValueChangeListener 的实际调用形状（生产环境唯一调用点是
+// key/oldValue/newValue/remote/tabid 五参数），避免通用 rest/spread 依赖页面可篡改的
+// Array 迭代协议；存储改用捕获的 Native.Map，避免下标赋值触发继承的数字 setter。
+export class ListenerManager {
+  private counterId = 0;
+  private readonly buckets = new Native.Map<
+    string,
+    InstanceType<typeof Native.Map<number, GMTypes.ValueChangeListener>>
+  >();
+
+  public add(key: string, handler: GMTypes.ValueChangeListener): number {
     const id = ++this.counterId;
-    let listenrMap = this.listeners.get(key);
-    if (!listenrMap) {
-      this.listeners.set(key, (listenrMap = new Map()));
+    let bucket = this.buckets.get(key);
+    if (!bucket) {
+      bucket = new Native.Map<number, GMTypes.ValueChangeListener>();
+      this.buckets.set(key, bucket);
     }
-    listenrMap.set(id, handler);
+    bucket.set(id, handler);
     return id;
   }
 
-  public execute(key: string, ...args: T extends (key: string, ...a: infer A) => any ? A : never): void {
-    const handlers = this.listeners.get(key);
-    if (handlers) {
-      for (const handler of handlers.values()) {
-        handler?.(key, ...args);
-      }
-    }
+  public execute(key: string, oldValue: unknown, newValue: unknown, remote: boolean, tabid: number | undefined): void {
+    const bucket = this.buckets.get(key);
+    if (!bucket) return;
+    bucket.forEach((handler) => {
+      handler(key, oldValue, newValue, remote, tabid);
+    });
   }
 
   public remove(id: number | string): boolean {
     const idNum = +id || 0;
-    if (idNum > 0) {
-      for (const [key, handlers] of this.listeners) {
-        if (handlers.delete(idNum)) {
-          if (handlers.size === 0) {
-            this.listeners.delete(key);
-          }
-          return true;
-        }
+    if (idNum <= 0) return false;
+    let removed = false;
+    this.buckets.forEach((bucket) => {
+      if (!removed && bucket.has(idNum)) {
+        bucket.delete(idNum);
+        removed = true;
       }
-    }
-    return false;
+    });
+    return removed;
   }
 
   public clear(): void {
-    for (const [_key, handlers] of this.listeners) {
-      handlers.clear();
-    }
-    this.listeners.clear();
+    this.buckets.clear();
   }
 }

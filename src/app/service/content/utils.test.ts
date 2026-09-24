@@ -3,15 +3,38 @@ import {
   compileScriptCode,
   compileScript,
   compileInjectScript,
+  compilePreInjectScript,
   compileScriptletCode,
   isScriptletUnwrap,
   addStyle,
   addStyleSheet,
   trimScriptInfo,
+  trimPreInjectScriptInfo,
+  getEffectiveScriptGrants,
+  getCompiledScriptMetadata,
 } from "./utils";
 import type { SCMetadata, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
+import { nativeCall } from "./global";
 import { RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
+import { getPageRpcAllowedAPIs } from "./page_rpc";
+
+const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
+
+type GeneratedWindow = Record<string, unknown>;
+
+function executeGeneratedScript(
+  code: string,
+  targetWindow: GeneratedWindow,
+  testPerformance: Pick<Performance, "dispatchEvent" | "addEventListener"> = globalThis.performance
+) {
+  const execute = new Function("window", "performance", "CustomEvent", code) as (
+    window: GeneratedWindow,
+    performance: Pick<Performance, "dispatchEvent" | "addEventListener">,
+    customEvent: typeof CustomEvent
+  ) => void;
+  execute(targetWindow, testPerformance, globalThis.CustomEvent);
+}
 
 // 设置 console mock 来避免测试输出污染
 vi.spyOn(console, "error").mockImplementation(() => {});
@@ -60,7 +83,9 @@ describe("utils", () => {
       expect(result).toContain("try {");
       expect(result).toContain("} catch (e) {");
       expect(result).toContain("with(arguments[0]||this.$)");
-      expect(result).toContain("return(async function(){");
+      expect(result).toContain("return async function(){console.log('hello world');}");
+      expect(result).not.toContain("Math.random()");
+      expect(result).not.toContain("Date.now()");
     });
 
     it.concurrent("应该处理自定义脚本代码参数", () => {
@@ -481,6 +506,51 @@ describe("utils", () => {
         contentType: "text/plain",
       });
     });
+
+    it("copies public values and metadata before crossing the page boundary", () => {
+      const script = createScript({ grant: ["GM_getValue"] }, []);
+      script.value = { nested: { count: 1 } };
+      script.metadata.grant!.push("GM_setValue");
+
+      const trimmed = trimScriptInfo(script);
+      (trimmed.value.nested as { count: number }).count = 9;
+      trimmed.metadata.grant!.push("GM_deleteValue");
+
+      expect(script.value.nested).toEqual({ count: 1 });
+      expect(script.metadata.grant).toEqual(["GM_getValue", "GM_setValue"]);
+    });
+
+    it("binds a source revision and preloads synchronous userscript state without page capabilities", () => {
+      const script = createScript({ grant: ["GM_getValue"] }, []);
+      script.uuid = "revision-script";
+      script.createtime = 123;
+      script.updatetime = 456;
+      script.value = { secret: "value" };
+      script.config = { private: { secret: { title: "Private", description: "", index: 0, default: "config" } } };
+      script.userConfig = {
+        private: { secret: { title: "Private", description: "", index: 0, default: "user config" } },
+      };
+      script.userConfigStr = '{"secret":"user config"}';
+
+      const trimmed = trimScriptInfo(script);
+      const preInject = trimPreInjectScriptInfo(script);
+
+      expect(trimmed.scriptRevision).toBe("revision-script:123:456");
+      expect(preInject.value).toEqual({ secret: "value" });
+      expect(preInject.config).toEqual(script.config);
+      expect(preInject.userConfig).toEqual(script.userConfig);
+      expect(preInject.userConfigStr).toBe(script.userConfigStr);
+      expect(preInject.executionHandle).toBeUndefined();
+      expect(preInject.executionEnvTag).toBeUndefined();
+      expect(preInject.executionRunFlag).toBeUndefined();
+    });
+
+    it("preserves an explicitly supplied compiled revision", () => {
+      const script = createScript({ grant: ["GM_getValue"] }, []);
+      script.scriptRevision = "compiled-revision";
+
+      expect(trimScriptInfo(script).scriptRevision).toBe("compiled-revision");
+    });
   });
 
   describe("compileScript", () => {
@@ -495,7 +565,7 @@ describe("utils", () => {
       const code = "return arguments[0].value + arguments[1];";
       const func: ScriptFunc = compileScript(code);
 
-      const result = func({ value: 10 }, "test-script");
+      const result = func(fnStrIntegrity, {}, { value: 10 }, "test-script");
 
       expect(result).toBe("10test-script");
     });
@@ -511,8 +581,8 @@ describe("utils", () => {
       `;
       const func: ScriptFunc = compileScript(code);
 
-      const result1 = func({ value: 5, multiply: 3 }, "test");
-      const result2 = func({ value: 5 }, "fallback");
+      const result1 = func(fnStrIntegrity, {}, { value: 5, multiply: 3 }, "test");
+      const result2 = func(fnStrIntegrity, {}, { value: 5 }, "fallback");
 
       expect(result1).toBe(15);
       expect(result2).toBe("fallback");
@@ -526,7 +596,7 @@ describe("utils", () => {
       `;
       const func: ScriptFunc = compileScript(code);
 
-      const result = await func({ value: 5 }, "async-test");
+      const result = await func(fnStrIntegrity, {}, { value: 5 }, "async-test");
 
       expect(result).toBe(10);
     });
@@ -535,7 +605,13 @@ describe("utils", () => {
       const code = "throw new Error('Test error');";
       const func: ScriptFunc = compileScript(code);
 
-      expect(() => func({}, "error-test")).toThrow("Test error");
+      expect(() => func(fnStrIntegrity, {}, {}, "error-test")).toThrow("Test error");
+    });
+
+    it.concurrent("完整性标记不匹配时不应执行脚本", () => {
+      const func: ScriptFunc = compileScript("throw new Error('should not run');");
+
+      expect(func("invalid", {}, {}, "blocked")).toBeUndefined();
     });
   });
 
@@ -559,13 +635,48 @@ describe("utils", () => {
       ...overrides,
     });
 
+    it("生成的腳本包裝不依賴被 require 內容改寫的 Function.prototype 调用方法", async () => {
+      const script = createMockScript({
+        code: "return this;",
+        resource: {
+          library: {
+            url: "https://example.com/library.js",
+            content:
+              "Function.prototype.call = Function.prototype.apply = Function.prototype.bind = () => { throw new Error('poisoned invocation'); };",
+            base64: "",
+            hash: { md5: "", sha1: "", sha256: "", sha384: "", sha512: "" },
+            type: "require",
+            link: {},
+            contentType: "text/javascript",
+            createtime: Date.now(),
+          },
+        },
+        metadata: { require: ["library"] },
+      });
+      const func = compileScript(compileScriptCode(script), true);
+      const originalCall = Function.prototype.call;
+      const originalApply = Function.prototype.apply;
+      const originalBind = Function.prototype.bind;
+      let result: unknown;
+      try {
+        result = await func(fnStrIntegrity, globalThis, {}, script.name);
+      } finally {
+        Function.prototype.call = originalCall;
+        Function.prototype.apply = originalApply;
+        Function.prototype.bind = originalBind;
+      }
+      expect(result).toBe(globalThis);
+    });
+
     it.concurrent("应该生成基本的注入脚本代码", () => {
       const script = createMockScript();
       const scriptCode = "console.log('injected');";
 
       const result = compileInjectScript(script, scriptCode);
 
-      expect(result).toBe(`window['inject-test-flag'] = function(){console.log('injected');}`);
+      expect(result).toContain("window['inject-test-flag'] =");
+      expect(result).toContain("function(){console.log('injected');}");
+      expect(result).not.toContain("Object.defineProperty(f, k");
     });
 
     it.concurrent("应该包含自动删除挂载函数的代码", () => {
@@ -576,9 +687,11 @@ describe("utils", () => {
 
       expect(result).toContain(`try{delete window['inject-test-flag']}catch(e){}`);
       expect(result).toContain("console.log('with auto delete');");
-      expect(result).toBe(
-        `window['inject-test-flag'] = function(){try{delete window['inject-test-flag']}catch(e){}console.log('with auto delete');}`
+      expect(result).toContain("try{delete window['inject-test-flag']}catch(e){}");
+      expect(result).toContain(
+        "function(){try{delete window['inject-test-flag']}catch(e){}console.log('with auto delete');}"
       );
+      expect(result).not.toContain("Object.defineProperty(f, k");
     });
 
     it.concurrent("默认情况下不应该包含自动删除代码", () => {
@@ -588,7 +701,92 @@ describe("utils", () => {
       const result = compileInjectScript(script, scriptCode);
 
       expect(result).not.toContain("try{delete window");
-      expect(result).toBe(`window['inject-test-flag'] = function(){console.log('without auto delete');}`);
+      expect(result).toContain("function(){console.log('without auto delete');}");
+      expect(result).not.toContain("Object.defineProperty(f, k");
+    });
+
+    it("runs the async script body on its context without temporary context properties", async () => {
+      const script = createMockScript({ code: "return { context: this, argumentCount: arguments.length };" });
+      const mutations: PropertyKey[] = [];
+      const context = new Proxy(Object.create(null), {
+        get(target, key, receiver) {
+          if (key === "$") return {};
+          return Reflect.get(target, key, receiver);
+        },
+        set(target, key, value, receiver) {
+          mutations.push(key);
+          return Reflect.set(target, key, value, receiver);
+        },
+        deleteProperty(target, key) {
+          mutations.push(key);
+          return Reflect.deleteProperty(target, key);
+        },
+      });
+      const func = compileScript(compileScriptCode(script), true);
+
+      await expect(func(fnStrIntegrity, context, undefined, script.name)).resolves.toEqual({
+        context,
+        argumentCount: 0,
+      });
+      expect(mutations).toEqual([]);
+    });
+
+    it.concurrent("生成的注入脚本应在运行时传递上下文和参数，并清理临时挂载", () => {
+      const script = createMockScript();
+      const targetWindow: GeneratedWindow = {};
+      const context = {};
+      const named = { value: 42 };
+
+      executeGeneratedScript(
+        compileInjectScript(
+          script,
+          "return { thisValue: this, args: Array.from(arguments), contextKeys: Reflect.ownKeys(this) };"
+        ),
+        targetWindow
+      );
+
+      const generated = targetWindow[script.flag] as ScriptFunc;
+      expect(generated(fnStrIntegrity, context, named, script.name, nativeCall)).toEqual({
+        thisValue: context,
+        args: [named, script.name],
+        contextKeys: [],
+      });
+      expect(Reflect.ownKeys(context)).toEqual([]);
+    });
+
+    it.concurrent("生成的注入脚本应拒绝错误的完整性标记", () => {
+      const script = createMockScript();
+      const targetWindow: GeneratedWindow = {};
+
+      executeGeneratedScript(compileInjectScript(script, "throw new Error('should not run');"), targetWindow);
+
+      const generated = targetWindow[script.flag] as ScriptFunc;
+      expect(generated("invalid", {}, {}, "blocked")).toBeUndefined();
+    });
+
+    it.concurrent("生成的注入脚本应按选项自动删除挂载函数", () => {
+      const script = createMockScript();
+      const targetWindow: GeneratedWindow = {};
+
+      executeGeneratedScript(compileInjectScript(script, "return 'ran';", true), targetWindow);
+
+      const generated = targetWindow[script.flag] as ScriptFunc;
+      expect(generated(fnStrIntegrity, {}, {}, script.name, nativeCall)).toBe("ran");
+      // 属性描述符本身必须消失，而不只是读到 undefined 的值。
+      expect(Object.getOwnPropertyDescriptor(targetWindow, script.flag)).toBeUndefined();
+      expect(targetWindow[script.flag]).toBeUndefined();
+    });
+
+    it.concurrent("生成的注入脚本默认应保留挂载函数", () => {
+      const script = createMockScript();
+      const targetWindow: GeneratedWindow = {};
+
+      executeGeneratedScript(compileInjectScript(script, "return 'ran';"), targetWindow);
+
+      const generated = targetWindow[script.flag] as ScriptFunc;
+      expect(generated(fnStrIntegrity, {}, {}, script.name, nativeCall)).toBe("ran");
+      // 未开启自动删除时，挂载函数应可重复读取，不因读取一次而被消费。
+      expect(targetWindow[script.flag]).toBe(generated);
     });
 
     it.concurrent("应该处理复杂的脚本代码", () => {
@@ -613,7 +811,308 @@ describe("utils", () => {
 
       const result = compileInjectScript(script, scriptCode);
 
-      expect(result).toContain(`window['flag-with-special-chars_123']`);
+      expect(result).toContain(`'flag-with-special-chars_123'`);
+    });
+  });
+
+  describe("generated MAIN-world wrapper protocol (compaction)", () => {
+    const createMockScript = (overrides: Partial<ScriptRunResource> = {}): ScriptRunResource => ({
+      uuid: "compact-wrapper-uuid",
+      name: "Compact Wrapper Script",
+      namespace: "compact.test",
+      type: 1,
+      status: 1,
+      sort: 0,
+      runStatus: "complete",
+      createtime: Date.now(),
+      checktime: Date.now(),
+      code: "",
+      value: {},
+      flag: "compact-wrapper-flag",
+      resource: {},
+      metadata: {},
+      originalMetadata: {},
+      ...overrides,
+    });
+
+    // 编译并挂载到一个隔离的 targetWindow，取回真正生成的 wrapper function object。
+    const mountGeneratedWrapper = (
+      script: ScriptRunResource,
+      scriptCode: string,
+      autoDeleteMountFunction = false
+    ): ScriptFunc => {
+      const targetWindow: GeneratedWindow = {};
+      executeGeneratedScript(compileInjectScript(script, scriptCode, autoDeleteMountFunction), targetWindow);
+      return targetWindow[script.flag] as ScriptFunc;
+    };
+
+    // ScriptFunc 的类型签名固定为 4-5 个具名参数，但 metadata 模式和 hostile-input 场景故意只带
+    // 少数几个实际参数（正是 wrapper 用 rest 参数吸收的协议）。用 Reflect.apply 调用以测试真实的
+    // 运行时协议，而不被编译期签名约束。
+    const callGenerated = (fn: ScriptFunc, args: readonly unknown[]): unknown =>
+      Reflect.apply(fn as unknown as (...a: unknown[]) => unknown, undefined, args);
+
+    it("wrapper.length === 2：保留具名参数数量，避免未来体积优化悄悄改变可观察的函数行为", () => {
+      const generated = mountGeneratedWrapper(createMockScript(), "return 'ran';");
+      expect(generated.length).toBe(2);
+    });
+
+    it("错误的完整性标记不会执行已编译脚本，返回 undefined", () => {
+      const generated = mountGeneratedWrapper(createMockScript(), "throw new Error('must not run');");
+      expect(generated("wrong-token", {}, {}, "blocked")).toBeUndefined();
+    });
+
+    it("正确标记 + metadata 模式 + 捕获时的 document 应返回存储的 metadata", () => {
+      const script = createMockScript({ uuid: "metadata-success-uuid", flag: "metadata-success-flag" });
+      const generated = mountGeneratedWrapper(script, "return 'unused';");
+
+      const metadata = callGenerated(generated, [fnStrIntegrity, null, document]);
+
+      expect(metadata).toBe(JSON.stringify({ uuid: script.uuid, flag: script.flag }));
+    });
+
+    it("metadata 模式下换一个 document 必须返回 undefined（wrapper 绑定创建时捕获的 document）", () => {
+      const generated = mountGeneratedWrapper(createMockScript(), "return 'unused';");
+      const otherDocument = new DOMParser().parseFromString("<html></html>", "text/html");
+
+      expect(callGenerated(generated, [fnStrIntegrity, null, otherDocument])).toBeUndefined();
+    });
+
+    it("metadata 携带 scriptRevision 时同样换一个 document 必须返回 undefined——revision 相同不能替代 document 校验", () => {
+      const generated = mountGeneratedWrapper(
+        createMockScript({ scriptRevision: "same-revision-on-both-documents" }),
+        "return 'unused';"
+      );
+      const otherDocument = new DOMParser().parseFromString("<html></html>", "text/html");
+
+      expect(callGenerated(generated, [fnStrIntegrity, null, otherDocument])).toBeUndefined();
+    });
+
+    it("正确标记 + metadata 模式：script 带 scriptRevision 时它会出现在返回的 metadata 里", () => {
+      const script = createMockScript({
+        uuid: "metadata-revision-uuid",
+        flag: "metadata-revision-flag",
+        scriptRevision: "compiled-revision-abc",
+      });
+      const generated = mountGeneratedWrapper(script, "return 'unused';");
+
+      const metadata = callGenerated(generated, [fnStrIntegrity, null, document]);
+
+      expect(metadata).toBe(
+        JSON.stringify({ uuid: script.uuid, flag: script.flag, scriptRevision: script.scriptRevision })
+      );
+    });
+
+    it("metadata 模式（无论查找成功或失败）绝不会 fall through 到脚本执行", () => {
+      const executed = vi.fn();
+      const targetWindow: GeneratedWindow = { __executed: executed };
+      executeGeneratedScript(compileInjectScript(createMockScript(), "window.__executed();"), targetWindow);
+      const generated = targetWindow["compact-wrapper-flag"] as ScriptFunc;
+      const otherDocument = new DOMParser().parseFromString("<html></html>", "text/html");
+
+      callGenerated(generated, [fnStrIntegrity, null, otherDocument]); // 查找失败（document 不匹配）
+      callGenerated(generated, [fnStrIntegrity, null, document]); // 查找成功（document 匹配）
+
+      expect(executed).not.toHaveBeenCalled();
+    });
+
+    it("execution 模式下无效的受信 call primitive（第五参数）不会执行脚本，返回 undefined", () => {
+      const generated = mountGeneratedWrapper(createMockScript(), "throw new Error('must not run');");
+
+      expect(generated(fnStrIntegrity, {}, {}, "name", undefined)).toBeUndefined();
+      expect(callGenerated(generated, [fnStrIntegrity, {}, {}, "name", "not-a-function"])).toBeUndefined();
+    });
+
+    it("已编译函数若返回另一个函数，该函数必须用同一个受信 call primitive 和同一 context 恰好调用一次", () => {
+      // 受信 call primitive 的真实实现（nativeCall）语义等同 Function.prototype.call：
+      // 用 thisArg 调用 fn。这里的 mock 复刻该语义，而不是单纯转发参数。
+      const calls: Array<{ fn: unknown; thisArg: unknown }> = [];
+      const trustedCall = (fn: (...args: unknown[]) => unknown, thisArg: unknown, ...args: unknown[]) => {
+        calls.push({ fn, thisArg });
+        return fn.apply(thisArg, args);
+      };
+      const context = { marker: "ctx" };
+      const script = createMockScript({ code: "return function(){ return this; };" });
+      const generated = mountGeneratedWrapper(script, script.code);
+
+      const result = generated(fnStrIntegrity, context, {}, script.name, trustedCall);
+
+      expect(result).toBe(context);
+      // trustedCall 必须被调用两次：一次执行已编译函数，一次调用其返回的函数，两次都用同一 context。
+      expect(calls).toHaveLength(2);
+      expect(calls[0].thisArg).toBe(context);
+      expect(calls[1].thisArg).toBe(context);
+    });
+
+    it("Reflect.ownKeys(generatedWrapper) 不会暴露 SC_RANDOM_FNKEY", () => {
+      const generated = mountGeneratedWrapper(createMockScript(), "return 'ran';");
+      const keys = Reflect.ownKeys(generated).map(String);
+      expect(keys.join(",")).not.toContain(fnStrIntegrity!);
+      expect(keys).not.toContain("k");
+    });
+
+    it("体积回归：生成的 wrapper 原生源码长度必须保持在压缩后的预算内", () => {
+      const generated = mountGeneratedWrapper(createMockScript(), "");
+      const source = Function.prototype.toString.call(generated);
+      expect(source.length).toBeLessThanOrEqual(180);
+    });
+
+    it("getCompiledScriptMetadata() 能识别真正挂载的 wrapper 并返回其 metadata", () => {
+      const script = createMockScript({ uuid: "gcsm-uuid", flag: "gcsm-flag" });
+      const generated = mountGeneratedWrapper(script, "return 'unused';");
+
+      expect(getCompiledScriptMetadata(generated)).toBe(JSON.stringify({ uuid: script.uuid, flag: script.flag }));
+    });
+
+    it("getCompiledScriptMetadata() 对非 wrapper 的函数返回 undefined", () => {
+      expect(getCompiledScriptMetadata(() => "not a wrapper")).toBeUndefined();
+      expect(getCompiledScriptMetadata(undefined)).toBeUndefined();
+    });
+
+    it("体积回归：外层生成工厂不应重新引入临时 wrapper 变量等多余脚手架", () => {
+      const script = createMockScript({ uuid: "factory-overhead-uuid", flag: "factory-overhead-flag" });
+      const mounted = compileInjectScript(script, "");
+
+      expect(mounted).not.toMatch(/const f = /);
+      expect(mounted).not.toContain("return f;");
+      expect(mounted).toContain("((d,k,m,fn)=>(t,u,...a)=>{");
+    });
+  });
+
+  describe("compilePreInjectScript", () => {
+    it.concurrent("生成的预注入脚本应可执行并发出脚本加载事件", () => {
+      const script: ScriptLoadInfo = {
+        uuid: "pre-inject-test-uuid",
+        name: "Pre Inject Test Script",
+        namespace: "pre.inject.test",
+        type: 1,
+        status: 1,
+        sort: 0,
+        runStatus: "complete",
+        createtime: Date.now(),
+        checktime: Date.now(),
+        code: "",
+        value: {},
+        flag: "pre-inject-test-flag",
+        resource: {},
+        metadata: {},
+        originalMetadata: {},
+        metadataStr: "",
+        userConfigStr: "",
+      };
+      const targetWindow: GeneratedWindow = {};
+      const testPerformance = {
+        dispatchEvent: vi.fn(() => false),
+        addEventListener: vi.fn(),
+      };
+
+      executeGeneratedScript(
+        compilePreInjectScript(script, "return { thisValue: this, args: Array.from(arguments) };"),
+        targetWindow,
+        testPerformance
+      );
+
+      const generated = targetWindow[script.flag] as ScriptFunc;
+      expect(Reflect.ownKeys(generated)).not.toContain(fnStrIntegrity);
+      expect(Reflect.ownKeys(targetWindow)).toEqual([script.flag]);
+      const context = {};
+      const named = { value: 42 };
+      expect(generated(fnStrIntegrity, context, named, script.name, nativeCall)).toEqual({
+        thisValue: context,
+        args: [named, script.name],
+      });
+      expect(Reflect.ownKeys(context)).toEqual([]);
+      expect(testPerformance.dispatchEvent).toHaveBeenCalledTimes(1);
+      expect(testPerformance.addEventListener).not.toHaveBeenCalled();
+    });
+
+    it.concurrent("keeps preload state in the wrapper closure while the observable event only exposes the flag", () => {
+      const script: ScriptLoadInfo = {
+        uuid: "pre-inject-private-uuid",
+        name: "Pre Inject Private Script",
+        namespace: "pre.inject.private",
+        type: 1,
+        status: 1,
+        sort: 0,
+        runStatus: "complete",
+        createtime: Date.now(),
+        checktime: Date.now(),
+        code: "",
+        value: { secret: "stored-value" },
+        config: { private: { secret: { title: "Private", description: "", index: 0, default: "config" } } },
+        userConfig: {
+          private: { secret: { title: "Private", description: "", index: 0, default: "user-config" } },
+        },
+        flag: "pre-inject-private-flag",
+        resource: {},
+        metadata: {},
+        originalMetadata: {},
+        metadataStr: "",
+        userConfigStr: '{"secret":"user-config"}',
+      };
+      let detail: Record<string, any> | undefined;
+      const testPerformance = {
+        dispatchEvent: vi.fn((event: Event) => {
+          detail = (event as CustomEvent).detail;
+          return false;
+        }),
+        addEventListener: vi.fn(),
+      };
+      const targetWindow: GeneratedWindow = {};
+
+      executeGeneratedScript(compilePreInjectScript(script, "return undefined;"), targetWindow, testPerformance);
+
+      const generated = targetWindow[script.flag] as ScriptFunc;
+      const metadataJSON = getCompiledScriptMetadata(generated);
+      expect(metadataJSON).toBeTypeOf("string");
+      const metadata = JSON.parse(metadataJSON!);
+      expect(metadata.value).toEqual({ secret: "stored-value" });
+      expect(metadata.config).toEqual(script.config);
+      expect(metadata.userConfig).toEqual(script.userConfig);
+      expect(metadata.userConfigStr).toBe(script.userConfigStr);
+      expect(detail).toEqual({ scriptFlag: script.flag });
+      expect(JSON.stringify(detail)).not.toContain("stored-value");
+      expect(JSON.stringify(detail)).not.toContain("user-config");
+    });
+
+    it.concurrent("does not mount a regex-excluded early-start script", () => {
+      const script: ScriptLoadInfo = {
+        uuid: "pre-inject-excluded-uuid",
+        name: "Pre Inject Excluded Script",
+        namespace: "pre.inject.excluded",
+        type: 1,
+        status: 1,
+        sort: 0,
+        runStatus: "complete",
+        createtime: Date.now(),
+        checktime: Date.now(),
+        code: "",
+        value: {},
+        flag: "pre-inject-excluded-flag",
+        resource: {},
+        metadata: {},
+        originalMetadata: {},
+        metadataStr: "",
+        userConfigStr: "",
+        scriptUrlPatterns: [
+          {
+            ruleType: RuleType.REGEX_INCLUDE,
+            ruleContent: ["allowed", ""],
+            ruleTag: "include",
+            patternString: "/allowed/",
+          },
+        ],
+      };
+      const targetWindow: GeneratedWindow = {};
+      const testPerformance = {
+        dispatchEvent: vi.fn(() => false),
+        addEventListener: vi.fn(),
+      };
+
+      executeGeneratedScript(compilePreInjectScript(script, "return undefined;"), targetWindow, testPerformance);
+
+      expect(targetWindow[script.flag]).toBeUndefined();
+      expect(testPerformance.dispatchEvent).not.toHaveBeenCalled();
     });
   });
 
@@ -941,5 +1440,45 @@ describe("utils", () => {
       // if 条件包裹
       expect(result).toMatch(/^if\(/);
     });
+  });
+});
+
+describe("getEffectiveScriptGrants (P1-2)", () => {
+  it("Case A: context-menu + grant none gains GM_registerMenuCommand and drops none", () => {
+    const metadata = { grant: ["none"], "run-at": ["context-menu"] } as unknown as SCMetadata;
+
+    const effective = getEffectiveScriptGrants(metadata);
+
+    expect(effective).toContain("GM_registerMenuCommand");
+    expect(effective).not.toContain("none");
+  });
+
+  it("Case B: a normal (non context-menu) grant none script stays capability-less", () => {
+    const metadata = { grant: ["none"], "run-at": ["document-end"] } as unknown as SCMetadata;
+
+    const effective = getEffectiveScriptGrants(metadata);
+
+    expect(effective).toEqual(["none"]);
+    expect(getPageRpcAllowedAPIs(effective)).toEqual([]);
+  });
+
+  it("Case C: context-menu with an existing privileged grant keeps both grants", () => {
+    const metadata = { grant: ["GM_setValue"], "run-at": ["context-menu"] } as unknown as SCMetadata;
+
+    const effective = getEffectiveScriptGrants(metadata);
+
+    expect(effective).toContain("GM_setValue");
+    expect(effective).toContain("GM_registerMenuCommand");
+  });
+
+  it("Case D: context-menu + grant none allows only the menu command, no privilege escalation", () => {
+    const metadata = { grant: ["none"], "run-at": ["context-menu"] } as unknown as SCMetadata;
+
+    const allowedAPIs = getPageRpcAllowedAPIs(getEffectiveScriptGrants(metadata));
+
+    expect(allowedAPIs).toContain("GM_registerMenuCommand");
+    expect(allowedAPIs).not.toContain("GM_setValue");
+    expect(allowedAPIs).not.toContain("GM_xmlhttpRequest");
+    expect(allowedAPIs.some((api) => api.startsWith("CAT_"))).toBe(false);
   });
 });

@@ -17,7 +17,7 @@ vi.stubGlobal("chrome", {
   tabs: { get: mockTabsGet },
 });
 
-import { cdpClick } from "./dom_cdp";
+import { cdpClick, cdpPeekMonitor, cdpStartMonitor, cdpStopMonitor } from "./dom_cdp";
 
 afterAll(() => {
   vi.stubGlobal("chrome", savedChrome);
@@ -90,5 +90,41 @@ describe("agent_dom_cdp", () => {
       return Promise.resolve({});
     });
     await expect(cdpClick(999, "#nonexistent")).rejects.toThrow(/Element not found/);
+  });
+
+  it("页面监控只能由创建它的脚本重新启动", async () => {
+    mockTabsGet.mockResolvedValue({ url: "https://example.com" });
+    mockSendCommand.mockResolvedValue({ root: { nodeId: 1 } });
+
+    await cdpStartMonitor(999, "script-a");
+
+    await expect(cdpStartMonitor(999, "script-b")).rejects.toThrow("Monitor belongs to another script");
+
+    await cdpStopMonitor(999, "script-a");
+  });
+
+  it("并发重启同一标签页的监控不会泄漏旧监听器", async () => {
+    mockTabsGet.mockResolvedValue({ url: "https://example.com" });
+    mockSendCommand.mockResolvedValue({ root: { nodeId: 1 } });
+
+    await Promise.all([cdpStartMonitor(997, "script-a"), cdpStartMonitor(997, "script-a")]);
+    await cdpStopMonitor(997, "script-a");
+
+    expect(mockAttach).toHaveBeenCalledTimes(2);
+    expect(mockDetach).toHaveBeenCalledTimes(2);
+    expect(chrome.debugger.onEvent.addListener as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(2);
+    expect(chrome.debugger.onEvent.removeListener as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(2);
+  });
+
+  it("页面监控的结果不能被其他脚本读取或停止", async () => {
+    mockTabsGet.mockResolvedValue({ url: "https://example.com" });
+    mockSendCommand.mockResolvedValue({ root: { nodeId: 1 } });
+
+    await cdpStartMonitor(998, "script-a");
+
+    expect(cdpPeekMonitor(998, "script-b")).toEqual({ hasChanges: false, dialogCount: 0, nodeCount: 0 });
+    await expect(cdpStopMonitor(998, "script-b")).rejects.toThrow("Monitor belongs to another script");
+
+    await cdpStopMonitor(998, "script-a");
   });
 });

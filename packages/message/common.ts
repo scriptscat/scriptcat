@@ -8,9 +8,14 @@ export const CustomEventClone = CustomEvent;
 const performanceClone = (process.env.VI_TESTING === "true" ? new EventTarget() : performance) as Performance;
 
 // 避免页面载入后改动 EventTarget.prototype 的方法导致消息传递失败
-export const pageDispatchEvent = performanceClone.dispatchEvent.bind(performanceClone);
-export const pageAddEventListener = performanceClone.addEventListener.bind(performanceClone);
-export const pageRemoveEventListener = performanceClone.removeEventListener.bind(performanceClone);
+const nativeReflectApply = Reflect.apply;
+const nativeFunctionBind = Function.prototype.bind;
+const bindNative = <T extends (...args: any[]) => any>(fn: T, receiver: any): T =>
+  nativeReflectApply(nativeFunctionBind, fn, [receiver]) as T;
+
+export const pageDispatchEvent = bindNative(performanceClone.dispatchEvent, performanceClone);
+export const pageAddEventListener = bindNative(performanceClone.addEventListener, performanceClone);
+export const pageRemoveEventListener = bindNative(performanceClone.removeEventListener, performanceClone);
 const detailClone = typeof cloneInto === "function" ? cloneInto : null;
 export const pageDispatchCustomEvent = <T = any>(eventType: string, detail: T) => {
   if (detailClone && detail) detail = <T>detailClone(detail, performanceClone);

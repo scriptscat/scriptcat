@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { encodeRValue } from "@App/pkg/utils/message_value";
 import { createContext, createProxyContext, shouldFnBind, type RealmRoots } from "./create_context";
+import { GMContextApiGet } from "./gm_api/gm_context";
 import { trimScriptInfo } from "./utils";
+import { Native } from "./global";
 
 type AnyRecord = Record<PropertyKey, any>;
 
@@ -287,6 +289,61 @@ const createTestContext = (grants: string[], metadata: Record<string, string[]> 
     new Set(grants)
   );
 
+describe("context 生命周期方法：构造与投影边界", () => {
+  it("继承的 Object.prototype.get 不应让 createContext 构造失败", () => {
+    // 描述符字面量 {configurable, enumerable, value} 是普通对象，会继承 Object.prototype。
+    // 若生命周期方法仍用 Native.objectDefineProperty(..., {value: ...}) 构造，
+    // 页面预先在 Object.prototype 上放置的 get/set 会让该字面量同时具备
+    // value 和 get，触发 "同时指定访问器与 value" 的 TypeError。
+    // 用不带任何 @grant 的 fixture，排除 capability name/length 描述符调用的干扰。
+    const originalDescriptor = Object.getOwnPropertyDescriptor(Object.prototype, "get");
+    let context: ReturnType<typeof createTestContext> | undefined;
+    let threw: unknown;
+    try {
+      Object.defineProperty(Object.prototype, "get", {
+        configurable: true,
+        value: () => undefined,
+      });
+      try {
+        context = createTestContext([]);
+      } catch (error) {
+        threw = error;
+      }
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(Object.prototype, "get", originalDescriptor);
+      } else {
+        delete (Object.prototype as AnyRecord).get;
+      }
+    }
+
+    expect(threw).toBeUndefined();
+    expect(context).toBeDefined();
+    expect(context!.valueUpdate).toBeTypeOf("function");
+  });
+
+  it("六个内部生命周期方法在 context 上可调用，但不投影到实际的脚本沙盒", () => {
+    const context = createTestContext(["GM_getValue"]);
+    const sandbox = createProxyContext(context, createSplitRealmRoots().roots);
+
+    expect(context.valueUpdate).toBeTypeOf("function");
+    expect(context.emitEvent).toBeTypeOf("function");
+    expect(context.setInvalidContext).toBeTypeOf("function");
+    expect(context.isInvalidContext).toBeTypeOf("function");
+    expect(context.setExecutionRunFlag).toBeTypeOf("function");
+    expect(context.resolveLoadScript).toBeTypeOf("function");
+
+    expect(sandbox.valueUpdate).toBeUndefined();
+    expect(sandbox.emitEvent).toBeUndefined();
+    expect(sandbox.setInvalidContext).toBeUndefined();
+    expect(sandbox.isInvalidContext).toBeUndefined();
+    expect(sandbox.setExecutionRunFlag).toBeUndefined();
+    expect(sandbox.resolveLoadScript).toBeUndefined();
+    // 已授权的 API 仍应正常投影，证明过滤只挡内部键。
+    expect(sandbox.GM_getValue).toBeTypeOf("function");
+  });
+});
+
 describe("shouldFnBind", () => {
   it("只把 native-like callable 視為需要 receiver binding", () => {
     expect(shouldFnBind(Object.prototype.valueOf)).toBe(true);
@@ -304,6 +361,216 @@ describe("shouldFnBind", () => {
 });
 
 describe("createContext: capability and lifecycle contract", () => {
+  it("does not expose broker state on the script-facing context", () => {
+    const context = createTestContext(["GM_getValue"]);
+
+    expect(context).not.toHaveProperty("message");
+    expect(context).not.toHaveProperty("scriptRes");
+    expect(context).not.toHaveProperty("valueChangeListener");
+    expect(context).not.toHaveProperty("EE");
+    expect(context).not.toHaveProperty("grantSet");
+  });
+
+  it("does not let page prototype pollution hide granted APIs", () => {
+    const descriptor = Object.getOwnPropertyDescriptor(Object.prototype, "GM_getValue");
+    try {
+      Object.defineProperty(Object.prototype, "GM_getValue", {
+        configurable: true,
+        value: true,
+      });
+
+      const context = createTestContext(["GM_getValue"]);
+
+      expect(context.GM_getValue).toBeTypeOf("function");
+    } finally {
+      if (descriptor) Object.defineProperty(Object.prototype, "GM_getValue", descriptor);
+      else Reflect.deleteProperty(Object.prototype, "GM_getValue");
+    }
+  });
+
+  it("creates collection instances from frozen captured-method subclasses", () => {
+    const set = new Native.Set(["grant"]);
+    const map = new Native.Map<string, number>();
+    const weakMap = new Native.WeakMap<object, number>();
+
+    expect(set).toBeInstanceOf(Native.Set);
+    expect(map).toBeInstanceOf(Native.Map);
+    expect(weakMap).toBeInstanceOf(Native.WeakMap);
+    expect(Object.hasOwn(Object.getPrototypeOf(set), "add")).toBe(true);
+    expect(Object.hasOwn(Object.getPrototypeOf(map), "get")).toBe(true);
+    expect(Object.hasOwn(Object.getPrototypeOf(weakMap), "get")).toBe(true);
+    expect(Object.isFrozen(Object.getPrototypeOf(set))).toBe(true);
+    expect(Object.isFrozen(Object.getPrototypeOf(map))).toBe(true);
+    expect(Object.isFrozen(Object.getPrototypeOf(weakMap))).toBe(true);
+  });
+
+  it("keeps grant construction on captured Set and iterator intrinsics", () => {
+    const NativeSet = Set;
+    const nativeArrayIsArray = Array.isArray;
+    const nativeArrayIterator = Array.prototype[Symbol.iterator];
+    const nativeSetIterator = Set.prototype[Symbol.iterator];
+    const grants = new NativeSet<string>();
+    NativeSet.prototype.add.call(grants, "GM_getValue");
+    const poisonedIterator = function () {
+      let first = true;
+      return {
+        next() {
+          if (!first) return { value: undefined, done: true };
+          first = false;
+          return { value: "GM_cookie", done: false };
+        },
+      };
+    };
+    try {
+      Array.isArray = (() => false) as unknown as typeof Array.isArray;
+      Object.defineProperty(Array.prototype, Symbol.iterator, { configurable: true, value: poisonedIterator });
+      Object.defineProperty(NativeSet.prototype, Symbol.iterator, { configurable: true, value: poisonedIterator });
+      (globalThis as typeof globalThis & { Set: typeof Set }).Set = class PoisonedSet {
+        constructor() {
+          throw new Error("page replaced Set");
+        }
+      } as unknown as typeof Set;
+
+      const arrayBackedSet = new Native.Set(["GM_getValue"]);
+      expect(arrayBackedSet.has("GM_getValue")).toBe(true);
+
+      const context = createContext(
+        createScriptInfo({ grant: ["GM_getValue"] }),
+        { script: { name: "create-context-test" }, scriptMetaStr: "" },
+        "vitest",
+        undefined as any,
+        undefined as any,
+        grants
+      );
+
+      expect(context.GM_getValue).toBeTypeOf("function");
+      expect(context.GM_cookie).toBeUndefined();
+    } finally {
+      Array.isArray = nativeArrayIsArray;
+      Object.defineProperty(Array.prototype, Symbol.iterator, { configurable: true, value: nativeArrayIterator });
+      Object.defineProperty(NativeSet.prototype, Symbol.iterator, { configurable: true, value: nativeSetIterator });
+      (globalThis as typeof globalThis & { Set: typeof Set }).Set = NativeSet;
+    }
+  });
+
+  it("ignores non-string grants without coercing them", () => {
+    const coerceGrant = vi.fn(() => "GM_getValue");
+    const grant = { [Symbol.toPrimitive]: coerceGrant };
+    const context = createTestContext([grant] as unknown as string[]);
+
+    expect(context.GM_getValue).toBeUndefined();
+    expect(coerceGrant).not.toHaveBeenCalled();
+  });
+
+  it("keeps long capability calls safe from inherited numeric setters and preserves visible arity", () => {
+    const apiValues = GMContextApiGet("GM_getValue")!;
+    const originalApi = apiValues[0].api;
+    let receiver: unknown;
+    const api = function longArgumentProbe(
+      apiContext: unknown,
+      first: number,
+      second: number,
+      third: number,
+      fourth: number,
+      fifth: number,
+      sixth: number,
+      seventh: number
+    ) {
+      receiver = apiContext;
+      return [first, second, third, fourth, fifth, sixth, seventh];
+    };
+    const defineProperty = Object.defineProperty;
+    const previousIndexDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, "0");
+    let setterCalls = 0;
+    let result: unknown;
+    let context: ReturnType<typeof createContext> | undefined;
+    let capability: ((...args: number[]) => unknown) | undefined;
+    let setterInstalled = false;
+
+    apiValues[0].api = api;
+    try {
+      context = createTestContext(["GM_getValue"]);
+      capability = context.GM_getValue;
+      defineProperty(Array.prototype, "0", {
+        configurable: true,
+        set() {
+          setterCalls += 1;
+        },
+      });
+      setterInstalled = true;
+      result = capability!(1, 2, 3, 4, 5, 6, 7);
+    } finally {
+      if (setterInstalled) {
+        if (previousIndexDescriptor) defineProperty(Array.prototype, "0", previousIndexDescriptor);
+        else Reflect.deleteProperty(Array.prototype, "0");
+      }
+      apiValues[0].api = originalApi;
+    }
+
+    expect(capability!.length).toBe(7);
+    expect(setterCalls).toBe(0);
+    expect(receiver).toBeTypeOf("object");
+    expect(receiver).not.toBe(context);
+    expect(result).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it("uses the service-worker execution run flag for value acknowledgments", async () => {
+    const script = {
+      ...createScriptInfo({ grant: ["GM_setValue"] }),
+      executionRunFlag: "canonical-run",
+    } as TScriptInfo;
+    const message = {
+      sendMessage: vi.fn().mockResolvedValue({ code: 0, data: "bar" }),
+    };
+    const context = createContext(
+      script,
+      { script: { name: "create-context-test" }, scriptMetaStr: "" },
+      "vitest",
+      message as any,
+      undefined as any,
+      new Set(["GM_setValue"])
+    );
+
+    context.GM_setValue("foo", "next");
+    expect(message.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ runFlag: "canonical-run" }),
+      })
+    );
+  });
+
+  it("installs capabilities without looking up a page-patchable Function.prototype.bind", () => {
+    const apiValues = GMContextApiGet("GM_getValue")!;
+    const originalApi = apiValues[0].api;
+    const replacement = function (_ctx: unknown, key: string, fallback?: unknown) {
+      return fallback;
+    };
+    Object.defineProperty(replacement, "bind", { configurable: true, value: undefined });
+    apiValues[0].api = replacement;
+    try {
+      const context = createTestContext(["GM_getValue"]);
+      expect(context.GM_getValue("key", "fallback")).toBe("fallback");
+    } finally {
+      apiValues[0].api = originalApi;
+    }
+  });
+
+  it("uses captured object operations when page code replaces assign and keys", () => {
+    const assign = vi.spyOn(Object, "assign").mockImplementation(() => {
+      throw new Error("page replacement");
+    });
+    const keys = vi.spyOn(Object, "keys").mockImplementation(() => {
+      throw new Error("page replacement");
+    });
+    try {
+      const context = createTestContext(["GM_getValue"]);
+      expect(context.GM_getValue("foo", "fallback")).toBe("bar");
+    } finally {
+      assign.mockRestore();
+      keys.mockRestore();
+    }
+  });
+
   const resourceGrantChecks: Array<{
     grant: string;
     read: (context: ReturnType<typeof createContext>) => unknown;
@@ -355,9 +622,6 @@ describe("createContext: capability and lifecycle contract", () => {
     expect(context.GM_cookie.list).toBeTypeOf("function");
     expect(context.GM_cookie.delete).toBeTypeOf("function");
     expect(context.not_exist).toBeUndefined();
-    expect(context.grantSet.has("not_exist")).toBe(false);
-    expect(context.grantSet.has("GM_getValue")).toBe(true);
-    expect(context.grantSet.has("GM.getValue")).toBe(true);
   });
 
   it.each(["GM.cookie", "GM_cookie"] as const)("雙向注入 cookie API：輸入 %s 時兩種公開形狀都可用", (grant) => {
@@ -371,8 +635,6 @@ describe("createContext: capability and lifecycle contract", () => {
     expect(context.GM_cookie.set).toBeTypeOf("function");
     expect(context.GM_cookie.list).toBeTypeOf("function");
     expect(context.GM_cookie.delete).toBeTypeOf("function");
-    expect(context.grantSet.has("GM.cookie")).toBe(true);
-    expect(context.grantSet.has("GM_cookie")).toBe(true);
   });
 
   it("將 window grant 留在 context.window，投影時才暴露到 sandbox", () => {
@@ -399,10 +661,26 @@ describe("createContext: capability and lifecycle contract", () => {
 
     await Promise.resolve();
     expect(loaded).toBe(false);
-    const loadScriptResolve = (context as unknown as AnyRecord).loadScriptResolve as () => void;
-    loadScriptResolve();
+    context.resolveLoadScript();
     await loadedPromise;
     expect(loaded).toBe(true);
+  });
+
+  it("失效 early-start context 時取消 loadScript 等待", async () => {
+    const context = createTestContext(["CAT_scriptLoaded"], {
+      "early-start": [""],
+      "run-at": ["document-start"],
+    });
+    let loaded = false;
+    const loadedPromise = context.CAT_scriptLoaded().then(() => {
+      loaded = true;
+    });
+
+    context.setInvalidContext();
+    await Promise.resolve();
+
+    expect(loaded).toBe(true);
+    await loadedPromise;
   });
 
   it("非 early-start 不建立多餘的等待點", () => {
@@ -439,19 +717,30 @@ describe("createContext: capability and lifecycle contract", () => {
     update("remote-1", "next", 7);
     expect(listener).toHaveBeenCalledWith("foo", "bar", "next", true, 7);
 
-    const contextValues = context as unknown as AnyRecord;
-    const runFlag = contextValues.runFlag;
     context.setInvalidContext();
     context.setInvalidContext();
 
     expect(context.isInvalidContext()).toBe(true);
-    expect(contextValues.runFlag).not.toBe(runFlag);
-    expect(contextValues.runFlag).toContain("(invalid)");
-    expect(contextValues.message).toBeNull();
-    expect(contextValues.scriptRes).toBeNull();
 
     update("remote-2", "again", 8);
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("事件回调收到独立快照，不能改写传输中的事件数据", () => {
+    const context = createTestContext(["CAT.agent.task"]);
+    let observed: { nested: { value: number } } | undefined;
+    const received = vi.fn((data: { nested: { value: number } }) => {
+      observed = { nested: { value: data.nested.value } };
+      data.nested.value = 99;
+    });
+
+    context.CAT.agent.task.addListener("task-a", received);
+    const eventData = { nested: { value: 1 } };
+    context.emitEvent("agentTask", "task-a", eventData);
+
+    expect(received).toHaveBeenCalledTimes(1);
+    expect(observed).toEqual({ nested: { value: 1 } });
+    expect(eventData).toEqual({ nested: { value: 1 } });
   });
 });
 
@@ -577,6 +866,23 @@ describe.sequential("createProxyContext: module default split roots", () => {
 });
 
 describe("createProxyContext: deterministic realm contract", () => {
+  it("uses the captured descriptor intrinsic when building the pseudo-window", () => {
+    const fixture = createSplitRealmRoots();
+    const defineProperty = Object.defineProperty;
+    let sandbox: ReturnType<typeof createProxyContext> | undefined;
+
+    Object.defineProperty = (() => {
+      throw new Error("page replaced Object.defineProperty");
+    }) as typeof Object.defineProperty;
+    try {
+      sandbox = createProxyContext(Object.create(null), fixture.roots);
+    } finally {
+      Object.defineProperty = defineProperty;
+    }
+
+    expect(sandbox).toBeDefined();
+  });
+
   it("固定 window/self/globalThis，並把每次 sandbox 的寫入隔離", () => {
     const first = createProxyFixture({ GM_getValue: vi.fn() });
     const second = createProxyFixture({ GM_getValue: vi.fn() });
@@ -728,8 +1034,19 @@ describe("createProxyContext: deterministic realm contract", () => {
 
     expect(Object.prototype.toString.call(sandbox)).toBe("[object Window]");
     expect(sandbox.constructor).toBe(fixture.hostWindow.constructor);
-    expect(sandbox.__proto__).toBe(fixture.hostWindow.__proto__);
+    // 直接对照 hostWindow 的真实原型，而不是经由 legacy __proto__ getter 读出的值。
+    expect(sandbox.__proto__).toBe(Object.getPrototypeOf(fixture.hostWindow));
     expect(Object.getPrototypeOf(sandbox)).toBeNull();
+  });
+
+  it("pseudo-window 的三个兼容 own descriptor 都是只读、不可枚举、可 configure", () => {
+    const fixture = createSplitRealmRoots();
+    const sandbox = createProxyContext(Object.create(null), fixture.roots);
+    const expectedFlags = { writable: false, enumerable: false, configurable: true };
+
+    expect(Object.getOwnPropertyDescriptor(sandbox, "constructor")).toMatchObject(expectedFlags);
+    expect(Object.getOwnPropertyDescriptor(sandbox, "__proto__")).toMatchObject(expectedFlags);
+    expect(Object.getOwnPropertyDescriptor(sandbox, Symbol.toStringTag)).toMatchObject(expectedFlags);
   });
 
   it("抽出 host EventTarget 方法後仍可呼叫，且 listener 只觸發一次", () => {
@@ -764,6 +1081,67 @@ describe("createProxyContext: deterministic realm contract", () => {
 
     expect(handler).toHaveBeenCalledTimes(1);
     expect(fixture.eventTarget.listenerCount("message")).toBe(0);
+  });
+
+  it("creates event descriptors without invoking inherited setters", () => {
+    const fixture = createSplitRealmRoots();
+    const defineProperty = Object.defineProperty;
+    const previousEventDescriptor = Object.getOwnPropertyDescriptor(Object.prototype, "onmessage");
+    const previousIndexDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, "0");
+    let setterCalls = 0;
+    let sandbox: ReturnType<typeof createProxyContext> | undefined;
+
+    defineProperty(Array.prototype, "0", {
+      configurable: true,
+      set() {
+        setterCalls += 1;
+      },
+    });
+    defineProperty(Object.prototype, "onmessage", {
+      configurable: true,
+      set() {
+        setterCalls += 1;
+      },
+    });
+    try {
+      sandbox = createProxyContext(Object.create(null), fixture.roots);
+    } finally {
+      if (previousEventDescriptor) defineProperty(Object.prototype, "onmessage", previousEventDescriptor);
+      else Reflect.deleteProperty(Object.prototype, "onmessage");
+      if (previousIndexDescriptor) defineProperty(Array.prototype, "0", previousIndexDescriptor);
+      else Reflect.deleteProperty(Array.prototype, "0");
+    }
+
+    const handler = vi.fn();
+    sandbox!.onmessage = handler;
+    fixture.hostWindow.dispatchEvent(new fixture.TestEvent("message"));
+
+    expect(setterCalls).toBe(0);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("event descriptor 直接赋值到 ownDescs 后消费出的最终 descriptor 形状保持不变", () => {
+    // ownDescs 的 event-entry 写入从 Native.objectDefineProperty 改成直接赋值后，
+    // Object.create(proto, ownDescs) 消费出的最终 accessor descriptor 必须逐位一致——
+    // on* key 从未进入 overriddenDescs/protoBaseDescs（只被记录进 eventKeys），所以
+    // ownDescs[key] 在这个 forEach 之前本来就是 undefined，{...undefined, ...eventSetterGetter}
+    // 只剩 get/set 两个字段，configurable/enumerable 沿用 Object.create 对省略字段的默认值 false。
+    // 这个形状在改动前后必须完全一致。
+    const fixture = createSplitRealmRoots();
+    const sandbox = createProxyContext(Object.create(null), fixture.roots);
+
+    const descriptor = Object.getOwnPropertyDescriptor(sandbox, "onload");
+
+    expect(descriptor).toMatchObject({ configurable: false, enumerable: false });
+    expect(typeof descriptor?.get).toBe("function");
+    expect(typeof descriptor?.set).toBe("function");
+    expect(descriptor).not.toHaveProperty("value");
+    expect(descriptor).not.toHaveProperty("writable");
+    // get/set 必须是 createEventProp 生成的 sandbox 专属实现，不是原始 host getter/setter。
+    const handler = vi.fn();
+    sandbox.onload = handler;
+    fixture.hostWindow.dispatchEvent(new fixture.TestEvent("load"));
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 
   it("host prototype accessor 以最近 descriptor 為準，不被 parent descriptor 覆寫", () => {
@@ -902,6 +1280,25 @@ describe("createProxyContext: deterministic realm contract", () => {
     expect(fixture.eventTarget.listenerCount("load")).toBe(0);
     fixture.hostWindow.dispatchEvent(new fixture.TestEvent("load"));
     expect(third).toHaveBeenCalledTimes(1);
+  });
+
+  it("事件 callback 的 call 屬性被頁面改寫時仍保留 sandbox this", () => {
+    const fixture = createSplitRealmRoots();
+    const sandbox = createProxyContext(Object.create(null), fixture.roots);
+    const handler = vi.fn(function (this: unknown) {
+      expect(this).toBe(sandbox);
+    });
+    Object.defineProperty(handler, "call", {
+      configurable: true,
+      value: () => {
+        throw new Error("poisoned call");
+      },
+    });
+
+    sandbox.onload = handler;
+    fixture.hostWindow.dispatchEvent(new fixture.TestEvent("load"));
+
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 
   it("split realm 下 self/window/globalThis 寫入都留在當前 sandbox", () => {

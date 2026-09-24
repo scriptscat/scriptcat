@@ -90,6 +90,7 @@ export function createTestService() {
     getTasks: vi.fn().mockResolvedValue([]),
     getTaskSnapshot: vi.fn().mockResolvedValue({ generation: "test-generation", revision: 0, tasks: [] }),
     saveTasks: vi.fn().mockResolvedValue(undefined),
+    isAttachmentAccessibleToScript: vi.fn().mockResolvedValue(true),
     getAttachment: vi.fn().mockResolvedValue(null),
     saveAttachment: vi.fn().mockResolvedValue(0),
     deleteAttachment: vi.fn().mockResolvedValue(undefined),

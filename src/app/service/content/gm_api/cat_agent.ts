@@ -3,7 +3,6 @@ import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { MessageConnect } from "@Packages/message/types";
 import type {
   ChatReply,
-  ChatStreamEvent,
   CommandHandler,
   ContentBlock,
   Conversation,
@@ -18,6 +17,8 @@ import type {
   MessageContent,
 } from "@App/app/service/agent/core/types";
 import { getTextContent } from "@App/app/service/agent/core/content_utils";
+import { Native } from "../global";
+import { buildChatStreamError, cloneChatStreamEvent } from "./cat_stream_event";
 
 export type ConversationStreamChunk =
   | StreamChunk
@@ -81,27 +82,36 @@ function resolveToolCall(
 
 // 对话实例，暴露给用户脚本
 // 导出供测试使用
+type ConversationPrivateState = {
+  conv: Conversation;
+  gmSendMessage: (api: string, params: any[]) => Promise<any>;
+  gmConnect: (api: string, params: any[]) => Promise<MessageConnect>;
+  scriptUuid: string;
+  commandHandlers: Map<string, CommandHandler>;
+  cache?: boolean;
+  systemPrompt?: string;
+  background: boolean;
+};
+
 export class ConversationInstance {
-  public toolHandlers: Map<string, ToolHandler> = new Map();
-  public toolDefs: ToolDefinition[] = [];
-  private commandHandlers: Map<string, CommandHandler> = new Map();
-  public ephemeral: boolean;
-  private cache?: boolean;
-  private systemPrompt?: string;
-  public messageHistory: Array<{
+  // 私有状态包含跨 context 的发送函数；用 private field 隐藏它，避免脚本读取或替换传输入口。
+  #state: ConversationPrivateState;
+
+  #toolHandlers: Map<string, ToolHandler> = new Map();
+  #toolDefs: ToolDefinition[] = [];
+  #ephemeral: boolean;
+  #messageHistory: Array<{
     role: MessageRole;
     content: MessageContent;
     toolCallId?: string;
     toolCalls?: ToolCall[];
   }> = [];
 
-  private background: boolean;
-
   constructor(
-    private conv: Conversation,
-    private gmSendMessage: (api: string, params: any[]) => Promise<any>,
-    private gmConnect: (api: string, params: any[]) => Promise<MessageConnect>,
-    private scriptUuid: string,
+    conv: Conversation,
+    gmSendMessage: (api: string, params: any[]) => Promise<any>,
+    gmConnect: (api: string, params: any[]) => Promise<MessageConnect>,
+    scriptUuid: string,
     initialTools?: ConversationCreateOptions["tools"],
     commands?: Record<string, CommandHandler>,
     ephemeral?: boolean,
@@ -109,19 +119,27 @@ export class ConversationInstance {
     cache?: boolean,
     background?: boolean
   ) {
-    this.ephemeral = ephemeral || false;
-    this.background = background || false;
-    this.cache = cache;
-    this.systemPrompt = system;
+    const state: ConversationPrivateState = {
+      conv,
+      gmSendMessage,
+      gmConnect,
+      scriptUuid,
+      commandHandlers: new Map(),
+      cache,
+      systemPrompt: system,
+      background: background || false,
+    };
+    this.#state = state;
+    this.#ephemeral = ephemeral || false;
     if (initialTools) {
       for (const tool of initialTools) {
-        this.toolHandlers.set(tool.name, tool.handler);
-        this.toolDefs.push({ name: tool.name, description: tool.description, parameters: tool.parameters });
+        this.#toolHandlers.set(tool.name, tool.handler);
+        this.#toolDefs.push({ name: tool.name, description: tool.description, parameters: tool.parameters });
       }
     }
 
     // 注册内置 /new 命令
-    this.commandHandlers.set("/new", async () => {
+    state.commandHandlers.set("/new", async () => {
       await this.clear();
       return "对话已清空";
     });
@@ -129,21 +147,21 @@ export class ConversationInstance {
     // 用户传入的 commands 覆盖内置命令
     if (commands) {
       for (const [name, handler] of Object.entries(commands)) {
-        this.commandHandlers.set(name, handler);
+        state.commandHandlers.set(name, handler);
       }
     }
   }
 
   get id() {
-    return this.conv.id;
+    return this.#state.conv.id;
   }
 
   get title() {
-    return this.conv.title;
+    return this.#state.conv.title;
   }
 
   get modelId() {
-    return this.conv.modelId;
+    return this.#state.conv.modelId;
   }
 
   // 发送消息并获取回复（内置 tool calling 循环）
@@ -154,42 +172,43 @@ export class ConversationInstance {
     if (cmdResult !== undefined) return cmdResult;
 
     const { toolDefs, handlers } = this.mergeTools(options?.tools);
+    const state = this.#state;
 
     // ephemeral 模式：追加 user message 到内存历史
-    if (this.ephemeral) {
-      this.messageHistory.push({ role: "user", content });
+    if (this.#ephemeral) {
+      this.#messageHistory.push({ role: "user", content });
     }
 
     // 通过 GM API connect 建立流式连接
     const connectParams: Record<string, unknown> = {
-      conversationId: this.conv.id,
-      generation: this.conv.generation,
+      conversationId: state.conv.id,
+      generation: state.conv.generation,
       message: content,
       tools: toolDefs.length > 0 ? toolDefs : undefined,
-      scriptUuid: this.scriptUuid,
+      scriptUuid: state.scriptUuid,
     };
 
-    if (this.cache !== undefined) {
-      connectParams.cache = this.cache;
+    if (state.cache !== undefined) {
+      connectParams.cache = state.cache;
     }
-    if (this.background) {
+    if (state.background) {
       connectParams.background = true;
     }
-    if (this.ephemeral) {
+    if (this.#ephemeral) {
       connectParams.ephemeral = true;
-      connectParams.messages = this.messageHistory;
-      connectParams.system = this.systemPrompt;
-      connectParams.modelId = this.conv.modelId;
+      connectParams.messages = this.#messageHistory;
+      connectParams.system = state.systemPrompt;
+      connectParams.modelId = state.conv.modelId;
     }
 
-    const conn = await this.gmConnect("CAT_agentConversationChat", [connectParams]);
+    const conn = await state.gmConnect("CAT_agentConversationChat", [connectParams]);
 
     const reply = await this.processChat(conn, handlers);
 
     // ephemeral 模式：中间轮次（带 tool calls）已在 processChat 内按 new_message 边界追加到内存历史，
     // 这里只需追加不含 tool calls 的最终回复（done 事件保证到达时已无待处理的 tool calls）。
-    if (this.ephemeral) {
-      this.messageHistory.push({ role: "assistant", content: reply.content });
+    if (this.#ephemeral) {
+      this.#messageHistory.push({ role: "assistant", content: reply.content });
     }
 
     return reply;
@@ -221,39 +240,40 @@ export class ConversationInstance {
     }
 
     const { toolDefs, handlers } = this.mergeTools(options?.tools);
+    const state = this.#state;
 
     // ephemeral 模式：追加 user message 到内存历史
-    if (this.ephemeral) {
-      this.messageHistory.push({ role: "user", content });
+    if (this.#ephemeral) {
+      this.#messageHistory.push({ role: "user", content });
     }
 
     const connectParams: Record<string, unknown> = {
-      conversationId: this.conv.id,
-      generation: this.conv.generation,
+      conversationId: state.conv.id,
+      generation: state.conv.generation,
       message: content,
       tools: toolDefs.length > 0 ? toolDefs : undefined,
-      scriptUuid: this.scriptUuid,
+      scriptUuid: state.scriptUuid,
     };
 
-    if (this.cache !== undefined) {
-      connectParams.cache = this.cache;
+    if (state.cache !== undefined) {
+      connectParams.cache = state.cache;
     }
-    if (this.background) {
+    if (state.background) {
       connectParams.background = true;
     }
-    if (this.ephemeral) {
+    if (this.#ephemeral) {
       connectParams.ephemeral = true;
-      connectParams.messages = this.messageHistory;
-      connectParams.system = this.systemPrompt;
-      connectParams.modelId = this.conv.modelId;
+      connectParams.messages = this.#messageHistory;
+      connectParams.system = state.systemPrompt;
+      connectParams.modelId = state.conv.modelId;
     }
 
-    const conn = await this.gmConnect("CAT_agentConversationChat", [connectParams]);
+    const conn = await state.gmConnect("CAT_agentConversationChat", [connectParams]);
 
     // chat 连接不会收到 sync 事件（sync 快照仅由 attach 的 SW 端发出），
     // 公开签名与 scriptcat.d.ts 保持一致：chatStream 只产出 StreamChunk
     // ephemeral 模式：包装 stream 以收集 assistant 消息到内存历史
-    if (this.ephemeral) {
+    if (this.#ephemeral) {
       return this.processStreamEphemeral(conn, handlers) as AsyncIterable<StreamChunk>;
     }
 
@@ -274,7 +294,7 @@ export class ConversationInstance {
     const parsed = this.parseCommand(content);
     if (!parsed) return undefined;
 
-    const handler = this.commandHandlers.get(parsed.name);
+    const handler = this.#state.commandHandlers.get(parsed.name);
     if (!handler) return undefined;
 
     const result = await handler(parsed.args, this);
@@ -284,8 +304,8 @@ export class ConversationInstance {
 
   // 合并实例级别和调用级别的工具定义（调用级同名工具同时替换 schema 与 handler）
   protected mergeTools(callTools?: ChatOptions["tools"]) {
-    const toolDefs: ToolDefinition[] = [...this.toolDefs];
-    const handlers = new Map<string, ToolHandler>(this.toolHandlers);
+    const toolDefs: ToolDefinition[] = [...this.#toolDefs];
+    const handlers = new Map<string, ToolHandler>(this.#toolHandlers);
     for (const tool of callTools || []) {
       const definition = {
         name: tool.name,
@@ -302,11 +322,12 @@ export class ConversationInstance {
 
   // 获取对话历史
   async getMessages(): Promise<ChatMessage[]> {
-    if (this.ephemeral) {
+    const state = this.#state;
+    if (this.#ephemeral) {
       // ephemeral 模式：从内存历史转换为 ChatMessage 格式
-      return this.messageHistory.map((msg, idx) => ({
+      return this.#messageHistory.map((msg, idx) => ({
         id: `ephemeral-${idx}`,
-        conversationId: this.conv.id,
+        conversationId: state.conv.id,
         role: msg.role,
         content: msg.content,
         toolCallId: msg.toolCallId,
@@ -314,12 +335,12 @@ export class ConversationInstance {
         createtime: Date.now(),
       }));
     }
-    const messages = await this.gmSendMessage("CAT_agentConversation", [
+    const messages = await state.gmSendMessage("CAT_agentConversation", [
       {
         action: "getMessages",
-        conversationId: this.conv.id,
-        generation: this.conv.generation,
-        scriptUuid: this.scriptUuid,
+        conversationId: state.conv.id,
+        generation: state.conv.generation,
+        scriptUuid: state.scriptUuid,
       } as ConversationApiRequest,
     ]);
     return messages || [];
@@ -327,36 +348,39 @@ export class ConversationInstance {
 
   // 清空对话消息历史
   async clear(): Promise<void> {
-    if (this.ephemeral) {
-      this.messageHistory = [];
+    if (this.#ephemeral) {
+      this.#messageHistory = [];
       return;
     }
-    await this.gmSendMessage("CAT_agentConversation", [
+    const state = this.#state;
+    await state.gmSendMessage("CAT_agentConversation", [
       {
         action: "clearMessages",
-        conversationId: this.conv.id,
-        generation: this.conv.generation,
-        scriptUuid: this.scriptUuid,
+        conversationId: state.conv.id,
+        generation: state.conv.generation,
+        scriptUuid: state.scriptUuid,
       } as ConversationApiRequest,
     ]);
   }
 
   // 持久化对话
   async save(): Promise<void> {
-    await this.gmSendMessage("CAT_agentConversation", [
+    const state = this.#state;
+    await state.gmSendMessage("CAT_agentConversation", [
       {
         action: "save",
-        conversationId: this.conv.id,
-        generation: this.conv.generation,
-        scriptUuid: this.scriptUuid,
+        conversationId: state.conv.id,
+        generation: state.conv.generation,
+        scriptUuid: state.scriptUuid,
       } as ConversationApiRequest,
     ]);
   }
 
   // 附加到后台运行中的会话，返回流式事件（首个 chunk 为 sync 快照）
   async attach(): Promise<AsyncIterable<ConversationStreamChunk>> {
-    const conn = await this.gmConnect("CAT_agentAttachToConversation", [
-      { conversationId: this.conv.id, generation: this.conv.generation, scriptUuid: this.scriptUuid },
+    const state = this.#state;
+    const conn = await state.gmConnect("CAT_agentAttachToConversation", [
+      { conversationId: state.conv.id, generation: state.conv.generation, scriptUuid: state.scriptUuid },
     ]);
     return this.processStream(conn, new Map());
   }
@@ -381,15 +405,15 @@ export class ConversationInstance {
         const finalContent = buildContent(content, blocks);
         const round = ordered.map(cloneToolCall);
         aggregate.push(...round);
-        if (this.ephemeral && record && (content || blocks.length || round.length)) {
-          this.messageHistory.push({
+        if (this.#ephemeral && record && (content || blocks.length || round.length)) {
+          this.#messageHistory.push({
             role: "assistant",
             content: finalContent,
             toolCalls: round.length ? round : undefined,
           });
           for (const toolCall of round) {
             if (toolCall.result !== undefined) {
-              this.messageHistory.push({
+              this.#messageHistory.push({
                 role: "tool",
                 content: toolCall.result,
                 toolCallId: toolCall.id,
@@ -450,7 +474,8 @@ export class ConversationInstance {
           return;
         }
         if (message.action !== "event") return;
-        const event: ChatStreamEvent = message.data;
+        const event = cloneChatStreamEvent(message.data);
+        if (!event) return;
         if ("subAgent" in event && event.subAgent) return;
         switch (event.type) {
           case "content_delta":
@@ -510,7 +535,7 @@ export class ConversationInstance {
           case "error":
             settled = true;
             abortBatches();
-            reject(Object.assign(new Error(event.message), event));
+            reject(buildChatStreamError(event));
             conn.disconnect();
             break;
         }
@@ -595,7 +620,8 @@ export class ConversationInstance {
         return;
       }
       if (message.action !== "event") return;
-      const event: ChatStreamEvent = message.data;
+      const event = cloneChatStreamEvent(message.data);
+      if (!event) return;
       if ("subAgent" in event && event.subAgent) return;
       switch (event.type) {
         case "sync":
@@ -692,7 +718,7 @@ export class ConversationInstance {
             usage: event.usage,
             durationMs: event.durationMs,
           });
-          error = Object.assign(new Error(event.message), event);
+          error = buildChatStreamError(event);
           done = true;
           abortBatches();
           conn.disconnect();
@@ -775,13 +801,13 @@ export class ConversationInstance {
             result: JSON.stringify({ error: "Tool call cancelled: stream ended before it completed" }),
           });
         });
-        this.messageHistory.push({
+        this.#messageHistory.push({
           role: "assistant",
           content: buildContent(text, blocks),
           toolCalls: finalized.length ? finalized : undefined,
         });
         for (const toolCall of finalized) {
-          this.messageHistory.push({
+          this.#messageHistory.push({
             role: "tool",
             content: toolCall.result!,
             toolCallId: toolCall.id,
@@ -879,24 +905,25 @@ export class ConversationInstance {
   }
 }
 
-// 运行时 this 是 GM_Base 实例，定义其实际拥有的字段类型
+// API 显式接收 GM_Base 上下文。
 interface GMBaseContext {
   sendMessage: (api: string, params: unknown[]) => Promise<unknown>;
   connect: (api: string, params: unknown[]) => Promise<MessageConnect>;
   scriptRes?: { uuid: string };
 }
 
-// 构建 ConversationInstance，独立函数避免 this 绑定问题
-// （装饰器方法运行时 this 是 GM_Base 实例，不是 CATAgentApi）
+// 构建 ConversationInstance，保留 GM_Base 的消息上下文。
 function buildInstance(
   ctx: GMBaseContext,
   conv: Conversation,
   options?: ConversationCreateOptions
 ): ConversationInstance {
+  const sendMessage = Native.bind(ctx.sendMessage, ctx);
+  const connect = Native.bind(ctx.connect, ctx);
   return new ConversationInstance(
     conv,
-    ctx.sendMessage.bind(ctx),
-    ctx.connect.bind(ctx),
+    sendMessage,
+    connect,
     ctx.scriptRes?.uuid || "",
     options?.tools,
     options?.commands,
@@ -922,7 +949,10 @@ export default class CATAgentApi {
 
   // CAT.agent.conversation.create()
   @GMContext.API({ follow: "CAT.agent.conversation" })
-  public "CAT.agent.conversation.create"(options: ConversationCreateOptions = {}): Promise<ConversationInstance> {
+  public "CAT.agent.conversation.create"(
+    ctx: GMBaseContext,
+    options: ConversationCreateOptions = {}
+  ): Promise<ConversationInstance> {
     return (async () => {
       if (options.ephemeral) {
         // ephemeral 模式：不发请求到 SW，直接在脚本端构造
@@ -934,26 +964,26 @@ export default class CATAgentApi {
           createtime: Date.now(),
           updatetime: Date.now(),
         };
-        return buildInstance(this as unknown as GMBaseContext, conv, options);
+        return buildInstance(ctx as unknown as GMBaseContext, conv, options);
       }
 
       const { tools: _tools, ephemeral: _ephemeral, ...serverOptions } = options;
-      const conv = (await this.sendMessage("CAT_agentConversation", [
-        { action: "create", options: serverOptions, scriptUuid: this.scriptRes?.uuid || "" } as ConversationApiRequest,
+      const conv = (await ctx.sendMessage("CAT_agentConversation", [
+        { action: "create", options: serverOptions, scriptUuid: ctx.scriptRes?.uuid || "" } as ConversationApiRequest,
       ])) as Conversation;
-      return buildInstance(this as unknown as GMBaseContext, conv, options);
+      return buildInstance(ctx as unknown as GMBaseContext, conv, options);
     })();
   }
 
   // CAT.agent.conversation.get()
   @GMContext.API({ follow: "CAT.agent.conversation" })
-  public "CAT.agent.conversation.get"(id: string): Promise<ConversationInstance | null> {
+  public "CAT.agent.conversation.get"(ctx: GMBaseContext, id: string): Promise<ConversationInstance | null> {
     return (async () => {
-      const conv = (await this.sendMessage("CAT_agentConversation", [
-        { action: "get", id, scriptUuid: this.scriptRes?.uuid || "" } as ConversationApiRequest,
+      const conv = (await ctx.sendMessage("CAT_agentConversation", [
+        { action: "get", id, scriptUuid: ctx.scriptRes?.uuid || "" } as ConversationApiRequest,
       ])) as Conversation | null;
       if (!conv) return null;
-      return buildInstance(this as unknown as GMBaseContext, conv);
+      return buildInstance(ctx as unknown as GMBaseContext, conv);
     })();
   }
 }

@@ -3,6 +3,7 @@ import {
   ServiceWorkerMessageSend,
   ServiceWorkerClientMessage,
   WindowMessage,
+  parseWindowMessageBody,
   type WindowMessageBody,
 } from "./window_message";
 import { Server } from "./server";
@@ -44,6 +45,21 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   delete (self as any).clients;
+});
+
+describe("parseWindowMessageBody", () => {
+  it("rejects proxies that report unexpected own keys", () => {
+    const value = new Proxy(
+      { messageId: "message", type: "sendMessage", data: { action: "test" } },
+      {
+        ownKeys() {
+          return ["other-1", "other-2", "other-3"];
+        },
+      }
+    );
+
+    expect(parseWindowMessageBody(value)).toBeUndefined();
+  });
 });
 
 describe("ServiceWorkerMessageSend", () => {
@@ -207,6 +223,63 @@ describe("WindowMessage.connect", () => {
       expect.objectContaining({ type: "connectMessage", data: { action: "test/msg", data: "hello" } }),
       "*"
     );
+  });
+});
+
+describe("WindowMessage envelope validation", () => {
+  it("ignores accessor envelopes without executing their getters", () => {
+    let messageHandler: ((event: MessageEvent) => void) | undefined;
+    const sourceWindow = {
+      addEventListener: vi.fn((_event: string, handler: (event: MessageEvent) => void) => {
+        messageHandler = handler;
+      }),
+    } as unknown as Window;
+    const targetWindow = {} as unknown as Window;
+    const windowMessage = new WindowMessage(sourceWindow, targetWindow);
+    const received = vi.fn();
+    windowMessage.onMessage(received);
+    const envelope: Record<string, unknown> = {
+      messageId: "hostile",
+      type: "sendMessage",
+      data: { action: "offscreen/ping" },
+    };
+    let accessed = false;
+    Object.defineProperty(envelope, "data", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        accessed = true;
+        throw new Error("page getter executed");
+      },
+    });
+
+    expect(() => messageHandler!({ source: targetWindow, data: envelope } as unknown as MessageEvent)).not.toThrow();
+    expect(accessed).toBe(false);
+    expect(received).not.toHaveBeenCalled();
+  });
+
+  it("ignores proxy envelopes whose own-key inspection throws", () => {
+    let messageHandler: ((event: MessageEvent) => void) | undefined;
+    const sourceWindow = {
+      addEventListener: vi.fn((_event: string, handler: (event: MessageEvent) => void) => {
+        messageHandler = handler;
+      }),
+    } as unknown as Window;
+    const targetWindow = {} as unknown as Window;
+    const windowMessage = new WindowMessage(sourceWindow, targetWindow);
+    const received = vi.fn();
+    windowMessage.onMessage(received);
+    const envelope = new Proxy(
+      { messageId: "hostile", type: "sendMessage", data: { action: "offscreen/ping" } },
+      {
+        ownKeys() {
+          throw new Error("page proxy executed");
+        },
+      }
+    );
+
+    expect(() => messageHandler!({ source: targetWindow, data: envelope } as unknown as MessageEvent)).not.toThrow();
+    expect(received).not.toHaveBeenCalled();
   });
 });
 

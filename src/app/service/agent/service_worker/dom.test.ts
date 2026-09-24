@@ -406,6 +406,14 @@ describe("AgentDomService", () => {
     });
   });
 
+  describe("monitor", () => {
+    it("应拒绝在浏览器内部页面启动监控", async () => {
+      mockTabsGet.mockResolvedValue({ id: 1, url: "chrome://settings", status: "complete", discarded: false });
+
+      await expect(service.startMonitor(1)).rejects.toThrow("Agent DOM operation not allowed for URL:");
+    });
+  });
+
   describe("resolveTabId", () => {
     it("应在 tab 被 discard 时自动 reload", async () => {
       mockTabsGet.mockResolvedValueOnce({

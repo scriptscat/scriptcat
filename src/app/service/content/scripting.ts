@@ -2,11 +2,21 @@ import { Client, sendMessage } from "@Packages/message/client";
 import { type CustomEventMessage } from "@Packages/message/custom_event_message";
 import { forwardMessage, type Server } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
+import type { SerializedDocumentResponse } from "./gm_api/gm_xhr";
 import { RuntimeClient } from "../service_worker/client";
 import { getStorageName, makeBlobURL } from "@App/pkg/utils/utils";
 import type { Logger } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
 import type { ValueUpdateDataEncoded } from "./types";
+import {
+  getExtensionOrigin,
+  getPageRpcAllowedAPIs,
+  PAGE_RPC_VERSION,
+  PageRpcRegistry,
+  validatePageGMRequest,
+} from "./page_rpc";
+import { getEffectiveScriptGrants } from "./utils";
+import type { TClientPageLoadInfo } from "@App/app/repo/scripts";
 
 const PageOrContent = {
   PAGE: 1,
@@ -16,6 +26,18 @@ const PageOrContent = {
 
 type PageOrContent = ValueOf<typeof PageOrContent>;
 
+export const serializeDocumentResponse = (
+  response: Document | null,
+  contentType: string
+): SerializedDocumentResponse | undefined => {
+  if (!response) return undefined;
+  try {
+    return { text: new XMLSerializer().serializeToString(response), contentType };
+  } catch {
+    return undefined;
+  }
+};
+
 // For Firefox, StorageArea.setAccessLevel is not implemented.
 // See https://bugzilla.mozilla.org/show_bug.cgi?id=1724754
 // const deliveryStorage = isFirefox() ? chrome.storage.local : chrome.storage.session;
@@ -23,7 +45,10 @@ const deliveryStorage = chrome.storage.local; // 日后再处理
 
 // scripting页的处理
 export default class ScriptingRuntime {
-  private activeStorageNames: Map<string, PageOrContent> | null = null;
+  // 只记录当前页面仍有脚本使用的 storageName，storage 广播不应唤醒无关脚本。
+  private activeStorageNames = new Map<string, PageOrContent>();
+  // 页面请求必须先在此注册句柄，再由 transform 解析为隔离 broker 可接受的身份。
+  private readonly pageRpc = new PageRpcRegistry();
   constructor(
     // 监听来自service_worker的消息
     private readonly extServer: Server,
@@ -34,7 +59,7 @@ export default class ScriptingRuntime {
     // 发送给 content的消息接口
     private readonly senderToContent: CustomEventMessage,
     // 发送给inject的消息接口
-    private readonly senderToInject: CustomEventMessage
+    private readonly senderToInject: MessageSend
   ) {}
 
   // 广播消息给 content 和 inject
@@ -51,12 +76,12 @@ export default class ScriptingRuntime {
 
   init() {
     this.extServer.on("runtime/emitEvent", (data) => {
-      // 转发给inject和content
-      return this.broadcastToPage("runtime/emitEvent", data);
+      // USER_SCRIPT 的私有回调通过原生扩展端口投递。
+      return this.broadcastToPage("runtime/emitEvent", data, PageOrContent.PAGE);
     });
     this.extServer.on("runtime/valueUpdate", (data) => {
-      // 转发给inject和content
-      return this.broadcastToPage("runtime/valueUpdate", data);
+      // USER_SCRIPT 的私有值更新通过原生扩展端口投递。
+      return this.broadcastToPage("runtime/valueUpdate", data, PageOrContent.PAGE);
     });
     this.server.on("logger", (data: Logger) => {
       LoggerCore.logger().log(data.level, data.message, data.label);
@@ -74,13 +99,10 @@ export default class ScriptingRuntime {
       const record = changes["valueUpdateDelivery"];
       if (record?.newValue) {
         const sendData = (record.newValue as { sendData: ValueUpdateDataEncoded }).sendData;
-        const activeOn =
-          this.activeStorageNames === null
-            ? PageOrContent.PAGE_AND_CONTENT
-            : this.activeStorageNames.get(sendData.storageName);
+        const activeOn = this.activeStorageNames.get(sendData.storageName);
         if (activeOn) {
           // 转发给 content 和 inject
-          this.broadcastToPage("runtime/valueUpdate", sendData, activeOn);
+          this.broadcastToPage("runtime/valueUpdate", sendData, (activeOn & PageOrContent.PAGE) as PageOrContent);
         }
       }
     });
@@ -91,7 +113,7 @@ export default class ScriptingRuntime {
       "runtime/gmApi",
       this.server,
       this.senderToExt,
-      (data: { api: string; params: any; uuid: string }) => {
+      (data: { api: string; params: any }) => {
         // 拦截关注的 API，未命中则返回 false 交由默认转发处理
         switch (data.api) {
           case "CAT_createBlobUrl": {
@@ -111,18 +133,19 @@ export default class ScriptingRuntime {
             return false; // 继续转发到 SW
           }
           case "CAT_fetchDocument": {
-            const [url, isContent] = data.params;
-            // 根据来源选择不同的消息桥（content / inject）
-            let msg: CustomEventMessage | null = isContent ? this.senderToContent : this.senderToInject;
             return new Promise((resolve) => {
               const xhr = new XMLHttpRequest();
               xhr.responseType = "document";
-              xhr.open("GET", url);
-              xhr.onloadend = function () {
-                const nodeId = msg!.sendRelatedTarget(this.response);
-                resolve(nodeId);
-                msg = null;
+              xhr.open("GET", data.params[0]);
+              xhr.onloadend = () => {
+                resolve(
+                  serializeDocumentResponse(
+                    xhr.response as Document | null,
+                    xhr.getResponseHeader("Content-Type") || ""
+                  )
+                );
               };
+              xhr.onerror = () => resolve(undefined);
               xhr.send();
             });
           }
@@ -142,11 +165,23 @@ export default class ScriptingRuntime {
             break;
         }
         return false;
+      },
+      (data) => {
+        // 所有来自页面的 GM RPC 都在转发前完成字段、句柄、授权和参数复制检查；
+        // wire 身份只带 handle，canonical uuid/runFlag/envTag 由 SW 依据 handle + 真实 sender 解析。
+        const request = validatePageGMRequest(data, this.pageRpc);
+        return {
+          version: PAGE_RPC_VERSION,
+          sequence: request.sequence,
+          handle: request.handle,
+          api: request.api,
+          params: request.params,
+        };
       }
     );
   }
 
-  pageLoad() {
+  pageLoad(prefetchedPageLoad?: Promise<TClientPageLoadInfo>) {
     const client = new RuntimeClient(this.senderToExt);
     // bfcache 还原不会重新执行 content script，pageLoad 因此只发生一次；
     // 但页面里的脚本仍在运行，需要补一次上报，否则 Popup 会误判本页没有脚本在跑。
@@ -156,31 +191,55 @@ export default class ScriptingRuntime {
         if (e.persisted) client.pageShow();
       });
     }
-    // 向service_worker请求脚本列表及环境信息
-    client.pageLoad().then((o) => {
-      if (!o.ok) return;
-      const { injectScriptList, contentScriptList, envInfo } = o;
-      const pairs = {} as Record<string, PageOrContent>;
-      for (const script of injectScriptList) {
-        pairs[getStorageName(script)] |= PageOrContent.PAGE;
-      }
-      for (const script of contentScriptList) {
-        pairs[getStorageName(script)] |= PageOrContent.CONTENT;
-      }
-      this.activeStorageNames = new Map(Object.entries(pairs));
+    // 向service_worker请求脚本列表及环境信息。入口脚本可在 eventFlag negotiation
+    // 之前预先发起这次请求；测试/旧调用点仍可省略参数而走原本的 lazy 路径。
+    const pageLoad = prefetchedPageLoad || client.pageLoad("it");
+    void pageLoad
+      .then((o) => {
+        if (!o.ok) return;
+        const { injectScriptList, envInfo, userScriptBootstrapToken } = o;
+        // 每次页面加载都废弃旧句柄，避免无 documentId 的浏览器复用上一文档的授权。
+        this.pageRpc.revokeAll();
+        const prepareScripts = (scripts: typeof injectScriptList) => {
+          const prepared: typeof injectScriptList = [];
+          for (const script of scripts) {
+            const executionHandle = script.executionHandle;
+            if (!executionHandle) {
+              // v2 执行句柄必须由 service worker 签发；content 不再自行伪造替代句柄，
+              // 缺失时丢弃该脚本而不是让整个 pageLoad 失败。
+              console.warn(`ScriptCat: script ${script.uuid} has no authoritative execution handle, skipping`);
+              continue;
+            }
+            const allowedAPIs = getPageRpcAllowedAPIs(getEffectiveScriptGrants(script.metadata));
+            // service worker 已签发的句柄要在本页 registry 中恢复，保持跨 context 身份一致。
+            this.pageRpc.register(executionHandle, allowedAPIs);
+            prepared.push(script);
+          }
+          return prepared;
+        };
+        const preparedInjectScriptList = prepareScripts(injectScriptList);
+        const pairs = {} as Record<string, PageOrContent>;
+        for (const script of preparedInjectScriptList) {
+          pairs[getStorageName(script)] |= PageOrContent.PAGE;
+        }
+        this.activeStorageNames = new Map(Object.entries(pairs));
 
-      // 向页面 发送脚本列表及环境信息
-      if (contentScriptList.length) {
-        const contentClient = new Client(this.senderToContent, "content");
-        // 根据@inject-into content过滤脚本
-        contentClient.do("pageLoad", { scripts: contentScriptList, envInfo });
-      }
+        if (typeof userScriptBootstrapToken === "string" && userScriptBootstrapToken.length > 0) {
+          const contentClient = new Client(this.senderToContent, "content");
+          contentClient.do("pageLoad", {
+            bootstrapToken: userScriptBootstrapToken,
+            envInfo,
+            extensionOrigin: getExtensionOrigin(),
+          });
+        }
 
-      if (injectScriptList.length) {
-        const injectClient = new Client(this.senderToInject, "inject");
-        // 根据@inject-into content过滤脚本
-        injectClient.do("pageLoad", { scripts: injectScriptList, envInfo });
-      }
-    });
+        if (preparedInjectScriptList.length > 0) {
+          const injectClient = new Client(this.senderToInject, "inject");
+          injectClient.do("pageLoad", { scripts: preparedInjectScriptList, envInfo });
+        }
+      })
+      .catch((error) => {
+        LoggerCore.logger().debug("page bootstrap failed", { error: String(error) });
+      });
   }
 }
