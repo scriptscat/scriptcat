@@ -289,7 +289,7 @@ class GM_Base implements IGM_Base {
   public valueUpdate(data: ValueUpdateDataEncoded) {
     if (!this.scriptRes || !this.valueChangeListener) return;
     const scriptRes = this.scriptRes;
-    const { id, uuid, entries, storageName, sender, valueUpdated } = data;
+    const { uuid, entries, storageName, sender, valueUpdated } = data;
     if (uuid === scriptRes.uuid || storageName === getStorageName(scriptRes)) {
       const valueStore = scriptRes.value;
       const remote = sender.runFlag !== this.runFlag;
