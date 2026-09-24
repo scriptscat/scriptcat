@@ -2205,6 +2205,7 @@ describe("early-start value snapshot coherence", () => {
     const getScripts = vi.spyOn(chrome.userScripts, "getScripts");
     const getScriptsCallsBefore = getScripts.mock.calls.length;
     const update = vi.spyOn(chrome.userScripts, "update").mockResolvedValue(undefined);
+    const updateCallsBefore = update.mock.calls.length;
 
     const result = await (runtime as any).refreshEarlyStartSnapshots(shared);
 
@@ -2212,8 +2213,8 @@ describe("early-start value snapshot coherence", () => {
     expect(mockScriptDAO.gets).toHaveBeenCalledWith([scriptA.uuid, scriptB.uuid]);
     expect(runtime.buildCompiledResourceFromScript).toHaveBeenCalledTimes(2);
     expect(getScripts.mock.calls.length).toBe(getScriptsCallsBefore);
-    expect(update).toHaveBeenCalledTimes(1);
-    expect(update).toHaveBeenCalledWith([
+    expect(update.mock.calls.length).toBe(updateCallsBefore + 1);
+    expect(update.mock.calls.at(-1)?.[0]).toEqual([
       { id: scriptA.uuid, js: [{ code: `fresh-${scriptA.uuid}` }] },
       { id: scriptB.uuid, js: [{ code: `fresh-${scriptB.uuid}` }] },
     ]);
