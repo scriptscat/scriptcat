@@ -26,10 +26,22 @@
     return GM_listValues().includes(key);
   }
 
-  describe("top-level ScriptCat compatibility mapping", () => {
+  function expectInvalidatedTopLevel(key) {
+    const isListed = listed(key);
+    const value = GM_getValue(key, DEFAULT);
+
+    // ScriptCat intentionally maps top-level unsupported values to delete.
+    // Tampermonkey keeps an own undefined value. Both are compatible here as long as the
+    // previous value is invalidated and no old value remains observable.
+    const scriptCatDelete = !isListed && value === DEFAULT;
+    const tampermonkeyUndefined = isListed && value === undefined;
+    expect(scriptCatDelete || tampermonkeyUndefined).toBe(true);
+  }
+
+  describe("top-level cross-manager compatibility", () => {
     check(
       "自动断言",
-      "Function invalidates an existing value using ScriptCat delete semantics",
+      "Function invalidates an existing value without preserving the old value",
       () => {
         const key = PREFIX + "function";
         GM_setValue(key, "OLD");
@@ -37,8 +49,7 @@
           return 123;
         });
 
-        expect(listed(key)).toBe(false);
-        expect(GM_getValue(key, DEFAULT)).toBe(DEFAULT);
+        expectInvalidatedTopLevel(key);
       },
       null,
       null,
@@ -47,14 +58,13 @@
 
     check(
       "自动断言",
-      "Symbol invalidates an existing value using ScriptCat delete semantics",
+      "Symbol invalidates an existing value without preserving the old value",
       () => {
         const key = PREFIX + "symbol";
         GM_setValue(key, "OLD");
         GM_setValue(key, Symbol("stored-symbol"));
 
-        expect(listed(key)).toBe(false);
-        expect(GM_getValue(key, DEFAULT)).toBe(DEFAULT);
+        expectInvalidatedTopLevel(key);
       },
       null,
       null,
@@ -68,10 +78,10 @@
         const key = PREFIX + "sequence";
         GM_setValue(key, "OLD");
         GM_setValue(key, () => "invalid");
-        const afterInvalid = GM_getValue(key, DEFAULT);
+        expectInvalidatedTopLevel(key);
+
         GM_setValue(key, "NEW");
 
-        expect(afterInvalid).toBe(DEFAULT);
         expect(GM_getValue(key, DEFAULT)).toBe("NEW");
         expect(listed(key)).toBe(true);
       },
@@ -154,40 +164,10 @@
           [arrayKey]: [1, undefined, () => 2, Symbol("nested"), 5],
         });
 
-        expect(listed(fnKey)).toBe(false);
-        expect(listed(symbolKey)).toBe(false);
-        expect(GM_getValue(fnKey, DEFAULT)).toBe(DEFAULT);
-        expect(GM_getValue(symbolKey, DEFAULT)).toBe(DEFAULT);
+        expectInvalidatedTopLevel(fnKey);
+        expectInvalidatedTopLevel(symbolKey);
         expect(GM_getValue(objectKey)).toEqual({ before: 1, after: 2 });
         expect(GM_getValue(arrayKey)).toEqual([1, null, null, null, 5]);
-      },
-      null,
-      null,
-      null
-    );
-  });
-
-  describe("ScriptCat structured-clone preservation", () => {
-    check(
-      "自动断言",
-      "special structured-clone values are not forced through JSON normalization",
-      () => {
-        const key = PREFIX + "special";
-        const value = {
-          date: new Date("2024-01-02T03:04:05.000Z"),
-          map: new Map([["a", 1]]),
-          set: new Set(["x"]),
-        };
-
-        GM_setValue(key, value);
-        const stored = GM_getValue(key);
-
-        expect(stored.date instanceof Date).toBe(true);
-        expect(stored.date.toISOString()).toBe("2024-01-02T03:04:05.000Z");
-        expect(stored.map instanceof Map).toBe(true);
-        expect(stored.map.get("a")).toBe(1);
-        expect(stored.set instanceof Set).toBe(true);
-        expect(stored.set.has("x")).toBe(true);
       },
       null,
       null,

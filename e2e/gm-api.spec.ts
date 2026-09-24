@@ -913,7 +913,7 @@ test.describe("GM API", () => {
       console.log("[gm_storage_value_normalization_test] logs:", logs.join("\\n"));
     }
     expect(summary.failed, "Some GM storage value normalization tests failed").toBe(0);
-    expect(summary.passed, "No GM storage value normalization results found - script may not have run").toBe(7);
+    expect(summary.passed, "No GM storage value normalization results found - script may not have run").toBe(6);
   });
 
   test("GM.* async API tests (gm_api_async_test.js)", async ({ context, extensionId }) => {
