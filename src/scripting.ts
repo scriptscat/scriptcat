@@ -9,13 +9,19 @@ import { Server } from "@Packages/message/server";
 import ScriptingRuntime from "./app/service/content/scripting";
 import { negotiateEventFlag } from "@Packages/message/common";
 import { extensionEnv } from "./app/service/extension/extension_env";
+import { RuntimeClient } from "./app/service/service_worker/client";
 
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
+// SW pageLoad 不依赖 MAIN/content 的 eventFlag。document_start 一进入 isolated scripting
+// world 就立即发出 authoritative bootstrap，请求与 bridge negotiation 并行进行；这样 early
+// userscript 仍按 registered wrapper 的时机马上执行，而需要 execution binding 的 GM API
+// 只等待不可避免的 SW 往返，不再额外串行等待页面桥初始化。
+const extMsgComm: Message = new ExtensionMessage(false);
+const pageLoadPromise = new RuntimeClient(extMsgComm).pageLoad("it");
+
 // 将初始化流程完成后，将EventFlag通知到其他环境
 negotiateEventFlag(messageFlag, extensionEnv, 2, (eventFlag) => {
-  // 建立与service_worker页面的连接
-  const extMsgComm: Message = new ExtensionMessage(false);
   // 初始化日志组件
   const logger = new LoggerCore({
     writer: new MessageWriter(extMsgComm, "serviceWorker/logger"),
@@ -36,6 +42,6 @@ negotiateEventFlag(messageFlag, extensionEnv, 2, (eventFlag) => {
   // 初始化运行环境
   const runtime = new ScriptingRuntime(extServer, server, extMsgComm, contentMsg, injectMsg);
   runtime.init();
-  // 页面加载，注入脚本
-  runtime.pageLoad();
+  // pageLoad 已在 eventFlag negotiation 前启动；此处只消费同一个结果并建立页面侧 binding。
+  runtime.pageLoad(pageLoadPromise);
 });

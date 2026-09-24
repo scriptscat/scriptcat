@@ -100,6 +100,59 @@ describe("ScriptingRuntime page bootstrap", () => {
     }
   });
 
+  it("consumes a prefetched pageLoad result without issuing a second SW request", async () => {
+    const injectScript = {
+      ...makeScript("prefetched-inject-script"),
+      name: "Prefetched inject script",
+      metadata: { grant: ["GM_getValue"] },
+      executionHandle: "prefetched-handle",
+      executionRunFlag: "prefetched-run-flag",
+    } as unknown as TScriptInfo;
+    const envInfo = { userAgentData: {}, sandboxMode: "raw", isIncognito: false } as const;
+    const pageLoad = vi.spyOn(RuntimeClient.prototype, "pageLoad");
+    const prefetched = Promise.resolve({
+      ok: true,
+      injectScriptList: [injectScript],
+      contentScriptList: [],
+      envInfo,
+      userScriptBootstrapToken: undefined,
+    } as TClientPageLoadInfo);
+    const senderToExt = makeSender();
+    const senderToContent = makeSender();
+    const senderToInject = makeSender();
+    const server = { on: vi.fn() };
+    const extServer = { on: vi.fn() };
+    const storageLocal = chrome.storage.local as unknown as {
+      onChanged?: { addListener: (listener: (changes: unknown) => void) => void };
+    };
+    const originalOnChanged = storageLocal.onChanged;
+    storageLocal.onChanged = { addListener: vi.fn() };
+    const runtime = new ScriptingRuntime(
+      extServer as unknown as Server,
+      server as unknown as Server,
+      senderToExt as unknown as MessageSend,
+      senderToContent as any,
+      senderToInject as any
+    );
+
+    try {
+      runtime.init();
+      runtime.pageLoad(prefetched);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(pageLoad).not.toHaveBeenCalled();
+      expect(senderToInject.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "inject/pageLoad",
+          data: { scripts: [injectScript], envInfo },
+        })
+      );
+    } finally {
+      storageLocal.onChanged = originalOnChanged;
+    }
+  });
+
   it("P1-2: PageRpcRegistry grants context-menu GM_registerMenuCommand and still denies GM_setValue", async () => {
     const contextMenuScript = {
       ...makeScript("context-menu-script"),

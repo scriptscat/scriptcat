@@ -16,6 +16,7 @@ import {
   validatePageGMRequest,
 } from "./page_rpc";
 import { getEffectiveScriptGrants } from "./utils";
+import type { TClientPageLoadInfo } from "@App/app/repo/scripts";
 
 const PageOrContent = {
   PAGE: 1,
@@ -180,7 +181,7 @@ export default class ScriptingRuntime {
     );
   }
 
-  pageLoad() {
+  pageLoad(prefetchedPageLoad?: Promise<TClientPageLoadInfo>) {
     const client = new RuntimeClient(this.senderToExt);
     // bfcache 还原不会重新执行 content script，pageLoad 因此只发生一次；
     // 但页面里的脚本仍在运行，需要补一次上报，否则 Popup 会误判本页没有脚本在跑。
@@ -190,8 +191,10 @@ export default class ScriptingRuntime {
         if (e.persisted) client.pageShow();
       });
     }
-    // 向service_worker请求脚本列表及环境信息
-    client.pageLoad("it").then((o) => {
+    // 向service_worker请求脚本列表及环境信息。入口脚本可在 eventFlag negotiation
+    // 之前预先发起这次请求；测试/旧调用点仍可省略参数而走原本的 lazy 路径。
+    const pageLoad = prefetchedPageLoad || client.pageLoad("it");
+    void pageLoad.then((o) => {
       if (!o.ok) return;
       const { injectScriptList, envInfo, userScriptBootstrapToken } = o;
       // 每次页面加载都废弃旧句柄，避免无 documentId 的浏览器复用上一文档的授权。
@@ -233,6 +236,8 @@ export default class ScriptingRuntime {
         const injectClient = new Client(this.senderToInject, "inject");
         injectClient.do("pageLoad", { scripts: preparedInjectScriptList, envInfo });
       }
+    }).catch((error) => {
+      LoggerCore.logger().debug("page bootstrap failed", { error: String(error) });
     });
   }
 }
