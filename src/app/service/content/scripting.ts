@@ -194,50 +194,52 @@ export default class ScriptingRuntime {
     // 向service_worker请求脚本列表及环境信息。入口脚本可在 eventFlag negotiation
     // 之前预先发起这次请求；测试/旧调用点仍可省略参数而走原本的 lazy 路径。
     const pageLoad = prefetchedPageLoad || client.pageLoad("it");
-    void pageLoad.then((o) => {
-      if (!o.ok) return;
-      const { injectScriptList, envInfo, userScriptBootstrapToken } = o;
-      // 每次页面加载都废弃旧句柄，避免无 documentId 的浏览器复用上一文档的授权。
-      this.pageRpc.revokeAll();
-      const prepareScripts = (scripts: typeof injectScriptList) => {
-        const prepared: typeof injectScriptList = [];
-        for (const script of scripts) {
-          const executionHandle = script.executionHandle;
-          if (!executionHandle) {
-            // v2 执行句柄必须由 service worker 签发；content 不再自行伪造替代句柄，
-            // 缺失时丢弃该脚本而不是让整个 pageLoad 失败。
-            console.warn(`ScriptCat: script ${script.uuid} has no authoritative execution handle, skipping`);
-            continue;
+    void pageLoad
+      .then((o) => {
+          if (!o.ok) return;
+        const { injectScriptList, envInfo, userScriptBootstrapToken } = o;
+        // 每次页面加载都废弃旧句柄，避免无 documentId 的浏览器复用上一文档的授权。
+        this.pageRpc.revokeAll();
+        const prepareScripts = (scripts: typeof injectScriptList) => {
+          const prepared: typeof injectScriptList = [];
+          for (const script of scripts) {
+            const executionHandle = script.executionHandle;
+            if (!executionHandle) {
+              // v2 执行句柄必须由 service worker 签发；content 不再自行伪造替代句柄，
+              // 缺失时丢弃该脚本而不是让整个 pageLoad 失败。
+              console.warn(`ScriptCat: script ${script.uuid} has no authoritative execution handle, skipping`);
+              continue;
+            }
+            const allowedAPIs = getPageRpcAllowedAPIs(getEffectiveScriptGrants(script.metadata));
+            // service worker 已签发的句柄要在本页 registry 中恢复，保持跨 context 身份一致。
+            this.pageRpc.register(executionHandle, allowedAPIs);
+            prepared.push(script);
           }
-          const allowedAPIs = getPageRpcAllowedAPIs(getEffectiveScriptGrants(script.metadata));
-          // service worker 已签发的句柄要在本页 registry 中恢复，保持跨 context 身份一致。
-          this.pageRpc.register(executionHandle, allowedAPIs);
-          prepared.push(script);
+          return prepared;
+        };
+        const preparedInjectScriptList = prepareScripts(injectScriptList);
+        const pairs = {} as Record<string, PageOrContent>;
+        for (const script of preparedInjectScriptList) {
+          pairs[getStorageName(script)] |= PageOrContent.PAGE;
         }
-        return prepared;
-      };
-      const preparedInjectScriptList = prepareScripts(injectScriptList);
-      const pairs = {} as Record<string, PageOrContent>;
-      for (const script of preparedInjectScriptList) {
-        pairs[getStorageName(script)] |= PageOrContent.PAGE;
-      }
-      this.activeStorageNames = new Map(Object.entries(pairs));
+        this.activeStorageNames = new Map(Object.entries(pairs));
 
-      if (typeof userScriptBootstrapToken === "string" && userScriptBootstrapToken.length > 0) {
-        const contentClient = new Client(this.senderToContent, "content");
-        contentClient.do("pageLoad", {
-          bootstrapToken: userScriptBootstrapToken,
-          envInfo,
-          extensionOrigin: getExtensionOrigin(),
-        });
-      }
+        if (typeof userScriptBootstrapToken === "string" && userScriptBootstrapToken.length > 0) {
+          const contentClient = new Client(this.senderToContent, "content");
+          contentClient.do("pageLoad", {
+            bootstrapToken: userScriptBootstrapToken,
+            envInfo,
+            extensionOrigin: getExtensionOrigin(),
+          });
+        }
 
-      if (preparedInjectScriptList.length > 0) {
-        const injectClient = new Client(this.senderToInject, "inject");
-        injectClient.do("pageLoad", { scripts: preparedInjectScriptList, envInfo });
-      }
-    }).catch((error) => {
-      LoggerCore.logger().debug("page bootstrap failed", { error: String(error) });
-    });
+          if (preparedInjectScriptList.length > 0) {
+            const injectClient = new Client(this.senderToInject, "inject");
+            injectClient.do("pageLoad", { scripts: preparedInjectScriptList, envInfo });
+          }
+      })
+      .catch((error) => {
+        LoggerCore.logger().debug("page bootstrap failed", { error: String(error) });
+      });
   }
 }
