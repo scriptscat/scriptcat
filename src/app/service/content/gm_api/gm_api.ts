@@ -72,17 +72,6 @@ const copyOwnEnumerableDataProperties = (value: object): Record<string, unknown>
   return result;
 };
 
-// 回调表不暴露 Map 原型，避免页面改写 Map 方法后影响值更新确认。
-const valueChangePromiseMap: Record<string, () => void> = Object.create(null);
-
-const resolveValueChangePromise = (id: unknown) => {
-  if (typeof id !== "string") return;
-  const resolve = valueChangePromiseMap[id];
-  if (!resolve) return;
-  delete valueChangePromiseMap[id];
-  resolve();
-};
-
 const setOwnValue = (store: Record<string, any>, key: string, value: any): void => {
   Native.objectDefineProperty(store, key, {
     configurable: true,
@@ -212,11 +201,7 @@ class GM_Base implements IGM_Base {
   // 单次回调使用
   @GMContext.protected()
   public async sendMessage(api: string, params: any[]) {
-    const cancelValueWrite = () => {
-      if (api === "GM_setValue" || api === "GM_setValues") resolveValueChangePromise(params[0]);
-    };
     if (this.isInvalidContext()) {
-      cancelValueWrite();
       return;
     }
     if (!this.message || !this.scriptRes) return;
@@ -224,7 +209,6 @@ class GM_Base implements IGM_Base {
       await this.loadScriptPromise;
     }
     if (this.isInvalidContext() || !this.message || !this.scriptRes) {
-      cancelValueWrite();
       return;
     }
     // USER_SCRIPT 自己的 realm 已有 DOM 与 fetch；这些辅助操作必须留在本地，
@@ -263,7 +247,6 @@ class GM_Base implements IGM_Base {
     } catch (e: any) {
       if (`${e?.message || e}`.includes("Extension context invalidated.")) {
         this.setInvalidContext(); // 之后不再进行 sendMessage 跟 EE操作
-        cancelValueWrite();
         console.error(e);
       } else {
         throw e;
@@ -310,9 +293,6 @@ class GM_Base implements IGM_Base {
     if (uuid === scriptRes.uuid || storageName === getStorageName(scriptRes)) {
       const valueStore = scriptRes.value;
       const remote = sender.runFlag !== this.runFlag;
-      if (!remote && id) {
-        resolveValueChangePromise(id);
-      }
       if (valueUpdated) {
         const valueChanges = entries;
         for (const [key, rTyped1, rTyped2] of valueChanges) {
@@ -410,12 +390,9 @@ export default class GMApi extends GM_Base {
     });
   }
 
-  static _GM_setValue(a: GMApi, promise: any, key: string, value: any) {
+  static _GM_setValue(a: GMApi, key: string, value: any): Promise<any> {
     key = `${key}`;
-    if (!a.scriptRes) {
-      promise?.();
-      return;
-    }
+    if (!a.scriptRes) return Promise.resolve();
     // Before the authoritative page bootstrap resolves, GM_setValue must still have immediate
     // local semantics. Remember the touched key so reconciliation cannot overwrite this write.
     a.pendingEarlyValueKeys?.add(key);
@@ -425,43 +402,31 @@ export default class GMApi extends GM_Base {
       valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
     }
     const id = `${valChangeRandomId}::${++valChangeCounterId}`;
-    if (promise) {
-      valueChangePromiseMap[id] = promise;
-    }
     if (value === undefined) {
       delete a.scriptRes.value[key];
-      a.sendMessage("GM_setValue", [id, key]);
-    } else {
-      // GM storage is a userscript-facing compatibility boundary. Unlike internal DTO cloning,
-      // enumerable accessors/Proxy traps are intentionally observed here.
-      if (typeof value === "function" || typeof value === "symbol" || (value !== null && typeof value === "object")) {
-        value = cloneGMStorageValue(value);
-      }
-      // customClone 可能返回 undefined
-      setOwnValue(a.scriptRes.value, key, value);
-      if (value === undefined) {
-        a.sendMessage("GM_setValue", [id, key]);
-      } else {
-        a.sendMessage("GM_setValue", [id, key, value]);
-      }
+      return a.sendMessage("GM_setValue", [id, key]);
     }
-    return id;
+
+    // GM storage is a userscript-facing compatibility boundary. Unlike internal DTO cloning,
+    // enumerable accessors/Proxy traps are intentionally observed here.
+    if (typeof value === "function" || typeof value === "symbol" || (value !== null && typeof value === "object")) {
+      value = cloneGMStorageValue(value);
+    }
+    // customClone 可能返回 undefined
+    setOwnValue(a.scriptRes.value, key, value);
+    return value === undefined
+      ? a.sendMessage("GM_setValue", [id, key])
+      : a.sendMessage("GM_setValue", [id, key, value]);
   }
 
-  static _GM_setValues(a: GMApi, promise: any, values: TGMKeyValue) {
-    if (!a.scriptRes) {
-      promise?.();
-      return;
-    }
+  static _GM_setValues(a: GMApi, values: TGMKeyValue): Promise<any> {
+    if (!a.scriptRes) return Promise.resolve();
     if (valChangeCounterId > 1e8) {
       // 防止 valChangeCounterId 过大导致无法正常工作
       valChangeCounterId = 0;
       valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
     }
     const id = `${valChangeRandomId}::${++valChangeCounterId}`;
-    if (promise) {
-      valueChangePromiseMap[id] = promise;
-    }
     const valueStore = a.scriptRes.value;
     const keyValuePairs = [] as [string, REncoded<unknown>][];
     // Snapshot own enumerable string entries with ordinary property-read semantics.
@@ -510,34 +475,27 @@ export default class GMApi extends GM_Base {
         value: [key, encodeRValue(value_)],
       });
     }
-    a.sendMessage("GM_setValues", [id, keyValuePairs]);
-    return id;
+    return a.sendMessage("GM_setValues", [id, keyValuePairs]);
   }
 
   @GMContext.API()
   public GM_setValue(ctx: GMApi, key: string, value: any) {
-    _GM_setValue(ctx, null, key, value);
+    void _GM_setValue(ctx, key, value);
   }
 
   @GMContext.API()
-  public "GM.setValue"(ctx: GMApi, key: string, value: any): Promise<void> {
-    // Asynchronous wrapper for GM_setValue to support GM.setValue
-    return new Promise((resolve) => {
-      _GM_setValue(ctx, resolve, key, value);
-    });
+  public async "GM.setValue"(ctx: GMApi, key: string, value: any): Promise<void> {
+    await _GM_setValue(ctx, key, value);
   }
 
   @GMContext.API()
   public GM_deleteValue(ctx: GMApi, key: string): void {
-    _GM_setValue(ctx, null, key, undefined);
+    void _GM_setValue(ctx, key, undefined);
   }
 
   @GMContext.API()
-  public "GM.deleteValue"(ctx: GMApi, key: string): Promise<void> {
-    // Asynchronous wrapper for GM_deleteValue to support GM.deleteValue
-    return new Promise((resolve) => {
-      _GM_setValue(ctx, resolve, key, undefined);
-    });
+  public async "GM.deleteValue"(ctx: GMApi, key: string): Promise<void> {
+    await _GM_setValue(ctx, key, undefined);
   }
 
   @GMContext.API()
@@ -562,7 +520,7 @@ export default class GMApi extends GM_Base {
     if (!values || typeof values !== "object") {
       throw new Error("GM_setValues: values must be an object");
     }
-    _GM_setValues(ctx, null, values);
+    void _GM_setValues(ctx, values);
   }
 
   @GMContext.API()
@@ -617,12 +575,10 @@ export default class GMApi extends GM_Base {
     if (!ctx.scriptRes) {
       return ctx.isInvalidContext() ? Promise.resolve() : new Promise<void>(() => {});
     }
-    return new Promise((resolve) => {
-      if (!values || typeof values !== "object") {
-        throw new Error("GM.setValues: values must be an object");
-      }
-      _GM_setValues(ctx, resolve, values);
-    });
+    if (!values || typeof values !== "object") {
+      return Promise.reject(new Error("GM.setValues: values must be an object"));
+    }
+    return _GM_setValues(ctx, values).then(() => undefined);
   }
 
   @GMContext.API()
@@ -636,7 +592,7 @@ export default class GMApi extends GM_Base {
     for (const key of keys) {
       req[key] = undefined;
     }
-    _GM_setValues(ctx, null, req);
+    void _GM_setValues(ctx, req);
   }
 
   // Asynchronous wrapper for GM.deleteValues
@@ -645,17 +601,14 @@ export default class GMApi extends GM_Base {
     if (!ctx.scriptRes) {
       return ctx.isInvalidContext() ? Promise.resolve() : new Promise<void>(() => {});
     }
-    return new Promise((resolve) => {
-      if (!Native.arrayIsArray(keys)) {
-        throw new Error("GM.deleteValues: keys must be string[]");
-      } else {
-        const req = {} as Record<string, undefined>;
-        for (const key of keys) {
-          req[key] = undefined;
-        }
-        _GM_setValues(ctx, resolve, req);
-      }
-    });
+    if (!Native.arrayIsArray(keys)) {
+      return Promise.reject(new Error("GM.deleteValues: keys must be string[]"));
+    }
+    const req = {} as Record<string, undefined>;
+    for (const key of keys) {
+      req[key] = undefined;
+    }
+    return _GM_setValues(ctx, req).then(() => undefined);
   }
 
   @GMContext.API()

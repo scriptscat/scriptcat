@@ -1735,11 +1735,15 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
 
     expect(api.GM_getValue(api, "snapshot")).toEqual({ nested: { value: 1 } });
   });
-  it.concurrent("异步GM.setValue，等待回调", async () => {
+  it.concurrent("异步GM.setValue，等待RPC完成而不是valueUpdate广播", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM.getValue", "GM.setValue"];
     script.code = `await GM.setValue("a", 123); return await GM.getValue("a");`;
-    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    let resolveRpc!: (value: unknown) => void;
+    const rpcBarrier = new Promise((resolve) => {
+      resolveRpc = resolve;
+    });
+    const mockSendMessage = vi.fn().mockReturnValue(rpcBarrier);
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
@@ -1753,26 +1757,17 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const retPromise = exec.exec();
 
-    await Promise.resolve(); // 等待一轮微任务，让GM.setValue执行
+    await Promise.resolve();
 
-    expect(mockSendMessage).toHaveBeenCalled();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
-    // 获取调用参数
-    const actualCall = mockSendMessage.mock.calls[0][0];
-    const id = actualCall.data.params[0];
-
-    expect(id).toBeTypeOf("string");
-    expect(id.length).greaterThan(0);
-    // 触发valueUpdate
-    exec.valueUpdate({
-      id: id,
-      entries: [["a", encodeRValue(123), encodeRValue(undefined)]],
-      uuid: script.uuid,
-      storageName: script.uuid,
-      sender: { runFlag: actualCall.data.runFlag, tabId: -2 },
-      valueUpdated: true,
+    let settled = false;
+    void retPromise.then(() => {
+      settled = true;
     });
+    await Promise.resolve();
+    expect(settled).toBe(false);
 
+    resolveRpc({ code: 0 });
     const ret = await retPromise;
     expect(ret).toEqual(123);
   });
