@@ -60,6 +60,13 @@ export const createContext = (
       this.scriptRes = null;
       this.valueChangeListener = null;
       this.EE = null;
+      const readFreshes = this.readFreshes;
+      if (readFreshes) {
+        for (const [updatetime, d] of readFreshes) {
+          readFreshes.delete(updatetime);
+          d.resolve(this.valueDaoUpdatetime ?? 0);
+        }
+      }
     },
     isInvalidContext() {
       return invalid;
