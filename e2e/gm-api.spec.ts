@@ -516,7 +516,7 @@ function patchTargetMatchCode(code: string, targetUrl: string): string {
   const url = new URL(targetUrl);
   const targetPattern = `${url.protocol}//${url.hostname}/*${url.search}`;
   return code.replace(
-    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|early_inject_content|early_inject_page|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test|GM_XHR_REDIRECT_TEST_SC|GM_XHR_TEST_SC)$/gm,
+    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|early_inject_content|early_inject_page|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test|GM_XHR_REDIRECT_TEST_SC|GM_XHR_TEST_SC|GM_STORAGE_CLONE_COMPATIBILITY)$/gm,
     `// @match        ${targetPattern}`
   );
 }
@@ -878,6 +878,27 @@ test.describe("GM API", () => {
     }
     expect(summary.failed, "Some GM_ sync API tests failed").toBe(0);
     expect(summary.passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("GM storage clone compatibility (gm_storage_clone_compatibility_test.js)", async ({
+    context,
+    extensionId,
+  }) => {
+    const { summary, logs } = await runTestScript(
+      context,
+      extensionId,
+      "gm_storage_clone_compatibility_test.js",
+      `${gmApiMockServer.cspOrigin}/?GM_STORAGE_CLONE_COMPATIBILITY`,
+      30_000,
+      { requireOrigin: gmApiMockServer.origin }
+    );
+
+    console.log(`[gm_storage_clone_compatibility_test]`, summary);
+    if (summary.failed !== 0) {
+      console.log("[gm_storage_clone_compatibility_test] logs:", logs.join("\\n"));
+    }
+    expect(summary.failed, "Some GM storage clone compatibility tests failed").toBe(0);
+    expect(summary.passed, "No GM storage clone compatibility results found - script may not have run").toBe(6);
   });
 
   test("GM.* async API tests (gm_api_async_test.js)", async ({ context, extensionId }) => {
