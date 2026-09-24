@@ -132,7 +132,7 @@
 
     check(
       "自动断言",
-      "function value becomes an existing undefined GM value without substituting the default",
+      "function value follows ScriptCat top-level delete semantics without keeping the old value",
       () => {
         const result = runSingle(keys.fn, () => {
           return function storedFunction() {
@@ -141,8 +141,8 @@
         });
 
         expect(result.thrown).toBe(undefined);
-        expect(result.immediate.listed).toBe(true);
-        expect(result.immediate.value).toBe(undefined);
+        expect(result.immediate.listed).toBe(false);
+        expect(result.immediate.value).toBe(DEFAULT);
       },
       null,
       null,
@@ -151,13 +151,13 @@
 
     check(
       "自动断言",
-      "symbol primitive becomes an existing undefined GM value without substituting the default",
+      "symbol primitive follows ScriptCat top-level delete semantics without keeping the old value",
       () => {
         const result = runSingle(keys.symbol, () => Symbol("stored-symbol"));
 
         expect(result.thrown).toBe(undefined);
-        expect(result.immediate.listed).toBe(true);
-        expect(result.immediate.value).toBe(undefined);
+        expect(result.immediate.listed).toBe(false);
+        expect(result.immediate.value).toBe(DEFAULT);
       },
       null,
       null,
