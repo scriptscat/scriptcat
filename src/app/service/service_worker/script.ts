@@ -894,10 +894,7 @@ export class ScriptService {
     return scriptRes;
   }
 
-  async buildScriptRunResource(
-    script: Script,
-    valueOverride?: Record<string, any>
-  ): Promise<ScriptRunResource> {
+  async buildScriptRunResource(script: Script, valueOverride?: Record<string, any>): Promise<ScriptRunResource> {
     const ret = buildScriptRunResourceBasic(script);
     return Promise.all([
       valueOverride === undefined ? this.valueService.getScriptValue(ret) : Promise.resolve(valueOverride),

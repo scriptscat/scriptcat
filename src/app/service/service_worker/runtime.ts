@@ -1198,11 +1198,7 @@ export class RuntimeService {
     await update();
   }
 
-  public async pushValueUpdate(
-    script: Script,
-    sendData: ValueUpdateDataEncoded,
-    committedValueStore?: ValueStore
-  ) {
+  public async pushValueUpdate(script: Script, sendData: ValueUpdateDataEncoded, committedValueStore?: ValueStore) {
     if (sendData.valueUpdated) {
       const refresh = await this.refreshEarlyStartSnapshots(sendData.storageName, committedValueStore);
       if (!refresh.ok) {

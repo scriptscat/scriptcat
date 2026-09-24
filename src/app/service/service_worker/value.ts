@@ -135,7 +135,7 @@ export class ValueService {
           }
         }
         // 即使是空 dataModel 也进行更新。
-        // entries 为空时 valueUpdated=false，但仍要发 delivery 作为 GM.setValue Promise 的 ack。
+        // entries 为空时 valueUpdated=false，但仍保留 mutation delivery 以维持现有 cache/listener 语义。
         valueModel = {
           uuid: uuid,
           storageName: storageName,
@@ -182,8 +182,8 @@ export class ValueService {
       }
 
       // 推送到所有加载了本 storage 的 context，并等待 Runtime 完成 early-start snapshot refresh。
-      // Promise-based GM.setValue 因此只会在 registration freshness barrier 完成后收到 ack；
-      // legacy 同步 GM_setValue 仍保持立即返回，仅其后台写入继续走这条序列化链。
+      // Promise-based GM.setValue 由这次 SW RPC 的返回值完成，因此 registration refresh 仍是
+      // completion barrier；legacy 同步 GM_setValue 继续立即返回，后台写入仍走同一序列化链。
       const sendData = {
         id,
         entries,

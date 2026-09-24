@@ -2203,6 +2203,7 @@ describe("early-start value snapshot coherence", () => {
       }) as any;
     vi.spyOn(runtime, "buildCompiledResourceFromScript").mockImplementation(async (script) => candidateFor(script));
     const getScripts = vi.spyOn(chrome.userScripts, "getScripts");
+    const getScriptsCallsBefore = getScripts.mock.calls.length;
     const update = vi.spyOn(chrome.userScripts, "update").mockResolvedValue(undefined);
 
     const result = await (runtime as any).refreshEarlyStartSnapshots(shared);
@@ -2210,11 +2211,67 @@ describe("early-start value snapshot coherence", () => {
     expect(result).toEqual({ ok: true, updated: [scriptA.uuid, scriptB.uuid] });
     expect(mockScriptDAO.gets).toHaveBeenCalledWith([scriptA.uuid, scriptB.uuid]);
     expect(runtime.buildCompiledResourceFromScript).toHaveBeenCalledTimes(2);
-    expect(getScripts).not.toHaveBeenCalled();
+    expect(getScripts.mock.calls.length).toBe(getScriptsCallsBefore);
     expect(update).toHaveBeenCalledTimes(1);
     expect(update).toHaveBeenCalledWith([
       { id: scriptA.uuid, js: [{ code: `fresh-${scriptA.uuid}` }] },
       { id: scriptB.uuid, js: [{ code: `fresh-${scriptB.uuid}` }] },
+    ]);
+  });
+
+  it("reuses committed values and pageLoad cache without a full value/resource/code rebuild", async () => {
+    const { runtime, mockScriptDAO } = _createRuntimeContext();
+    runtime.isUserScriptsAvailable = true;
+    runtime.isLoadScripts = true;
+    const storageName = "cached-value-reader";
+    const script = _createMockScript({
+      uuid: "cached-value-reader-script",
+      metadata: {
+        match: ["https://www.example.com/*"],
+        storagename: [storageName],
+        grant: ["GM_getValue"],
+        "early-start": [""],
+        "run-at": ["document-start"],
+      },
+    });
+    (runtime as any).indexEarlyScriptStorage(script);
+    vi.mocked(mockScriptDAO.gets).mockResolvedValue([script]);
+
+    const materializeScriptValue = vi.fn().mockReturnValue({ persisted: "fresh" });
+    const getScriptValue = vi.fn();
+    (runtime as any).value = { materializeScriptValue, getScriptValue };
+
+    const scriptRes = buildScriptRunResourceBasic(script);
+    const patterns = scriptURLPatternResults(scriptRes)!;
+    (runtime as any).pageLoadCaches.set(script.uuid, {
+      scriptCacheKey: (runtime as any).getPageLoadScriptCacheKey(scriptRes),
+      scriptRevision: "stable-revision",
+      originalMetadata: script.metadata,
+      scriptUrlPatterns: patterns.scriptUrlPatterns,
+      originalUrlPatterns:
+        patterns.originalUrlPatterns === patterns.scriptUrlPatterns ? null : patterns.originalUrlPatterns,
+      code: "return undefined;",
+      metadataStr: "",
+      userConfigStr: "",
+      userConfig: undefined,
+      resourceByType: { require: {}, "require-css": {}, resource: {} },
+      localResources: [],
+    });
+
+    const fullBuild = vi.spyOn(runtime, "buildCompiledResourceFromScript");
+    const update = vi.spyOn(chrome.userScripts, "update").mockResolvedValue(undefined);
+
+    const result = await (runtime as any).refreshEarlyStartSnapshots(storageName, { persisted: "fresh" });
+
+    expect(result).toEqual({ ok: true, updated: [script.uuid] });
+    expect(materializeScriptValue).toHaveBeenCalledWith(script, { persisted: "fresh" });
+    expect(getScriptValue).not.toHaveBeenCalled();
+    expect(fullBuild).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: script.uuid,
+        js: [expect.objectContaining({ code: expect.any(String) })],
+      }),
     ]);
   });
 
