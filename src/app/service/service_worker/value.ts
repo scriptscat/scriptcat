@@ -109,11 +109,15 @@ export class ValueService {
     }
     // 查询老的值
     const storageName = getStorageName(script);
-    let oldValueRecord: ValueStore = {};
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
-    const entries = [] as ValueUpdateDataREntry[];
-    const _flag = await stackAsyncTask<boolean>(cacheKey, async () => {
+    // DB commit、runtime value delivery 与 early-start registered snapshot refresh 必须在
+    // 同一条 storageName 队列中完成。否则 W2 可以在 W1 尚未更新 userScripts registration
+    // 时先提交 DB，随后 W1 的较旧 snapshot 又最后写入 registration，造成 generation 倒退。
+    await stackAsyncTask<void>(cacheKey, async () => {
+      const entries = [] as ValueUpdateDataREntry[];
+      let oldValueRecord: ValueStore = {};
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
+      let changed = false;
       if (!valueModel) {
         const now = Date.now();
         const dataModel: ValueStore = {};
@@ -124,8 +128,8 @@ export class ValueService {
             entries.push([key, rTyped1, R_UNDEFINED]);
           }
         }
-        // 即使是空 dataModel 也进行更新
-        // 由于没entries, valueUpdated 是 false, 但 valueDAO 会有一个空的 valueModel 记录 updatetime
+        // 即使是空 dataModel 也进行更新。
+        // entries 为空时 valueUpdated=false，但仍要发 delivery 作为 GM.setValue Promise 的 ack。
         valueModel = {
           uuid: uuid,
           storageName: storageName,
@@ -133,8 +137,8 @@ export class ValueService {
           createtime: ts ? Math.min(ts, now) : now,
           updatetime: ts ? Math.min(ts, now) : now,
         };
+        changed = true;
       } else {
-        let changed = false;
         let dataModel = (oldValueRecord = valueModel.data);
         dataModel = { ...dataModel }; // 每次储存使用新参考
         const containedKeys = new Set<string>();
@@ -164,23 +168,26 @@ export class ValueService {
             }
           }
         }
-        if (!changed) return false;
-        valueModel.data = dataModel; // 每次储存使用新参考
+        if (changed) valueModel.data = dataModel; // 每次储存使用新参考
       }
-      await this.valueDAO.save(storageName, valueModel);
-      return true;
+
+      if (changed) {
+        await this.valueDAO.save(storageName, valueModel);
+      }
+
+      // 推送到所有加载了本 storage 的 context，并等待 Runtime 完成 early-start snapshot refresh。
+      // Promise-based GM.setValue 因此只会在 registration freshness barrier 完成后收到 ack；
+      // legacy 同步 GM_setValue 仍保持立即返回，仅其后台写入继续走这条序列化链。
+      const sendData = {
+        id,
+        entries,
+        uuid,
+        storageName,
+        sender: valueSender,
+        valueUpdated: entries.length > 0,
+      } as ValueUpdateDataEncoded;
+      await this.pushValueUpdate(script, sendData);
     });
-    // 推送到所有加载了本脚本的tab中
-    const valueUpdated = entries.length > 0;
-    const sendData = {
-      id,
-      entries: entries,
-      uuid,
-      storageName,
-      sender: valueSender,
-      valueUpdated,
-    } as ValueUpdateDataEncoded;
-    this.pushValueUpdate(script, sendData);
   }
 
   setScriptValues(params: Pick<TSetValuesParams, "uuid" | "keyValuePairs" | "isReplace" | "ts">, _sender: IGetSender) {

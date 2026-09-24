@@ -482,6 +482,90 @@ describe("ValueService - setValue 方法测试", () => {
     expect(mockMessageQueue.emit).toHaveBeenCalledTimes(0);
   });
 
+  it("awaits runtime snapshot refresh before resolving a mutation", async () => {
+    const mockScript = createMockScript();
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue(undefined);
+    vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
+
+    let releaseRefresh!: () => void;
+    const refreshBarrier = new Promise<void>((resolve) => {
+      releaseRefresh = resolve;
+    });
+    vi.mocked(valueService.pushValueUpdate).mockReturnValue(refreshBarrier);
+
+    let resolved = false;
+    const mutation = valueService
+      .setValues({
+        uuid: mockScript.uuid,
+        id: "snapshot-barrier",
+        keyValuePairs: [["key", encodeRValue("value")]],
+        valueSender: createMockValueSender(),
+        isReplace: false,
+      })
+      .then(() => {
+        resolved = true;
+      });
+
+    await vi.waitFor(() => expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1));
+    expect(mockValueDAO.save).toHaveBeenCalledTimes(1);
+    expect(resolved).toBe(false);
+
+    releaseRefresh();
+    await mutation;
+    expect(resolved).toBe(true);
+  });
+
+  it("serializes DB commit and snapshot refresh together for the same storageName", async () => {
+    const mockScript = createMockScript();
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+
+    let current: Value | undefined;
+    vi.mocked(mockValueDAO.get).mockImplementation(async () => current);
+    vi.mocked(mockValueDAO.save).mockImplementation(async (_storageName, model) => {
+      current = { ...model, data: { ...model.data } } as Value;
+      return {} as any;
+    });
+
+    let releaseFirstRefresh!: () => void;
+    const firstRefreshBarrier = new Promise<void>((resolve) => {
+      releaseFirstRefresh = resolve;
+    });
+    vi.mocked(valueService.pushValueUpdate)
+      .mockImplementationOnce(async () => firstRefreshBarrier)
+      .mockResolvedValue(undefined);
+
+    const first = valueService.setValues({
+      uuid: mockScript.uuid,
+      id: "ordered-1",
+      keyValuePairs: [["counter", encodeRValue(1)]],
+      valueSender: createMockValueSender(),
+      isReplace: false,
+    });
+    await vi.waitFor(() => expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1));
+
+    const second = valueService.setValues({
+      uuid: mockScript.uuid,
+      id: "ordered-2",
+      keyValuePairs: [["counter", encodeRValue(2)]],
+      valueSender: createMockValueSender(),
+      isReplace: false,
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // 第二次 DB commit 不能越过第一次 registration refresh。
+    expect(mockValueDAO.save).toHaveBeenCalledTimes(1);
+    expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1);
+
+    releaseFirstRefresh();
+    await Promise.all([first, second]);
+
+    expect(mockValueDAO.save).toHaveBeenCalledTimes(2);
+    expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(2);
+    expect(current?.data.counter).toBe(2);
+  });
+
   it("应该正确处理并发访问的缓存键", async () => {
     // 这个测试验证 stackAsyncTask 的使用，确保相同 storageName 的操作不会冲突
     const mockScript = createMockScript();
