@@ -81,13 +81,74 @@ const setOwnValue = (store: Record<string, any>, key: string, value: any): void 
   });
 };
 
+const gmStorageOmit = Native.objectCreate(null);
+
+const isPlainGMStorageObject = (value: object): boolean => {
+  if (Native.arrayIsArray(value)) return false;
+  try {
+    const prototype = Native.objectGetPrototypeOf(value);
+    // Works for ordinary objects from either the userscript or page realm without relying on
+    // a mutable constructor property. Class instances and built-in special objects keep their
+    // existing structured-clone path.
+    return prototype === null || Native.objectGetPrototypeOf(prototype) === null;
+  } catch {
+    return false;
+  }
+};
+
+const normalizeGMStorageCompatibilityValue = (
+  value: any,
+  seen: WeakMap<object, any> = new Native.WeakMap<object, any>()
+): any => {
+  if (value === undefined || typeof value === "function" || typeof value === "symbol") {
+    return gmStorageOmit;
+  }
+  if (value === null || typeof value !== "object") return value;
+
+  const existing = seen.get(value);
+  if (existing !== undefined) return existing;
+
+  if (Native.arrayIsArray(value)) {
+    const result: any[] = [];
+    seen.set(value, result);
+    const length = Native.reflectGet(value, "length") as number;
+    for (let index = 0; index < length; index += 1) {
+      const normalized = normalizeGMStorageCompatibilityValue(Native.reflectGet(value, `${index}`), seen);
+      Native.objectDefineProperty(result, index, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: normalized === gmStorageOmit ? null : normalized,
+      });
+    }
+    return result;
+  }
+
+  if (!isPlainGMStorageObject(value)) return value;
+
+  const result = Native.objectCreate(null) as Record<string, unknown>;
+  seen.set(value, result);
+  const keys = Native.reflectOwnKeys(value);
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
+    if (typeof key !== "string") continue;
+    const descriptor = Native.objectGetOwnPropertyDescriptor(value, key);
+    if (!descriptor?.enumerable) continue;
+    const normalized = normalizeGMStorageCompatibilityValue(Native.reflectGet(value, key), seen);
+    if (normalized === gmStorageOmit) continue;
+    setOwnValue(result, key, normalized);
+  }
+  return result;
+};
+
 /**
- * GM value APIs are a userscript compatibility boundary, not an internal DTO boundary.
- * Match the historical/Tampermonkey-style clone semantics here: structured clone first,
- * then JSON fallback for values such as Proxy-wrapped plain objects. The JSON fallback
- * intentionally observes enumerable getters/Proxy traps supplied by the calling script.
+ * GM storage is a userscript compatibility boundary. Tampermonkey-style unsupported values
+ * are normalized only inside plain objects/arrays: object properties are omitted and array
+ * slots become null. Special objects (Date/Map/Set/RegExp/TypedArray/...) deliberately keep
+ * the existing structured-clone path until their compatibility contract is measured.
  *
- * Keep the stricter customClone() for privileged/internal payloads.
+ * Proxy/accessor reads are intentionally observable here. If normalization or structured
+ * cloning cannot handle a value, retain the historical JSON fallback.
  */
 const cloneGMStorageValue = (value: any): any => {
   if (value === null) return value;
@@ -95,16 +156,24 @@ const cloneGMStorageValue = (value: any): any => {
   if (valueType === "function" || valueType === "symbol") return undefined;
   if (valueType !== "object") return value;
 
+  let cloneSource = value;
+  try {
+    const normalized = normalizeGMStorageCompatibilityValue(value);
+    if (normalized !== gmStorageOmit) cloneSource = normalized;
+  } catch {
+    // Preserve the existing fallback behavior for hostile Proxy/accessor inputs.
+  }
+
   if (Native.structuredClone) {
     try {
-      return Native.structuredClone(value);
+      return Native.structuredClone(cloneSource);
     } catch {
       // Proxy and some legacy-compatible values cannot be structured-cloned.
     }
   }
 
   try {
-    return Native.jsonParse(Native.jsonStringify(value));
+    return Native.jsonParse(Native.jsonStringify(cloneSource));
   } catch {
     return undefined;
   }
@@ -402,21 +471,19 @@ export default class GMApi extends GM_Base {
       valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
     }
     const id = `${valChangeRandomId}::${++valChangeCounterId}`;
-    if (value === undefined) {
-      delete a.scriptRes.value[key];
-      return a.sendMessage("GM_setValue", [id, key]);
-    }
-
-    // GM storage is a userscript-facing compatibility boundary. Unlike internal DTO cloning,
-    // enumerable accessors/Proxy traps are intentionally observed here.
+    // Normalize before mutating local state. ScriptCat intentionally keeps its historical
+    // top-level undefined=delete contract, so Function/Symbol normalize to the same delete
+    // semantics instead of creating a transient own-undefined entry.
     if (typeof value === "function" || typeof value === "symbol" || (value !== null && typeof value === "object")) {
       value = cloneGMStorageValue(value);
     }
-    // customClone 可能返回 undefined
+    if (value === undefined) {
+      if (Native.objectHasOwn(a.scriptRes.value, key)) delete a.scriptRes.value[key];
+      return a.sendMessage("GM_setValue", [id, key]);
+    }
+
     setOwnValue(a.scriptRes.value, key, value);
-    return value === undefined
-      ? a.sendMessage("GM_setValue", [id, key])
-      : a.sendMessage("GM_setValue", [id, key, value]);
+    return a.sendMessage("GM_setValue", [id, key, value]);
   }
 
   static _GM_setValues(a: GMApi, values: TGMKeyValue): Promise<any> {
@@ -452,18 +519,16 @@ export default class GMApi extends GM_Base {
       // the queued authoritative write is flushed after bootstrap.
       a.pendingEarlyValueKeys?.add(key);
       let value_ = value;
+      if (
+        typeof value_ === "function" ||
+        typeof value_ === "symbol" ||
+        (value_ !== null && typeof value_ === "object")
+      ) {
+        value_ = cloneGMStorageValue(value_);
+      }
       if (value_ === undefined) {
         if (Native.objectHasOwn(valueStore, key)) delete valueStore[key];
       } else {
-        // Keep GM_setValues aligned with GM_setValue compatibility semantics.
-        if (
-          typeof value_ === "function" ||
-          typeof value_ === "symbol" ||
-          (value_ !== null && typeof value_ === "object")
-        ) {
-          value_ = cloneGMStorageValue(value_);
-        }
-        // customClone 可能返回 undefined
         setOwnValue(valueStore, key, value_);
       }
       // 避免undefined 等空值流失，先进行映射处理

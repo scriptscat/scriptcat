@@ -1329,8 +1329,8 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     );
   });
 
-  it("拒绝可执行值，且不会把函数写入本地存储或传输层", () => {
-    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+  it("normalizes a top-level Function to ScriptCat delete semantics immediately", () => {
+    const script = Object.assign({}, scriptRes, { value: { executable: "OLD" } }) as ScriptLoadInfo;
     script.metadata.grant = ["GM_setValue"];
     const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
@@ -1338,23 +1338,90 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
 
     api.GM_setValue(api, "executable", executable);
 
-    expect(script.value.executable).toBeUndefined();
+    expect(Object.hasOwn(script.value, "executable")).toBe(false);
     expect(sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ params: [expect.any(String), "executable"] }) })
     );
   });
 
-  it("拒绝 Symbol 值，避免把不可结构化克隆的数据写入本地存储", () => {
-    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+  it("normalizes a top-level Symbol to ScriptCat delete semantics immediately", () => {
+    const script = Object.assign({}, scriptRes, { value: { symbol: "OLD" } }) as ScriptLoadInfo;
     script.metadata.grant = ["GM_setValue"];
     const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
 
     api.GM_setValue(api, "symbol", Symbol("secret"));
 
-    expect(script.value.symbol).toBeUndefined();
+    expect(Object.hasOwn(script.value, "symbol")).toBe(false);
     expect(sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ params: [expect.any(String), "symbol"] }) })
+    );
+  });
+
+  it("normalizes nested unsupported values with Tampermonkey-style plain object/array semantics", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_getValue", "GM_setValue"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+
+    api.GM_setValue(api, "object", {
+      before: 1,
+      fn() {
+        return 2;
+      },
+      symbol: Symbol("nested"),
+      undef: undefined,
+      after: 3,
+      deep: {
+        before: 4,
+        fn() {
+          return 5;
+        },
+        symbol: Symbol("deep"),
+        undef: undefined,
+        after: 6,
+      },
+    });
+    api.GM_setValue(api, "array", [1, () => 2, Symbol("nested"), undefined, 5]);
+
+    expect(api.GM_getValue(api, "object")).toEqual({
+      before: 1,
+      after: 3,
+      deep: { before: 4, after: 6 },
+    });
+    expect(api.GM_getValue(api, "array")).toEqual([1, null, null, null, 5]);
+  });
+
+  it("GM_setValues deletes Function/Symbol entries after normalization instead of keeping transient undefined", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_setValues"] },
+      value: { fn: "OLD_FN", symbol: "OLD_SYMBOL", keep: "OLD_KEEP" },
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+
+    api.GM_setValues(api, {
+      fn: () => "new",
+      symbol: Symbol("new"),
+      keep: "NEW_KEEP",
+    });
+
+    expect(script.value).toEqual({ keep: "NEW_KEEP" });
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          params: [
+            expect.any(String),
+            [
+              ["fn", encodeRValue(undefined)],
+              ["symbol", encodeRValue(undefined)],
+              ["keep", encodeRValue("NEW_KEEP")],
+            ],
+          ],
+        }),
+      })
     );
   });
 
