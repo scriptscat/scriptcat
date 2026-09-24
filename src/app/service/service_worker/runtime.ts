@@ -890,7 +890,6 @@ export class RuntimeService {
     const candidates = (
       await Promise.all(
         activeScripts.map(async (script) => {
-          this.pageLoadCaches.delete(script.uuid);
           const candidate = await this.buildCompiledResourceFromScript(script, true);
           return candidate ? { script, candidate } : undefined;
         })
@@ -909,7 +908,6 @@ export class RuntimeService {
     }
 
     const candidatesByUuid = new Map(candidates.map((entry) => [entry.script.uuid, entry]));
-    const updatedCandidates = new Map<string, (typeof candidates)[number]>();
     const updates: RegisteredUserScriptWithJsCode[] = [];
     for (const registered of registeredScripts) {
       const entry = candidatesByUuid.get(registered.id);
@@ -918,34 +916,17 @@ export class RuntimeService {
       // Preserve the currently registered match/blacklist/world configuration. Value mutations
       // only replace the compiled wrapper snapshot; they must not accidentally rewrite routing.
       updates.push({ ...registered, js });
-      updatedCandidates.set(registered.id, entry);
     }
     if (!updates.length) return;
 
     try {
       // One API call keeps all early scripts sharing the same ValueStore on the same generation.
+      // scriptRevision/pageLoadCaches describe static code/resource material, so a value-only
+      // refresh deliberately does not rewrite or invalidate those caches.
       await chrome.userScripts.update(updates);
     } catch (e) {
       this.logger.error("refresh early-start registrations after value update failed", { storageName }, Logger.E(e));
-      return;
     }
-
-    await Promise.all(
-      [...updatedCandidates.values()].map(async ({ candidate, script }) => {
-        try {
-          await this.compiledResourceDAO.save(candidate.compiledResource);
-        } catch (e) {
-          // Registration is already fresh. A failed cache write must not roll the browser
-          // registration back; pageLoad will rebuild the cache on the next miss.
-          this.pageLoadCaches.delete(script.uuid);
-          this.logger.error(
-            "save early-start compiled resource after value refresh failed",
-            { uuid: script.uuid },
-            Logger.E(e)
-          );
-        }
-      })
-    );
   }
 
   async waitInit() {

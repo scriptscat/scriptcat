@@ -2200,7 +2200,6 @@ describe("early-start value snapshot coherence", () => {
         apiScript: { id: script.uuid, js: [{ code: `fresh-${script.uuid}` }] },
       }) as any;
     vi.spyOn(runtime, "buildCompiledResourceFromScript").mockImplementation(async (script) => candidateFor(script));
-    vi.spyOn(runtime.compiledResourceDAO, "save").mockResolvedValue({} as CompiledResource);
     vi.spyOn(chrome.userScripts, "getScripts").mockResolvedValue([
       { id: scriptA.uuid, js: [{ code: "old-a" }], matches: ["https://www.example.com/*"] },
       { id: scriptB.uuid, js: [{ code: "old-b" }], matches: ["https://www.example.com/*"] },
@@ -2219,7 +2218,6 @@ describe("early-start value snapshot coherence", () => {
       expect.objectContaining({ id: scriptA.uuid, js: [{ code: `fresh-${scriptA.uuid}` }] }),
       expect.objectContaining({ id: scriptB.uuid, js: [{ code: `fresh-${scriptB.uuid}` }] }),
     ]);
-    expect(runtime.compiledResourceDAO.save).toHaveBeenCalledTimes(2);
   });
 
   it("does not deliver the mutation ack before the early snapshot refresh barrier", async () => {
