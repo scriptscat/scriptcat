@@ -109,9 +109,7 @@ type TLocalResourceCache = {
   sha512: string | undefined;
 };
 
-type EarlySnapshotRefreshResult =
-  | { ok: true; updated: string[] }
-  | { ok: false; updated: string[]; error: unknown };
+type EarlySnapshotRefreshResult = { ok: true; updated: string[] } | { ok: false; updated: string[]; error: unknown };
 
 const EARLY_VALUE_READ_GRANTS = new Set([
   "GM_getValue",
@@ -868,11 +866,7 @@ export class RuntimeService {
   private indexEarlyScriptStorage(script: Script): void {
     this.removeEarlyScriptStorageIndex(script.uuid);
     const metadata = getCombinedMeta(script.metadata, script.selfMetadata);
-    if (
-      script.type !== SCRIPT_TYPE_NORMAL ||
-      script.status !== SCRIPT_STATUS_ENABLE ||
-      !isEarlyStartScript(metadata)
-    ) {
+    if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE || !isEarlyStartScript(metadata)) {
       return;
     }
 
