@@ -571,14 +571,15 @@ export default class GMApi extends GM_Base {
   }
 
   @GMContext.API()
-  public "GM.setValues"(ctx: GMApi, values: { [key: string]: any }): Promise<void> {
+  public async "GM.setValues"(ctx: GMApi, values: { [key: string]: any }): Promise<void> {
     if (!ctx.scriptRes) {
-      return ctx.isInvalidContext() ? Promise.resolve() : new Promise<void>(() => {});
+      if (ctx.isInvalidContext()) return;
+      return new Promise<void>(() => {});
     }
     if (!values || typeof values !== "object") {
-      return Promise.reject(new Error("GM.setValues: values must be an object"));
+      throw new Error("GM.setValues: values must be an object");
     }
-    return _GM_setValues(ctx, values).then(() => undefined);
+    await _GM_setValues(ctx, values);
   }
 
   @GMContext.API()
@@ -597,18 +598,19 @@ export default class GMApi extends GM_Base {
 
   // Asynchronous wrapper for GM.deleteValues
   @GMContext.API()
-  public "GM.deleteValues"(ctx: GMApi, keys: string[]): Promise<void> {
+  public async "GM.deleteValues"(ctx: GMApi, keys: string[]): Promise<void> {
     if (!ctx.scriptRes) {
-      return ctx.isInvalidContext() ? Promise.resolve() : new Promise<void>(() => {});
+      if (ctx.isInvalidContext()) return;
+      return new Promise<void>(() => {});
     }
     if (!Native.arrayIsArray(keys)) {
-      return Promise.reject(new Error("GM.deleteValues: keys must be string[]"));
+      throw new Error("GM.deleteValues: keys must be string[]");
     }
     const req = {} as Record<string, undefined>;
     for (const key of keys) {
       req[key] = undefined;
     }
-    return _GM_setValues(ctx, req).then(() => undefined);
+    await _GM_setValues(ctx, req);
   }
 
   @GMContext.API()

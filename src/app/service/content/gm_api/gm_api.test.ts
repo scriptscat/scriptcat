@@ -1245,6 +1245,31 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(traps.get).toBeGreaterThan(0);
   });
 
+  it("GM.setValues turns accessor failures into Promise rejection instead of a synchronous throw", async () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM.setValues"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const payload = {} as Record<string, unknown>;
+    Object.defineProperty(payload, "broken", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error("accessor failed");
+      },
+    });
+
+    let result!: Promise<void>;
+    expect(() => {
+      result = api["GM.setValues"](api, payload);
+    }).not.toThrow();
+
+    await expect(result).rejects.toThrow("accessor failed");
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it("GM_setValues invokes top-level enumerable accessors once", () => {
     const script = Object.assign({}, scriptRes, {
       metadata: { grant: ["GM_setValues"] },
