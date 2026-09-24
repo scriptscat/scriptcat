@@ -92,6 +92,35 @@ const setOwnValue = (store: Record<string, any>, key: string, value: any): void 
   });
 };
 
+/**
+ * GM value APIs are a userscript compatibility boundary, not an internal DTO boundary.
+ * Match the historical/Tampermonkey-style clone semantics here: structured clone first,
+ * then JSON fallback for values such as Proxy-wrapped plain objects. The JSON fallback
+ * intentionally observes enumerable getters/Proxy traps supplied by the calling script.
+ *
+ * Keep the stricter customClone() for privileged/internal payloads.
+ */
+const cloneGMStorageValue = (value: any): any => {
+  if (value === null) return value;
+  const valueType = typeof value;
+  if (valueType === "function" || valueType === "symbol") return undefined;
+  if (valueType !== "object") return value;
+
+  if (Native.structuredClone) {
+    try {
+      return Native.structuredClone(value);
+    } catch {
+      // Proxy and some legacy-compatible values cannot be structured-cloned.
+    }
+  }
+
+  try {
+    return Native.jsonParse(Native.jsonStringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
 // 通知 ID 只属于对应 GM context；WeakMap 不让脚本结束后残留监听状态。
 const notificationTagMaps = new Native.WeakMap<object, Map<string, string>>();
 
@@ -353,14 +382,14 @@ export default class GMApi extends GM_Base {
 
   static _GM_getValue(a: GMApi, key: string, defaultValue?: any) {
     if (!a.scriptRes) return undefined;
-    const ret = Native.objectHasOwn(a.scriptRes.value, key) ? a.scriptRes.value[key] : undefined;
-    if (ret !== undefined) {
-      if (ret && typeof ret === "object") {
-        return customClone(ret)!;
-      }
-      return ret;
+    if (!Native.objectHasOwn(a.scriptRes.value, key)) return defaultValue;
+    const ret = a.scriptRes.value[key];
+    if (ret && typeof ret === "object") {
+      return customClone(ret)!;
     }
-    return defaultValue;
+    // An own undefined value is observably different from a missing key:
+    // GM_listValues still lists it and GM_getValue must not substitute defaultValue.
+    return ret;
   }
 
   // 获取脚本的值,可以通过@storageName让多个脚本共享一个储存空间
@@ -397,9 +426,10 @@ export default class GMApi extends GM_Base {
       delete a.scriptRes.value[key];
       a.sendMessage("GM_setValue", [id, key]);
     } else {
-      // 对对象或函数值进行一次转化
+      // GM storage is a userscript-facing compatibility boundary. Unlike internal DTO cloning,
+      // enumerable accessors/Proxy traps are intentionally observed here.
       if (typeof value === "function" || typeof value === "symbol" || (value !== null && typeof value === "object")) {
-        value = customClone(value);
+        value = cloneGMStorageValue(value);
       }
       // customClone 可能返回 undefined
       setOwnValue(a.scriptRes.value, key, value);
@@ -428,19 +458,21 @@ export default class GMApi extends GM_Base {
     }
     const valueStore = a.scriptRes.value;
     const keyValuePairs = [] as [string, REncoded<unknown>][];
-    // Snapshot descriptors before cloning nested values, whose Proxy traps may mutate the input.
+    // Snapshot own enumerable string entries with ordinary property-read semantics.
+    // This intentionally executes a userscript-supplied getter/Proxy get trap once, matching
+    // Object.entries/Tampermonkey behavior, while still avoiding mutable Array.prototype helpers.
     const valueEntries: [string, unknown][] = [];
     const valueKeys = Native.reflectOwnKeys(values);
     for (let index = 0; index < valueKeys.length; index += 1) {
       const key = valueKeys[index];
       if (typeof key !== "string") continue;
       const descriptor = Native.objectGetOwnPropertyDescriptor(values, key);
-      if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) continue;
+      if (!descriptor || !descriptor.enumerable) continue;
       Native.objectDefineProperty(valueEntries, valueEntries.length, {
         configurable: true,
         enumerable: true,
         writable: true,
-        value: [key, descriptor.value],
+        value: [key, Native.reflectGet(values, key)],
       });
     }
     for (let index = 0; index < valueEntries.length; index += 1) {
@@ -449,13 +481,13 @@ export default class GMApi extends GM_Base {
       if (value_ === undefined) {
         if (Native.objectHasOwn(valueStore, key)) delete valueStore[key];
       } else {
-        // 对对象或函数值进行一次转化
+        // Keep GM_setValues aligned with GM_setValue compatibility semantics.
         if (
           typeof value_ === "function" ||
           typeof value_ === "symbol" ||
           (value_ !== null && typeof value_ === "object")
         ) {
-          value_ = customClone(value_);
+          value_ = cloneGMStorageValue(value_);
         }
         // customClone 可能返回 undefined
         setOwnValue(valueStore, key, value_);
