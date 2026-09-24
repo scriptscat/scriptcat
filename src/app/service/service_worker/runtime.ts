@@ -615,6 +615,9 @@ export class RuntimeService {
   }
 
   private readonly disabledMatcherTaskKey = `runtime_disabled_matcher:${Math.random()}`;
+  // Script/code updates and value-only wrapper refreshes both mutate chrome.userScripts.
+  // Serialize them so an older build cannot finish after a newer registration mutation.
+  private readonly earlyRegistrationTaskKey = `runtime_early_registration:${Math.random()}`;
   private disabledMatcher: UrlMatch<string> | null = null;
   private disabledMatcherVersion = 0;
   private sorter: Record<string, number> = {};
@@ -866,7 +869,11 @@ export class RuntimeService {
     this.earlyStorageNameByUuid.set(script.uuid, storageName);
   }
 
-  private async refreshEarlyStartSnapshots(storageName: string): Promise<void> {
+  private refreshEarlyStartSnapshots(storageName: string): Promise<void> {
+    return stackAsyncTask<void>(this.earlyRegistrationTaskKey, () => this.refreshEarlyStartSnapshotsNow(storageName));
+  }
+
+  private async refreshEarlyStartSnapshotsNow(storageName: string): Promise<void> {
     if (!this.isUserScriptsAvailable || !this.isLoadScripts) return;
     const indexed = this.earlyScriptsByStorageName.get(storageName);
     if (!indexed?.size) return;
@@ -1029,9 +1036,10 @@ export class RuntimeService {
     if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE) {
       throw new Error("Invalid Calling of updateResourceOnScriptChange");
     }
-    this.pageLoadCaches.delete(script.uuid);
-    // 安装，启用，或earlyStartScript的value更新
-    const scriptRes = buildScriptRunResourceBasic(script);
+    const update = async () => {
+      this.pageLoadCaches.delete(script.uuid);
+      // 安装，启用，或earlyStartScript的value更新
+      const scriptRes = buildScriptRunResourceBasic(script);
     const patterns = scriptURLPatternResults(scriptRes);
     if (patterns) {
       this.scriptMatchEntry(scriptRes, patterns);
@@ -1048,13 +1056,18 @@ export class RuntimeService {
       return;
     }
     const { apiScript } = ret;
-    if (await this.loadPageScript(script, apiScript!)) {
-      try {
-        await this.compiledResourceDAO.save(ret.compiledResource);
-      } catch (e) {
-        this.logger.error("save compiled resource after registration failed", { uuid: script.uuid }, Logger.E(e));
+      if (await this.loadPageScript(script, apiScript!)) {
+        try {
+          await this.compiledResourceDAO.save(ret.compiledResource);
+        } catch (e) {
+          this.logger.error("save compiled resource after registration failed", { uuid: script.uuid }, Logger.E(e));
+        }
       }
+    };
+    if (isEarlyStartScript(getCombinedMeta(script.metadata, script.selfMetadata))) {
+      return stackAsyncTask(this.earlyRegistrationTaskKey, update);
     }
+    return update();
   }
 
   public async pushValueUpdate(script: Script, sendData: ValueUpdateDataEncoded) {

@@ -2220,6 +2220,60 @@ describe("early-start value snapshot coherence", () => {
     ]);
   });
 
+  it("serializes value snapshot refresh behind an in-flight early script registration update", async () => {
+    const { runtime, mockScriptDAO } = _createRuntimeContext();
+    runtime.isUserScriptsAvailable = true;
+    runtime.isLoadScripts = true;
+    const storageName = "registration-race-store";
+    const script = _createMockScript({
+      uuid: "registration-race-script",
+      metadata: {
+        match: ["https://www.example.com/*"],
+        storagename: [storageName],
+        "early-start": [""],
+        "run-at": ["document-start"],
+      },
+    });
+    (runtime as any).indexEarlyScriptStorage(script);
+    vi.mocked(mockScriptDAO.gets).mockResolvedValue([script]);
+
+    let releaseBuild!: () => void;
+    const firstBuildBarrier = new Promise<void>((resolve) => {
+      releaseBuild = resolve;
+    });
+    const candidate = {
+      compiledResource: { uuid: script.uuid, scriptRevision: "stable-revision" },
+      apiScript: { id: script.uuid, js: [{ code: "fresh-wrapper" }] },
+    } as any;
+    const build = vi.spyOn(runtime, "buildCompiledResourceFromScript");
+    build.mockImplementationOnce(async () => {
+      await firstBuildBarrier;
+      return candidate;
+    });
+    build.mockResolvedValue(candidate);
+    vi.spyOn(runtime, "loadPageScript").mockResolvedValue(true);
+    vi.spyOn(runtime.compiledResourceDAO, "save").mockResolvedValue({} as CompiledResource);
+    vi.spyOn(chrome.userScripts, "getScripts").mockResolvedValue([
+      { id: script.uuid, js: [{ code: "old-wrapper" }], matches: ["https://www.example.com/*"] },
+    ] as any);
+    vi.spyOn(chrome.userScripts, "update").mockResolvedValue(undefined);
+
+    const scriptUpdate = runtime.updateResourceOnScriptChange(script);
+    await vi.waitFor(() => expect(build).toHaveBeenCalledTimes(1));
+
+    const valueRefresh = (runtime as any).refreshEarlyStartSnapshots(storageName);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mockScriptDAO.gets).not.toHaveBeenCalled();
+
+    releaseBuild();
+    await scriptUpdate;
+    await valueRefresh;
+
+    expect(mockScriptDAO.gets).toHaveBeenCalledTimes(1);
+    expect(build).toHaveBeenCalledTimes(2);
+  });
+
   it("does not deliver the mutation ack before the early snapshot refresh barrier", async () => {
     const { runtime } = _createRuntimeContext();
     const script = _createMockScript();
