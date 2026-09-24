@@ -357,6 +357,12 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
     };
     const first = await runtime.buildCompiledResourceFromScript(script, true);
     const same = await runtime.buildCompiledResourceFromScript(script, true);
+    mockScriptService.buildScriptRunResource.mockResolvedValue({
+      ...scriptRunResource,
+      value: { counter: 2 },
+    });
+    const changedValue = await runtime.buildCompiledResourceFromScript(script, true);
+    mockScriptService.buildScriptRunResource.mockResolvedValue(scriptRunResource);
     const changedOriginalMetadata = await runtime.buildCompiledResourceFromScript(
       { ...script, metadata: { ...script.metadata, tag: ["updated"] } },
       true
@@ -403,6 +409,8 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
     expect(first?.compiledResource.scriptRevision).toMatch(/^[a-f0-9]{64}$/);
     expect(first?.apiScript.js?.[0].code).toContain(first?.compiledResource.scriptRevision);
     expect(same?.compiledResource.scriptRevision).toBe(first?.compiledResource.scriptRevision);
+    expect(changedValue?.compiledResource.scriptRevision).toBe(first?.compiledResource.scriptRevision);
+    expect(changedValue?.apiScript.js?.[0].code).not.toBe(first?.apiScript.js?.[0].code);
     expect(changedOriginalMetadata?.compiledResource.scriptRevision).not.toBe(first?.compiledResource.scriptRevision);
     expect(changed?.compiledResource.scriptRevision).not.toBe(first?.compiledResource.scriptRevision);
     expect(changedMetadata?.compiledResource.scriptRevision).not.toBe(changed?.compiledResource.scriptRevision);

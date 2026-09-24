@@ -1507,9 +1507,13 @@ export class RuntimeService {
       scriptRes.resource = resourceByType ? this.mergeRuntimeResourceByType(resourceByType) : {};
     }
 
-    const compiledCode = compileInjectionCode(scriptRes, scriptRes.code, scriptMatchInfo.scriptUrlPatterns);
+    // scriptRevision identifies executable/static preload material. GM storage is a separate,
+    // mutable generation: changing only scriptRes.value must update the early wrapper snapshot
+    // without making the code/resource identity appear to change.
+    const revisionScriptRes = isEarlyStartScript(scriptRes.metadata) ? { ...scriptRes, value: {} } : scriptRes;
+    const compiledCode = compileInjectionCode(revisionScriptRes, scriptRes.code, scriptMatchInfo.scriptUrlPatterns);
     const scriptRevision = this.getCompiledScriptRevision(
-      scriptRes,
+      revisionScriptRes,
       compiledCode,
       scriptMatchInfo.scriptUrlPatterns,
       script.metadata
