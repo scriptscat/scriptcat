@@ -1002,14 +1002,14 @@ describe.concurrent("GM_value", () => {
       })
     );
 
-    // 第三次调用：设置值为 Proxy 对象（应失败）
+    // 第三次调用：plain-object Proxy 走 JSON fallback，保持 userscript compatibility。
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
         action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValue",
-          params: [expect.any(String), "proxy-key"], // Proxy 无法通过 data-only clone，按删除处理
+          params: [expect.any(String), "proxy-key", {}],
           runFlag: expect.any(String),
           uuid: undefined,
         },
@@ -1033,7 +1033,7 @@ describe.concurrent("GM_value", () => {
     expect(ret).toEqual({
       ret1: 123,
       ret2: 456,
-      ret3: undefined,
+      ret3: {},
       ret4: undefined,
     });
   });
@@ -1428,7 +1428,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       })
     );
 
-    // 第三次调用：设置值为 Proxy 对象（应失败）
+    // 第三次调用：plain-object Proxy 走 JSON fallback。
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
@@ -1439,7 +1439,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
             // event id
             expect.stringMatching(/^.+::\d+$/),
             // the object payload
-            [["proxy-key", encodeRValue(undefined)]],
+            [["proxy-key", encodeRValue({})]],
           ],
           runFlag: expect.any(String),
           uuid: undefined,
@@ -1474,7 +1474,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(ret).toEqual({
       ret1: { a: 123, b: 456, c: "789" },
       ret2: { b: 456 },
-      ret3: { "proxy-key": undefined },
+      ret3: { "proxy-key": {} },
       ret4: { window: undefined },
     });
   });
