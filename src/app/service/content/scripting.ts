@@ -196,7 +196,7 @@ export default class ScriptingRuntime {
     const pageLoad = prefetchedPageLoad || client.pageLoad("it");
     void pageLoad
       .then((o) => {
-          if (!o.ok) return;
+        if (!o.ok) return;
         const { injectScriptList, envInfo, userScriptBootstrapToken } = o;
         // 每次页面加载都废弃旧句柄，避免无 documentId 的浏览器复用上一文档的授权。
         this.pageRpc.revokeAll();
@@ -233,10 +233,10 @@ export default class ScriptingRuntime {
           });
         }
 
-          if (preparedInjectScriptList.length > 0) {
-            const injectClient = new Client(this.senderToInject, "inject");
-            injectClient.do("pageLoad", { scripts: preparedInjectScriptList, envInfo });
-          }
+        if (preparedInjectScriptList.length > 0) {
+          const injectClient = new Client(this.senderToInject, "inject");
+          injectClient.do("pageLoad", { scripts: preparedInjectScriptList, envInfo });
+        }
       })
       .catch((error) => {
         LoggerCore.logger().debug("page bootstrap failed", { error: String(error) });
