@@ -977,7 +977,11 @@ export class RuntimeService {
     );
     if (failedBuild) {
       this.dirtyEarlyStorageNames.add(storageName);
-      this.logger.error("build early-start snapshot after value update failed", { storageName }, Logger.E(failedBuild.reason));
+      this.logger.error(
+        "build early-start snapshot after value update failed",
+        { storageName },
+        Logger.E(failedBuild.reason)
+      );
       return { ok: false, updated: [], error: failedBuild.reason };
     }
 

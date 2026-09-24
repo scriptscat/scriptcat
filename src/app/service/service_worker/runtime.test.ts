@@ -2147,12 +2147,6 @@ describe("restoreJSCodeFromCompiledResource 还原代码时的生效 metadata", 
     const script = _createMockScript({
       metadata: { match: ["https://www.example.com/*"], "run-at": ["document-idle"] },
       selfMetadata: { "early-start": [""], "run-at": ["document-start"] },
-      metadata: {
-        match: ["https://www.example.com/*"],
-        storagename: [shared],
-        grant: ["GM.getValue"],
-        "run-at": ["document-idle"],
-      },
     });
     const { runtime, compiledResource } = createContext(script);
 
@@ -2187,6 +2181,7 @@ describe("early-start value snapshot coherence", () => {
       metadata: {
         match: ["https://www.example.com/*"],
         storagename: [shared],
+        grant: ["GM.getValue"],
         "run-at": ["document-idle"],
       },
       selfMetadata: { "early-start": [""], "run-at": ["document-start"] },
@@ -2328,7 +2323,7 @@ describe("early-start value snapshot coherence", () => {
       .spyOn(chrome.userScripts, "update")
       .mockRejectedValueOnce(new Error("No script with id"))
       .mockResolvedValue(undefined);
-    const getScripts = vi.spyOn(chrome.userScripts, "getScripts").mockResolvedValue([]);
+    const getScripts = vi.spyOn(chrome.userScripts, "getScripts").mockResolvedValue([] as any);
     const register = vi.spyOn(chrome.userScripts, "register").mockResolvedValue(undefined);
 
     const result = await (runtime as any).refreshEarlyStartSnapshots(storageName);
