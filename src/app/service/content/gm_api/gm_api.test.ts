@@ -1196,25 +1196,56 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     });
   });
 
-  it("拒绝带 getter 的值，且不会在克隆时执行 getter", () => {
+  it("GM_setValue preserves legacy getter clone semantics at the userscript boundary", () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
-    script.metadata.grant = ["GM_setValue"];
+    script.metadata.grant = ["GM_getValue", "GM_setValue"];
     const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
     const getter = vi.fn(() => "secret");
-    const payload = {} as Record<string, unknown>;
+    const payload = { normal: 1 } as Record<string, unknown>;
     Object.defineProperty(payload, "secret", { configurable: true, enumerable: true, get: getter });
 
-    api.GM_setValue(api, "hostile", payload);
+    api.GM_setValue(api, "compat", payload);
 
-    expect(getter).not.toHaveBeenCalled();
-    expect(script.value.hostile).toBeUndefined();
-    expect(sendMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ params: [expect.any(String), "hostile"] }) })
-    );
+    expect(getter).toHaveBeenCalledTimes(1);
+    expect(api.GM_getValue(api, "compat")).toEqual({ normal: 1, secret: "secret" });
   });
 
-  it("GM_setValues skips accessor fields without invoking them", () => {
+  it("GM_setValue JSON-falls back for Proxy-wrapped plain objects", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_getValue", "GM_setValue"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const traps = { ownKeys: 0, getOwnPropertyDescriptor: 0, get: 0 };
+    const payload = new Proxy(
+      { a: 1, nested: { b: 2 } },
+      {
+        ownKeys(target) {
+          traps.ownKeys += 1;
+          return Reflect.ownKeys(target);
+        },
+        getOwnPropertyDescriptor(target, key) {
+          traps.getOwnPropertyDescriptor += 1;
+          return Reflect.getOwnPropertyDescriptor(target, key);
+        },
+        get(target, key, receiver) {
+          traps.get += 1;
+          return Reflect.get(target, key, receiver);
+        },
+      }
+    );
+
+    api.GM_setValue(api, "proxy", payload);
+
+    expect(api.GM_getValue(api, "proxy")).toEqual({ a: 1, nested: { b: 2 } });
+    expect(traps.ownKeys).toBeGreaterThan(0);
+    expect(traps.getOwnPropertyDescriptor).toBeGreaterThan(0);
+    expect(traps.get).toBeGreaterThan(0);
+  });
+
+  it("GM_setValues invokes top-level enumerable accessors once", () => {
     const script = Object.assign({}, scriptRes, {
       metadata: { grant: ["GM_setValues"] },
       value: {},
@@ -1227,8 +1258,26 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
 
     api.GM_setValues(api, payload);
 
-    expect(getter).not.toHaveBeenCalled();
-    expect(script.value).toEqual({ valid: 1 });
+    expect(getter).toHaveBeenCalledTimes(1);
+    expect(script.value).toEqual({ valid: 1, secret: "secret" });
+  });
+
+  it("GM_getValue does not substitute the default for an existing undefined value", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_getValue"] },
+      value: Object.create(null),
+    }) as ScriptLoadInfo;
+    Object.defineProperty(script.value, "symbol", {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: undefined,
+    });
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+
+    expect(api.GM_listValues(api)).toContain("symbol");
+    expect(api.GM_getValue(api, "symbol", "__DEFAULT__")).toBeUndefined();
   });
 
   it("GM_setValues does not trust a hooked Array.prototype.push for transport", () => {
