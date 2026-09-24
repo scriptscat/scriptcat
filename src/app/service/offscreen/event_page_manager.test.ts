@@ -1,4 +1,4 @@
-import { afterEach, describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { initTestEnv } from "@Tests/utils";
 import chromeMock from "@Packages/chrome-extension-mock";
 import { Server } from "@Packages/message/server";
@@ -7,6 +7,11 @@ import type LoggerCoreType from "../../logger/core";
 import { EventPageOffscreenManager, InProcessMessage } from "./event_page_manager";
 
 initTestEnv();
+
+beforeEach(() => {
+  // Keep the real iframe fixture without making happy-dom fetch the browser-only sandbox page.
+  vi.spyOn(chromeMock.runtime, "getURL").mockReturnValue("about:blank" as never);
+});
 
 // keep_alive.ts 在模块顶层把 isFirefox() 固化为 boolFirefox 常量；测试环境不是 Firefox，
 // 必须 mock isFirefox 并配合 vi.resetModules() 重新导入，Firefox 保活分支才会生效。
