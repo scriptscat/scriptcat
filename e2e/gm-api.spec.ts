@@ -585,16 +585,9 @@ async function runTestScript(
 
   const page = await context.newPage();
   const logs: string[] = [];
-  const pageErrors: string[] = [];
   let summary: SCTestSummary | null = null;
 
   let summaryCount = 0;
-
-  page.on("pageerror", (error) => {
-    const detail = error.stack || `${error.name}: ${error.message}`;
-    pageErrors.push(detail);
-    logs.push(`[pageerror] ${detail}`);
-  });
 
   page.on("console", (msg) => {
     const text = msg.text();
@@ -617,47 +610,20 @@ async function runTestScript(
     // 汇总是 "通过: 0 / 失败: 0"），再点按钮，最后等下一组汇总。
     // 若在 goto 之后立刻取快照，首次汇总往往还没打，会让第二个轮询被它立即满足而读到 0/0。
     await expect
-      .poll(() => summaryCount > 0 || pageErrors.length > 0, {
-        timeout: timeoutMs,
-        intervals: [100, 250, 500, 1_000],
-      })
+      .poll(() => summaryCount > 0, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
       .toBe(true)
       .catch(() => undefined);
-    if (summaryCount === 0 && pageErrors.length > 0) {
-      await page.close();
-      throw new Error(
-        `Page error before the initial SCTest summary for ${scriptFile}:\n${pageErrors.join("\n\n")}\n\nConsole:\n${logs.join("\n")}`
-      );
-    }
     const seenBefore = summaryCount;
     await options.beforeCollect(page);
     await expect
-      .poll(() => summaryCount > seenBefore || pageErrors.length > 0, {
-        timeout: timeoutMs,
-        intervals: [100, 250, 500, 1_000],
-      })
+      .poll(() => summaryCount > seenBefore, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
       .toBe(true)
       .catch(() => undefined);
-    if (summaryCount <= seenBefore && pageErrors.length > 0) {
-      await page.close();
-      throw new Error(
-        `Page error before the next SCTest summary for ${scriptFile}:\n${pageErrors.join("\n\n")}\n\nConsole:\n${logs.join("\n")}`
-      );
-    }
   } else {
     await expect
-      .poll(() => summary !== null || pageErrors.length > 0, {
-        timeout: timeoutMs,
-        intervals: [100, 250, 500, 1_000],
-      })
+      .poll(() => summary !== null, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
       .toBe(true)
       .catch(() => undefined);
-    if (summary === null && pageErrors.length > 0) {
-      await page.close();
-      throw new Error(
-        `Page error before SCTest produced a summary for ${scriptFile}:\n${pageErrors.join("\n\n")}\n\nConsole:\n${logs.join("\n")}`
-      );
-    }
   }
 
   await page.close();
