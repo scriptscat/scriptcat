@@ -12,6 +12,8 @@ import {
   isEarlyStartScript,
   isInjectIntoContent,
   isScriptletUnwrap,
+  isScriptModule,
+  wrapScriptModuleCode,
 } from "../content/utils";
 import {
   extractUrlPatterns,
@@ -199,6 +201,9 @@ export function compileInjectionCode(
   if (isScriptletUnwrap(scriptRes.metadata)) {
     scriptInjectCode = compileScriptletCode(scriptRes, scriptCode, scriptUrlPatterns);
   } else {
+    if (isScriptModule(scriptRes.metadata)) {
+      scriptCode = wrapScriptModuleCode(scriptCode, scriptRes.name);
+    }
     scriptCode = compileScriptCode(scriptRes, scriptCode);
     if (isEarlyStartScript(scriptRes.metadata)) {
       scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes, scriptUrlPatterns), scriptCode);
