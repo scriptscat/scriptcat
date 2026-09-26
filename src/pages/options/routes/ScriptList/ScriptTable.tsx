@@ -72,7 +72,7 @@ function DraggableRow({ id, disabled, children }: { id: string; disabled?: boole
   };
   // 排序激活时禁用拖拽：ctx 置空，RowDragHandle 渲染不可拖拽的占位手柄
   const handle = disabled ? null : (
-    <span ref={setActivatorNodeRef} {...listeners} className="cursor-grab opacity-0 group-hover/row:opacity-50">
+    <span ref={setActivatorNodeRef} {...listeners} className="cursor-move opacity-0 group-hover/row:opacity-50">
       <GripVertical className="w-4 h-4 text-muted-foreground" />
     </span>
   );
