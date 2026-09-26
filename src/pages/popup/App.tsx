@@ -145,7 +145,11 @@ export default function App() {
       <div className="flex-1 min-h-0 overflow-auto scrollbar-custom">
         <AccordionPrimitive.Root
           type="multiple"
-          defaultValue={data.fullBackScriptCount > 0 ? ["current", "background"] : ["current"]}
+          defaultValue={[
+            "current",
+            ...(data.fullOptInScriptCount > 0 ? ["opt-in"] : []),
+            ...(data.fullBackScriptCount > 0 ? ["background"] : []),
+          ]}
         >
           <Section
             id="current"
@@ -167,6 +171,7 @@ export default function App() {
                 onOpenEditor={data.handleOpenEditor}
                 onOpenScriptSettings={data.handleOpenScriptSettings}
                 onOpenUserConfig={data.handleOpenUserConfig}
+                onRemoveIncludeUrl={data.handleRemoveIncludeUrl}
                 onExcludeFromMatch={data.handleExcludeFromMatch}
                 onOnlyRunOnUrl={data.handleOnlyRunOnUrl}
                 onAllowUrl={data.handleAllowUrl}
@@ -182,6 +187,44 @@ export default function App() {
             )}
             {data.fullScriptCount === 0 && <EmptyHint>{t("no_data")}</EmptyHint>}
           </Section>
+          {data.fullOptInScriptCount > 0 && (
+            <>
+              <Divider />
+              <Section
+                id="opt-in"
+                title={t("popup:opt_in_scripts")}
+                enabledCount={data.enabledOptInScriptCount}
+                totalCount={data.fullOptInScriptCount}
+                compact={data.popupCompactLayout}
+              >
+                {data.optInScriptList.map((script) => (
+                  <ScriptRow
+                    key={script.uuid}
+                    script={script}
+                    host={data.host}
+                    isPageScript
+                    isOptInScript
+                    menuExpandNum={data.menuExpandNum}
+                    compact={data.popupCompactLayout}
+                    onToggle={data.handleToggleScript}
+                    onDelete={data.handleDeleteScript}
+                    onOpenEditor={data.handleOpenEditor}
+                    onOpenScriptSettings={data.handleOpenScriptSettings}
+                    onOpenUserConfig={data.handleOpenUserConfig}
+                    onIncludeUrl={data.handleIncludeUrl}
+                    onMenuClick={data.handleMenuClick}
+                  />
+                ))}
+                {data.canExpandOptIn && (
+                  <ShowMoreButton
+                    count={data.remainingOptInCount}
+                    expanded={data.isOptInExpanded}
+                    onClick={() => data.handleToggleExpand("optIn")}
+                  />
+                )}
+              </Section>
+            </>
+          )}
           <Divider />
           <Section
             id="background"
@@ -469,6 +512,7 @@ interface ScriptRowProps {
   script: ScriptMenu;
   host?: string;
   isPageScript?: boolean;
+  isOptInScript?: boolean;
   menuExpandNum?: number;
   compact?: boolean;
   onToggle: (uuid: string, enable: boolean) => void;
@@ -476,6 +520,8 @@ interface ScriptRowProps {
   onOpenEditor: (uuid: string) => void;
   onOpenScriptSettings: (uuid: string) => void;
   onOpenUserConfig: (uuid: string) => void;
+  onIncludeUrl?: (uuid: string) => void;
+  onRemoveIncludeUrl?: (uuid: string) => void;
   onExcludeFromMatch?: (uuid: string) => void;
   onOnlyRunOnUrl?: (uuid: string) => void;
   onAllowUrl?: (uuid: string) => void;
@@ -488,6 +534,7 @@ function ScriptRow({
   script,
   host,
   isPageScript = true,
+  isOptInScript = false,
   menuExpandNum = 5,
   compact = false,
   onToggle,
@@ -495,6 +542,8 @@ function ScriptRow({
   onOpenEditor,
   onOpenScriptSettings,
   onOpenUserConfig,
+  onIncludeUrl,
+  onRemoveIncludeUrl,
   onExcludeFromMatch,
   onOnlyRunOnUrl,
   onAllowUrl,
@@ -611,6 +660,21 @@ function ScriptRow({
           >
             {t("editor:script_setting")}
           </ActionItem>
+          {/* opt-in 站点许可动作与普通匹配范围动作彼此独立 */}
+          {isPageScript && isOptInScript && host && onIncludeUrl && (
+            <ActionItem icon={<PlusCircle className="w-3.5 h-3.5" />} primary onClick={() => onIncludeUrl(script.uuid)}>
+              {t("include_on").replace("$0", host)}
+            </ActionItem>
+          )}
+          {isPageScript && script.siteAccessUser && host && onRemoveIncludeUrl && (
+            <ActionItem
+              icon={<MinusCircle className="w-3.5 h-3.5" />}
+              warn
+              onClick={() => onRemoveIncludeUrl(script.uuid)}
+            >
+              {t("include_off").replace("$0", host)}
+            </ActionItem>
+          )}
           {siteHost && script.isEffective === false && onAllowUrl && (
             <ActionItem icon={<PlusCircle className="w-3.5 h-3.5" />} primary onClick={() => onAllowUrl(script.uuid)}>
               {t("allow_on_site").replace("$0", siteHost)}

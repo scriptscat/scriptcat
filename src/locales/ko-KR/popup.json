@@ -1,6 +1,7 @@
 {
   "new_version_available": "새 버전이 있습니다",
   "current_page_scripts": "현재 페이지에서 실행 중인 스크립트",
+  "opt_in_scripts": "옵트인 스크립트",
   "enabled_background_scripts": "활성화되어 실행 중인 백그라운드 스크립트",
   "develop_mode_guide": "'개발자 모드'가 활성화되어 있지 않아 스크립트가 정상적으로 실행되지 않습니다. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉활성화 방법 보기</a>",
   "lower_version_browser_guide": "브라우저 버전이 너무 낮아 스크립트가 정상적으로 실행되지 않습니다. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\">👉자세히 알아보기</a>",

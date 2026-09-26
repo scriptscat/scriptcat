@@ -231,6 +231,14 @@ export class ScriptClient extends Client {
     return this.do("excludeFromMatch", { uuid, host, url });
   }
 
+  includeUrl(uuid: string, includePattern: string) {
+    return this.do<boolean>("includeUrl", { uuid, includePattern });
+  }
+
+  excludeSiteAccessUrl(uuid: string, includePattern: string) {
+    return this.do<boolean>("excludeSiteAccessUrl", { uuid, includePattern });
+  }
+
   // 重置匹配项
   resetMatch(uuid: string, match: string[] | undefined) {
     return this.do("resetMatch", { uuid, match });
@@ -371,6 +379,7 @@ export type GetPopupDataRes = {
   // 当前页状态：非 ok 时 scriptList 为空，由 Popup 说明原因
   pageStatus: TPopupPageStatus;
   scriptList: ScriptMenu[];
+  optInScriptList: ScriptMenu[];
   backScriptList: ScriptMenu[];
 };
 

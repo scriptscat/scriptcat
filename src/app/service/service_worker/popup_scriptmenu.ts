@@ -3,6 +3,7 @@ import type { ScriptMenu } from "@App/app/service/service_worker/types";
 import type { Script } from "@App/app/repo/scripts";
 import { getIcon, getStorageName } from "@App/pkg/utils/utils";
 import { i18nName } from "@App/locales/locales";
+import { isSiteAccessOptIn } from "./utils";
 
 /** 一次页面载入/还原的来源标识；bfcache 还原只有这部分，没有脚本菜单可带。 */
 export type TPopupPageRestoreInfo = { tabId: number; frameId?: number; url: string };
@@ -18,6 +19,7 @@ export const scriptToMenu = (script: Script): ScriptMenu => {
     enable: script.status === SCRIPT_STATUS_ENABLE,
     updatetime: script.updatetime || 0,
     hasUserConfig: !!script.config,
+    siteAccess: isSiteAccessOptIn(script.metadata) ? "opt-in" : undefined,
     // 不需要完整 metadata。目前在 Popup 未使用 metadata。
     // 有需要时请把 metadata 里需要的部份抽出 (例如 @match @include @exclude)，避免 chrome.storage.session 储存量过大
     // metadata: script.metadata,
