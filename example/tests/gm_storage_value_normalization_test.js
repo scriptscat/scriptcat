@@ -9,7 +9,9 @@
 // @grant        GM_setValue
 // @grant        GM_setValues
 // @grant        GM_listValues
+// @grant        GM_getValues
 // @grant        GM.setValue
+// @grant        GM.getValues
 // @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@36ab4ce5ff23c820a32cd13ac5a04d8834ab4d82/example/tests/lib/sctest.js
 // ==/UserScript==
 
@@ -27,6 +29,16 @@
     return GM_listValues().includes(key);
   }
 
+  function expectNullPrototypeDictionary(value, ownKeys) {
+    expect(Object.getPrototypeOf(value)).toBe(null);
+    expect(value instanceof Object).toBe(false);
+    expect(typeof value.hasOwnProperty).toBe("undefined");
+
+    for (const key of ownKeys) {
+      expect(Object.hasOwn(value, key)).toBe(true);
+    }
+  }
+
   function expectInvalidatedTopLevel(key) {
     const isListed = listed(key);
     const value = GM_getValue(key, DEFAULT);
@@ -38,6 +50,66 @@
     const tampermonkeyUndefined = isListed && value === undefined;
     expect(scriptCatDelete || tampermonkeyUndefined).toBe(true);
   }
+
+  describe("GM_getValues dictionary shape", () => {
+    check(
+      "自动断言",
+      "all legacy and modern GM_getValues forms return null-prototype dictionaries",
+      async () => {
+        const normalKey = PREFIX + "shape-normal";
+        const keys = [normalKey, "__proto__", "constructor", "toString"];
+
+        GM_setValue(normalKey, "NORMAL");
+        GM_setValue("__proto__", "PROTO");
+        GM_setValue("constructor", "CONSTRUCTOR");
+        GM_setValue("toString", "TOSTRING");
+
+        const defaults = {};
+        for (const [key, value] of [
+          [normalKey, "DEFAULT-NORMAL"],
+          ["__proto__", "DEFAULT-PROTO"],
+          ["constructor", "DEFAULT-CONSTRUCTOR"],
+          ["toString", "DEFAULT-TOSTRING"],
+        ]) {
+          Object.defineProperty(defaults, key, {
+            configurable: true,
+            enumerable: true,
+            writable: true,
+            value,
+          });
+        }
+
+        const nullDefaults = Object.create(null);
+        for (const key of Reflect.ownKeys(defaults)) {
+          Object.defineProperty(nullDefaults, key, Object.getOwnPropertyDescriptor(defaults, key));
+        }
+
+        const results = [
+          GM_getValues(keys),
+          GM_getValues(defaults),
+          GM_getValues(nullDefaults),
+          GM_getValues(null),
+          GM_getValues(undefined),
+          await GM.getValues(keys),
+          await GM.getValues(defaults),
+          await GM.getValues(nullDefaults),
+          await GM.getValues(null),
+          await GM.getValues(undefined),
+        ];
+
+        for (const result of results) {
+          expectNullPrototypeDictionary(result, keys);
+          expect(result[normalKey]).toBe("NORMAL");
+          expect(result.__proto__).toBe("PROTO");
+          expect(result.constructor).toBe("CONSTRUCTOR");
+          expect(result.toString).toBe("TOSTRING");
+        }
+      },
+      null,
+      null,
+      null
+    );
+  });
 
   describe("top-level cross-manager compatibility", () => {
     check(
@@ -198,7 +270,18 @@
       () => {
         const key = PREFIX + "special-property-bags";
         const error = new Error("hidden");
+        error.cause = { reason: "cause" };
         error.extra = "visible";
+        class ProbeClass {
+          constructor() {
+            this.number = 123;
+            this.text = "class-instance";
+          }
+
+          method() {
+            return "METHOD";
+          }
+        }
 
         GM_setValue(key, {
           date: new Date("2024-01-02T03:04:05.000Z"),
@@ -207,8 +290,11 @@
           regexp: /probe/gi,
           map: new Map([["a", 1]]),
           set: new Set(["x"]),
+          arrayBuffer: new Uint8Array([1, 2, 3]).buffer,
+          dataView: new DataView(new ArrayBuffer(4)),
           typed: new Uint8Array([9, 8, 7]),
           error,
+          classInstance: new ProbeClass(),
         });
 
         expect(GM_getValue(key)).toEqual({
@@ -218,9 +304,31 @@
           regexp: {},
           map: {},
           set: {},
+          arrayBuffer: {},
+          dataView: {},
           typed: { 0: 9, 1: 8, 2: 7 },
-          error: { extra: "visible" },
+          error: { cause: { reason: "cause" }, extra: "visible" },
+          classInstance: { number: 123, text: "class-instance" },
         });
+      },
+      null,
+      null,
+      null
+    );
+
+    check(
+      "自动断言",
+      "special objects nested in arrays keep array shape and use property-bag serialization",
+      () => {
+        const key = PREFIX + "array-special-types";
+        GM_setValue(key, [
+          new Date("2021-02-03T04:05:06.789Z"),
+          new Map([["map", 1]]),
+          new Set(["set"]),
+          new Uint16Array([100, 200, 300]),
+        ]);
+
+        expect(GM_getValue(key)).toEqual([{}, {}, {}, { 0: 100, 1: 200, 2: 300 }]);
       },
       null,
       null,
