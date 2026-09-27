@@ -2304,16 +2304,24 @@ describe("early-start value snapshot coherence", () => {
     expect(build).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps value delivery alive when early snapshot refresh throws unexpectedly", async () => {
+  it.each([
+    ["throws unexpectedly", true],
+    ["returns a failure", false],
+  ] as const)("keeps value delivery alive when early snapshot refresh %s", async (_outcome, throws) => {
     const { runtime } = _createRuntimeContext();
     const script = _createMockScript();
-    vi.spyOn(runtime as any, "refreshEarlyStartSnapshots").mockRejectedValue(new Error("unexpected refresh failure"));
+    const refresh = vi.spyOn(runtime as any, "refreshEarlyStartSnapshots");
+    if (throws) {
+      refresh.mockRejectedValue(new Error("unexpected refresh failure"));
+    } else {
+      refresh.mockResolvedValue({ ok: false, updated: [], error: new Error("registration failed") });
+    }
     const storageSet = vi.spyOn(chrome.storage.local, "set").mockResolvedValue(undefined);
-    const storageName = "unexpected-refresh-failure";
+    const storageName = "snapshot-refresh-failure";
 
     await expect(
       runtime.pushValueUpdate(script, {
-        id: "delivery-after-thrown-refresh",
+        id: "delivery-after-refresh-failure",
         entries: [["key", encodeRValue("new"), encodeRValue("old")]],
         uuid: script.uuid,
         storageName,
@@ -2323,29 +2331,7 @@ describe("early-start value snapshot coherence", () => {
     ).resolves.toBeUndefined();
 
     expect(storageSet).toHaveBeenCalledTimes(1);
-    expect((runtime as any).dirtyEarlyStorageNames.has(storageName)).toBe(true);
-  });
-
-  it("keeps value delivery alive when early snapshot refresh fails", async () => {
-    const { runtime } = _createRuntimeContext();
-    const script = _createMockScript();
-    vi.spyOn(runtime as any, "refreshEarlyStartSnapshots").mockResolvedValue({
-      ok: false,
-      updated: [],
-      error: new Error("registration failed"),
-    });
-    const storageSet = vi.spyOn(chrome.storage.local, "set").mockResolvedValue(undefined);
-
-    await runtime.pushValueUpdate(script, {
-      id: "delivery-after-refresh-failure",
-      entries: [["key", encodeRValue("new"), encodeRValue("old")]],
-      uuid: script.uuid,
-      storageName: "shared",
-      sender: { runFlag: "origin", tabId: 1 },
-      valueUpdated: true,
-    });
-
-    expect(storageSet).toHaveBeenCalledTimes(1);
+    if (throws) expect((runtime as any).dirtyEarlyStorageNames.has(storageName)).toBe(true);
   });
 
   it("repairs a missing early registration only after the partial update fast path fails", async () => {
