@@ -58,10 +58,7 @@ describe("PageEventMessage", () => {
     inject.dispose();
 
     expect(() =>
-      pageDispatchCustomEvent("page-message-connect.pageEventMessage.inject", {
-        channel: "page-message-connect",
-        source: "scripting",
-        target: "inject",
+      pageDispatchCustomEvent("page-message-connect.pageEventMessage.scripting.inject", {
         messageId: "after-dispose",
         type: "connectMessage",
         data: { action: "inject/message", data: 2 },
@@ -70,14 +67,41 @@ describe("PageEventMessage", () => {
     expect(received).toHaveBeenCalledTimes(1);
   });
 
+  it("preserves local and peer disconnect notifications", async () => {
+    const scripting = new PageEventMessage("page-message-disconnect", "scripting");
+    const inject = new PageEventMessage("page-message-disconnect", "inject");
+    const localDisconnect = vi.fn();
+    const peerDisconnect = vi.fn();
+    inject.onConnect((_data, connection) => connection.onDisconnect(peerDisconnect));
+
+    const connection = await scripting.connect({ action: "inject/connect" });
+    connection.onDisconnect(localDisconnect);
+    connection.disconnect();
+
+    expect(localDisconnect).toHaveBeenCalledWith(true);
+    expect(peerDisconnect).toHaveBeenCalledWith(false);
+    scripting.dispose();
+    inject.dispose();
+  });
+
+  it("ignores events on a different channel or role route", () => {
+    const inject = new PageEventMessage("page-message-route", "inject");
+    const received = vi.fn();
+    inject.onMessage(received);
+    const body = { messageId: "wrong-route", type: "sendMessage", data: { action: "inject/ping" } } as const;
+
+    pageDispatchCustomEvent("other-channel.pageEventMessage.scripting.inject", body);
+    pageDispatchCustomEvent("page-message-route.pageEventMessage.inject.inject", body);
+
+    expect(received).not.toHaveBeenCalled();
+    inject.dispose();
+  });
+
   it("ignores envelopes with accessor fields without executing the accessor", () => {
     const inject = new PageEventMessage("page-message-accessor", "inject");
     const received = vi.fn();
     inject.onMessage(received);
     const envelope: Record<string, unknown> = {
-      channel: "page-message-accessor",
-      source: "scripting",
-      target: "inject",
       messageId: "hostile",
       type: "sendMessage",
       data: { action: "inject/ping" },
@@ -92,7 +116,9 @@ describe("PageEventMessage", () => {
       },
     });
 
-    expect(() => pageDispatchCustomEvent("page-message-accessor.pageEventMessage.inject", envelope)).not.toThrow();
+    expect(() =>
+      pageDispatchCustomEvent("page-message-accessor.pageEventMessage.scripting.inject", envelope)
+    ).not.toThrow();
     expect(accessed).toBe(false);
     expect(received).not.toHaveBeenCalled();
     inject.dispose();
@@ -104,9 +130,6 @@ describe("PageEventMessage", () => {
     inject.onMessage(received);
     const envelope = new Proxy(
       {
-        channel: "page-message-proxy",
-        source: "scripting",
-        target: "inject",
         messageId: "hostile",
         type: "sendMessage",
         data: { action: "inject/ping" },
@@ -118,7 +141,9 @@ describe("PageEventMessage", () => {
       }
     );
 
-    expect(() => pageDispatchCustomEvent("page-message-proxy.pageEventMessage.inject", envelope)).not.toThrow();
+    expect(() =>
+      pageDispatchCustomEvent("page-message-proxy.pageEventMessage.scripting.inject", envelope)
+    ).not.toThrow();
     expect(received).not.toHaveBeenCalled();
     inject.dispose();
   });
@@ -128,10 +153,7 @@ describe("PageEventMessage", () => {
     const received = vi.fn();
     inject.onMessage(received);
 
-    pageDispatchCustomEvent("page-message-extra-key.pageEventMessage.inject", {
-      channel: "page-message-extra-key",
-      source: "scripting",
-      target: "inject",
+    pageDispatchCustomEvent("page-message-extra-key.pageEventMessage.scripting.inject", {
       messageId: "hostile",
       type: "sendMessage",
       data: { action: "inject/ping" },
