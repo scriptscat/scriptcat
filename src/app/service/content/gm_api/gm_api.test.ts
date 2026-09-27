@@ -917,6 +917,27 @@ describe.concurrent("GM_value", () => {
     expect(api.GM_getValue(api, "leaked")).toBeUndefined();
   });
 
+  it("returns a null-prototype dictionary for GM_getValues null/undefined and GM.getValues", async () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_getValues", "GM.getValues"] },
+      value: { alpha: 1, nested: { beta: 2 } },
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+
+    for (const input of [null, undefined] as const) {
+      const legacy = api.GM_getValues(api, input);
+      expect(Object.getPrototypeOf(legacy)).toBeNull();
+      expect(legacy).toEqual({ alpha: 1, nested: { beta: 2 } });
+      expect((legacy as any).hasOwnProperty).toBeUndefined();
+
+      const modern = await api["GM.getValues"](api, input);
+      expect(Object.getPrototypeOf(modern)).toBeNull();
+      expect(modern).toEqual({ alpha: 1, nested: { beta: 2 } });
+      expect((modern as any).hasOwnProperty).toBeUndefined();
+    }
+  });
+
   it("returns __proto__ as an own key without changing the result prototype", () => {
     const script = Object.assign({}, scriptRes, {
       metadata: { grant: ["GM_getValue", "GM_setValue", "GM_getValues"] },

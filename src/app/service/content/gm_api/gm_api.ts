@@ -591,13 +591,20 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   public GM_getValues(ctx: GMApi, keysOrDefaults: TGMKeyValue | string[] | null | undefined) {
     if (!ctx.scriptRes) return {};
+    // All GM_getValues shapes use the same null-prototype dictionary contract.
+    const result: TGMKeyValue = Native.objectCreate(null);
     if (!keysOrDefaults) {
-      // Returns all values
-      return customClone(ctx.scriptRes.value)!;
+      for (const key of Native.objectKeys(ctx.scriptRes.value)) {
+        let value = ctx.scriptRes.value[key];
+        if (value && typeof value === "object") {
+          value = customClone(value)!;
+        }
+        setOwnValue(result, key, value);
+      }
+      return result;
     }
     // result 是 Native.objectCreate(null) 建出的纯字典，没有可被继承 setter 或 __proto__
     // 劫持的原型，直接赋值即可，不需要逐键 defineProperty。
-    const result: TGMKeyValue = Native.objectCreate(null);
     if (Native.arrayIsArray(keysOrDefaults)) {
       // 键名数组
       // Handle array of keys (e.g., ['foo', 'bar'])
