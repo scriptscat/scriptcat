@@ -40,6 +40,17 @@
     };
   }
 
+  function expectTopLevelInvalidated(result) {
+    expect(result.thrown).toBe(undefined);
+
+    // Tampermonkey keeps an own undefined entry for unsupported top-level values,
+    // while ScriptCat maps the same transition to its historical undefined=delete model.
+    // Both are compatible as long as the previous value is no longer observable.
+    const deleted = !result.immediate.listed && result.immediate.value === DEFAULT;
+    const storedUndefined = result.immediate.listed && result.immediate.value === undefined;
+    expect(deleted || storedUndefined).toBe(true);
+  }
+
   function runSingle(key, factory) {
     GM_setValue(key, SEED);
 
@@ -132,7 +143,7 @@
 
     check(
       "自动断言",
-      "function value follows ScriptCat top-level delete semantics without keeping the old value",
+      "function value invalidates the previous top-level value",
       () => {
         const result = runSingle(keys.fn, () => {
           return function storedFunction() {
@@ -140,9 +151,7 @@
           };
         });
 
-        expect(result.thrown).toBe(undefined);
-        expect(result.immediate.listed).toBe(false);
-        expect(result.immediate.value).toBe(DEFAULT);
+        expectTopLevelInvalidated(result);
       },
       null,
       null,
@@ -151,13 +160,11 @@
 
     check(
       "自动断言",
-      "symbol primitive follows ScriptCat top-level delete semantics without keeping the old value",
+      "symbol primitive invalidates the previous top-level value",
       () => {
         const result = runSingle(keys.symbol, () => Symbol("stored-symbol"));
 
-        expect(result.thrown).toBe(undefined);
-        expect(result.immediate.listed).toBe(false);
-        expect(result.immediate.value).toBe(DEFAULT);
+        expectTopLevelInvalidated(result);
       },
       null,
       null,
