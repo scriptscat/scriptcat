@@ -204,7 +204,9 @@
     if (typeof value === "object") {
       return {
         type: "object",
-        entries: Object.keys(value).map((key) => [key, describeValue(value[key])]),
+        entries: Object.keys(value)
+          .sort()
+          .map((key) => [key, describeValue(value[key])]),
       };
     }
 
