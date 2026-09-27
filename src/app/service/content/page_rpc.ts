@@ -94,8 +94,6 @@ export type PageGMRequest = {
   readonly params: readonly unknown[];
 };
 
-export type PageGMRequestPacket = PageGMRequest;
-
 export const getPageRpcAllowedAPIs = (grants: readonly string[]): string[] => {
   for (let index = 0; index < grants.length; index += 1) {
     if (grants[index] === "none") return [];

@@ -8,13 +8,7 @@ import { getStorageName, makeBlobURL } from "@App/pkg/utils/utils";
 import type { Logger } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
 import type { ValueUpdateDataEncoded } from "./types";
-import {
-  getExtensionOrigin,
-  getPageRpcAllowedAPIs,
-  PAGE_RPC_VERSION,
-  PageRpcRegistry,
-  validatePageGMRequest,
-} from "./page_rpc";
+import { getExtensionOrigin, getPageRpcAllowedAPIs, PageRpcRegistry, validatePageGMRequest } from "./page_rpc";
 import { getEffectiveScriptGrants } from "./utils";
 import type { TClientPageLoadInfo } from "@App/app/repo/scripts";
 
@@ -169,14 +163,7 @@ export default class ScriptingRuntime {
       (data) => {
         // 所有来自页面的 GM RPC 都在转发前完成字段、句柄、授权和参数复制检查；
         // wire 身份只带 handle，canonical uuid/runFlag/envTag 由 SW 依据 handle + 真实 sender 解析。
-        const request = validatePageGMRequest(data, this.pageRpc);
-        return {
-          version: PAGE_RPC_VERSION,
-          sequence: request.sequence,
-          handle: request.handle,
-          api: request.api,
-          params: request.params,
-        };
+        return validatePageGMRequest(data, this.pageRpc);
       }
     );
   }

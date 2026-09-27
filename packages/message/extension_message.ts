@@ -18,8 +18,6 @@ const nativeRuntimeConnect =
   typeof runtimeApi?.connect === "function" ? runtimeApi.connect.bind(runtimeApi) : undefined;
 const nativeRuntimeSendMessage =
   typeof runtimeApi?.sendMessage === "function" ? runtimeApi.sendMessage.bind(runtimeApi) : undefined;
-export const hasNativeRuntimeChannel = nativeRuntimeConnect !== undefined && nativeRuntimeSendMessage !== undefined;
-
 export class ExtensionMessage implements Message {
   private userScriptConnectionListenerReady = false;
   private userScriptMessageListenerReady = false;
