@@ -3,7 +3,7 @@ import path from "path";
 import os from "os";
 import { createServer, STATUS_CODES, type IncomingMessage, type ServerResponse } from "http";
 import type { AddressInfo } from "net";
-import { test as base, expect, chromium, type BrowserContext, type Page } from "@playwright/test";
+import { test as base, expect, chromium, type BrowserContext, type Page, type Worker } from "@playwright/test";
 import { headlessArgs } from "./launch-args";
 import { autoApprovePermissions, installScriptByCode } from "./utils";
 
@@ -559,6 +559,57 @@ function patchGMApiTestCode(code: string, mockOrigin: string): string {
   );
 }
 
+const SW_E2E_ERROR_BUFFER = "__scriptcatE2EUnhandledErrors";
+
+async function installServiceWorkerErrorCapture(worker: Worker): Promise<void> {
+  await worker.evaluate(() => {
+    const target = globalThis as typeof globalThis & {
+      __scriptcatE2EUnhandledErrors?: string[];
+      __scriptcatE2EUnhandledErrorsInstalled?: boolean;
+    };
+    if (target.__scriptcatE2EUnhandledErrorsInstalled) return;
+
+    const errors: string[] = [];
+    target.__scriptcatE2EUnhandledErrors = errors;
+    target.__scriptcatE2EUnhandledErrorsInstalled = true;
+
+    const describe = (value: unknown) => {
+      if (value instanceof Error) return value.stack || `${value.name}: ${value.message}`;
+      if (typeof value === "string") return value;
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return String(value);
+      }
+    };
+
+    globalThis.addEventListener("error", (event) => {
+      const detail = event as Event & { message?: string; error?: unknown };
+      errors.push(detail.error ? describe(detail.error) : detail.message || "Service Worker error");
+    });
+    globalThis.addEventListener("unhandledrejection", (event) => {
+      const detail = event as Event & { reason?: unknown };
+      errors.push(`Unhandled rejection: ${describe(detail.reason)}`);
+    });
+  });
+}
+
+async function readServiceWorkerErrors(context: BrowserContext): Promise<string[]> {
+  const batches = await Promise.all(
+    context.serviceWorkers().map(async (worker) => {
+      try {
+        return await worker.evaluate(() => {
+          const target = globalThis as typeof globalThis & { __scriptcatE2EUnhandledErrors?: string[] };
+          return [...(target.__scriptcatE2EUnhandledErrors || [])];
+        });
+      } catch {
+        return [];
+      }
+    })
+  );
+  return batches.flat();
+}
+
 async function runTestScript(
   context: BrowserContext,
   extensionId: string,
@@ -580,14 +631,33 @@ async function runTestScript(
   code = patchTargetMatchCode(code, targetUrl);
   code = options?.patchCode ? options.patchCode(code) : code;
 
+  const diagnosticLogs: string[] = [];
+  const handleServiceWorker = (worker: Worker) => {
+    void installServiceWorkerErrorCapture(worker).catch((error) => {
+      diagnosticLogs.push(`[serviceworker-capture] ${String(error)}`);
+    });
+  };
+  for (const worker of context.serviceWorkers()) {
+    await installServiceWorkerErrorCapture(worker).catch((error) => {
+      diagnosticLogs.push(`[serviceworker-capture] ${String(error)}`);
+    });
+  }
+  context.on("serviceworker", handleServiceWorker);
+
   autoApprovePermissions(context);
   await installScriptByCode(context, extensionId, code);
 
   const page = await context.newPage();
   const logs: string[] = [];
+  const pageErrors: string[] = [];
   let summary: SCTestSummary | null = null;
-
   let summaryCount = 0;
+
+  page.on("pageerror", (error) => {
+    const detail = error.stack || `${error.name}: ${error.message}`;
+    pageErrors.push(detail);
+    logs.push(`[pageerror] ${detail}`);
+  });
 
   page.on("console", (msg) => {
     const text = msg.text();
@@ -603,34 +673,69 @@ async function runTestScript(
     }
   });
 
-  await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
+  const collectFatalErrors = async () => {
+    const workerErrors = await readServiceWorkerErrors(context);
+    return [
+      ...pageErrors.map((error) => `[page] ${error}`),
+      ...workerErrors.map((error) => `[service-worker] ${error}`),
+    ];
+  };
 
-  if (options?.beforeCollect) {
-    // 顺序很重要：先等页面加载时那组汇总打完（那时 auto:false 的用例还全是 skip，
-    // 汇总是 "通过: 0 / 失败: 0"），再点按钮，最后等下一组汇总。
-    // 若在 goto 之后立刻取快照，首次汇总往往还没打，会让第二个轮询被它立即满足而读到 0/0。
-    await expect
-      .poll(() => summaryCount > 0, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
-      .toBe(true)
-      .catch(() => undefined);
-    const seenBefore = summaryCount;
-    await options.beforeCollect(page);
-    await expect
-      .poll(() => summaryCount > seenBefore, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
-      .toBe(true)
-      .catch(() => undefined);
-  } else {
-    await expect
-      .poll(() => summary !== null, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
-      .toBe(true)
-      .catch(() => undefined);
+  const throwIfStartupFailed = async (expectedSummaryCount: number, seenFatalCount: number, phase: string) => {
+    const fatalErrors = await collectFatalErrors();
+    if (summaryCount >= expectedSummaryCount || fatalErrors.length <= seenFatalCount) return;
+    throw new Error(
+      `Unhandled ${phase} error before SCTest summary for ${scriptFile}:\n${fatalErrors
+        .slice(seenFatalCount)
+        .join("\n\n")}\n\nConsole:\n${[...diagnosticLogs, ...logs].join("\n")}`
+    );
+  };
+
+  try {
+    await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
+
+    if (options?.beforeCollect) {
+      await expect
+        .poll(async () => summaryCount > 0 || (await collectFatalErrors()).length > 0, {
+          timeout: timeoutMs,
+          intervals: [100, 250, 500, 1_000],
+        })
+        .toBe(true)
+        .catch(() => undefined);
+      await throwIfStartupFailed(1, 0, "startup");
+
+      const seenBefore = summaryCount;
+      const seenFatalCount = (await collectFatalErrors()).length;
+      await options.beforeCollect(page);
+      await expect
+        .poll(async () => summaryCount > seenBefore || (await collectFatalErrors()).length > seenFatalCount, {
+          timeout: timeoutMs,
+          intervals: [100, 250, 500, 1_000],
+        })
+        .toBe(true)
+        .catch(() => undefined);
+      await throwIfStartupFailed(seenBefore + 1, seenFatalCount, "post-action");
+    } else {
+      await expect
+        .poll(async () => summary !== null || (await collectFatalErrors()).length > 0, {
+          timeout: timeoutMs,
+          intervals: [100, 250, 500, 1_000],
+        })
+        .toBe(true)
+        .catch(() => undefined);
+      await throwIfStartupFailed(1, 0, "startup");
+    }
+  } finally {
+    context.off("serviceworker", handleServiceWorker);
+    await page.close().catch(() => undefined);
   }
 
-  await page.close();
-  expect(summary, `No valid SCTest summary found for ${scriptFile}:\n${logs.join("\n")}`).not.toBeNull();
-  return { summary: summary!, logs };
+  expect(
+    summary,
+    `No valid SCTest summary found for ${scriptFile}:\n${[...diagnosticLogs, ...logs].join("\n")}`
+  ).not.toBeNull();
+  return { summary: summary!, logs: [...diagnosticLogs, ...logs] };
 }
-
 // 设计稿统一为“运行全部”入口；旧面板若仍提供 suite 专属按钮则优先使用。
 // 两条路径都只执行自动用例，itManual 保持待人工确认。
 function clickSuiteRunButton(suiteName: string) {
