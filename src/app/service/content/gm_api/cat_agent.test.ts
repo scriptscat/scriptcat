@@ -1109,9 +1109,8 @@ describe("ConversationInstance 在页面桥接处校验 CAT 流事件（cat_stre
     ]);
   });
 
-  it("已声明但当前 CAT switch 未处理的事件变体（如 retry）通过校验后被忽略，后续正常事件仍继续处理", async () => {
-    // 区分"协议合法"与"消费者当前关心"：validator 不应该因为 switch 里没有对应 case
-    // 就把一个已声明的合法协议事件当成结构错误拒绝掉。
+  it("忽略 CAT 未消费的 retry 事件后仍处理后续 stream 事件", async () => {
+    // Unsupported protocol variants are ignored without settling the active CAT stream.
     const conn = mockConnectWithSequence([
       { delayMs: 0, data: { type: "retry", attempt: 1, maxRetries: 3, error: "timeout", delayMs: 100 } },
       { delayMs: 1, data: { type: "content_delta", delta: "real" } },

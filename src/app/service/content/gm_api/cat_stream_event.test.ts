@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildChatStreamError, cloneChatStreamEvent } from "./cat_stream_event";
+import {
+  buildChatStreamError,
+  cloneCatChatStreamEvent as cloneChatStreamEvent,
+  type CatChatStreamEvent,
+} from "./cat_stream_event";
 import type { ChatStreamEvent, SubAgentDetails, ToolCall } from "@App/app/service/agent/core/types";
 
-// 每个变体一份"最大化"合法样例：把该变体所有可选字段都填上，证明 cloneChatStreamEvent
-// 对声明过的每一种事件形状都放行，而不只是对 cat_agent.ts 当前 switch 处理的那 11 种放行。
+// 每个变体一份"最大化"合法样例：把该变体所有可选字段都填上，作为 CAT 消费事件的校验输入，
+// 以及 CAT 明确忽略其它已声明事件的 fixture。
 const fullSubAgentDetails: SubAgentDetails = {
   agentId: "sa-1",
   description: "child task",
@@ -111,9 +115,24 @@ const fixtures: { [T in ChatStreamEvent["type"]]: Extract<ChatStreamEvent, { typ
   },
 };
 
-describe("cloneChatStreamEvent：18 个变体的最大化合法样例全部放行", () => {
-  for (const [type, fixture] of Object.entries(fixtures)) {
+const catEventTypes: CatChatStreamEvent["type"][] = [
+  "content_delta",
+  "thinking_delta",
+  "tool_call_start",
+  "tool_call_delta",
+  "tool_call_complete",
+  "content_block_complete",
+  "new_message",
+  "done",
+  "error",
+  "system_warning",
+  "sync",
+];
+
+describe("cloneCatChatStreamEvent：CAT 消费的事件允许完整可选字段", () => {
+  for (const type of catEventTypes) {
     it(`接受 ${type}`, () => {
+      const fixture = fixtures[type];
       const cloned = cloneChatStreamEvent(fixture);
       expect(cloned).toBeDefined();
       expect(cloned).toEqual(fixture);
@@ -121,7 +140,21 @@ describe("cloneChatStreamEvent：18 个变体的最大化合法样例全部放�
   }
 });
 
-describe("cloneChatStreamEvent：未知 key 一律拒绝（不是 __proto__ 黑名单）", () => {
+describe("cloneCatChatStreamEvent：CAT 未消费的顶层事件不进入 CAT", () => {
+  it.each([
+    "content_block_start",
+    "retry",
+    "ask_user",
+    "ask_user_expired",
+    "ask_user_resolved",
+    "task_update",
+    "compact_done",
+  ] as const)("忽略 %s", (type) => {
+    expect(cloneChatStreamEvent(fixtures[type])).toBeUndefined();
+  });
+});
+
+describe("cloneCatChatStreamEvent：未知 key 一律拒绝（不是 __proto__ 黑名单）", () => {
   it("拒绝顶层携带 own '__proto__' 数据属性的事件", () => {
     const forged: Record<string, unknown> = { type: "error", message: "forged" };
     Object.defineProperty(forged, "__proto__", {
@@ -167,7 +200,7 @@ describe("cloneChatStreamEvent：未知 key 一律拒绝（不是 __proto__ 黑�
   });
 });
 
-describe("cloneChatStreamEvent：tool_call_start 与 sync.toolCalls 使用不同的 ToolCall schema", () => {
+describe("cloneCatChatStreamEvent：tool_call_start 与 sync.toolCalls 使用不同的 ToolCall schema", () => {
   it("tool_call_start.toolCall 携带 result 字段时被拒绝（Omit<ToolCall,'result'>）", () => {
     const forged = {
       type: "tool_call_start",
@@ -189,7 +222,7 @@ describe("cloneChatStreamEvent：tool_call_start 与 sync.toolCalls 使用不同
   });
 });
 
-describe("cloneChatStreamEvent：结构性/值域校验", () => {
+describe("cloneCatChatStreamEvent：结构性/值域校验", () => {
   it("拒绝非对象 message.data", () => {
     expect(cloneChatStreamEvent("not an object")).toBeUndefined();
     expect(cloneChatStreamEvent(null)).toBeUndefined();
@@ -237,7 +270,7 @@ describe("cloneChatStreamEvent：结构性/值域校验", () => {
   });
 });
 
-describe("cloneChatStreamEvent：行为承载的输入（accessor / Proxy）", () => {
+describe("cloneCatChatStreamEvent：行为承载的输入（accessor / Proxy）", () => {
   // 这里针对的是 MAIN/content 兼容路径（CustomEventMessage → parseWindowMessageBody）：
   // 信封的 own-key 集合被校验，但信封内层的 data 负载原样透传，不会被递归 clone。
   // customClone() 在读取描述符前就能判断某个 own key 是不是 accessor 并拒绝，不需要调用 getter。

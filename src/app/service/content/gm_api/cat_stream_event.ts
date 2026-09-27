@@ -228,38 +228,8 @@ const isToolCallFullArray = (value: unknown): value is ToolCall[] => {
 };
 
 // ============================================================================
-// content_block_start / content_block_complete 的 block 形状
+// content_block_complete 的 block 形状
 // ============================================================================
-
-// `Omit<ImageBlock | FileBlock | AudioBlock, "attachmentId">` does NOT distribute over the union:
-// Omit/Pick are plain mapped types over a fixed key set, not homomorphic over their source union,
-// so TS first collapses `keyof (Image|File|Audio)` to the KEYS COMMON TO ALL THREE members
-// ("type" | "mimeType" | "name" — "size" and "durationMs" are each unique to one member and drop
-// out entirely), then rebuilds a single flat object type from that; empirically (confirmed via the
-// AssertKeys compile-time check below) "name" keeps its optional modifier through this collapse.
-// The real producer (providers/anthropic.ts content_block_start handling) matches this flattened
-// shape today (`{type:"image", mimeType, name}`), so the runtime check follows the declared type
-// literally rather than the three-way discriminated shape a reader might expect.
-const CONTENT_BLOCK_START_REQUIRED = ["type", "mimeType"] as const;
-const CONTENT_BLOCK_START_OPTIONAL = ["name"] as const;
-type _StartBlockShape = Extract<ChatStreamEvent, { type: "content_block_start" }>["block"];
-type _AssertContentBlockStart = AssertKeys<
-  _StartBlockShape,
-  typeof CONTENT_BLOCK_START_REQUIRED,
-  typeof CONTENT_BLOCK_START_OPTIONAL
->;
-const _assertContentBlockStart: _AssertContentBlockStart = true;
-
-const isContentBlockStart = (value: unknown): value is _StartBlockShape => {
-  if (!isRecord(value) || !hasOnlyKeys(value, CONTENT_BLOCK_START_REQUIRED, CONTENT_BLOCK_START_OPTIONAL)) {
-    return false;
-  }
-  return (
-    (value.type === "image" || value.type === "file" || value.type === "audio") &&
-    typeof value.mimeType === "string" &&
-    isOptionalString(value.name)
-  );
-};
 
 const CONTENT_BLOCK_IMAGE_REQUIRED = ["type", "attachmentId", "mimeType"] as const;
 const CONTENT_BLOCK_IMAGE_OPTIONAL = ["name"] as const;
@@ -288,7 +258,7 @@ const _assertContentBlockAudio: _AssertContentBlockAudio = true;
 
 // content_block_complete.block 的类型是直接书写的 ImageBlock | FileBlock | AudioBlock 联合，
 // 没有经过 Pick/Omit 改写，因此三个分支各自的字段（size、durationMs 等）都完整保留，
-// 与上面 content_block_start 因 Omit 扁平化而丢字段的情况不同。
+// 与 content_block_start 因 Omit 扁平化而丢字段的情况不同。
 const isContentBlock = (value: unknown): value is ImageBlock | FileBlock | AudioBlock => {
   if (!isRecord(value)) return false;
   if (value.type === "image") {
@@ -321,19 +291,14 @@ const isContentBlock = (value: unknown): value is ImageBlock | FileBlock | Audio
 };
 
 // ============================================================================
-// ask_user 共用形状（ask_user 事件本身与 sync.pendingAskUser 结构相同，只差 "type"）
+// sync.pendingAskUser 的形状
 // ============================================================================
 
 const ASK_USER_SHAPE_REQUIRED = ["id", "question"] as const;
 const ASK_USER_SHAPE_OPTIONAL = ["options", "optionValues", "multiple", "allowCustom"] as const;
-type _AssertAskUserShape = AssertKeys<
-  Omit<Extract<ChatStreamEvent, { type: "ask_user" }>, "type">,
-  typeof ASK_USER_SHAPE_REQUIRED,
-  typeof ASK_USER_SHAPE_OPTIONAL
->;
-const _assertAskUserShape: _AssertAskUserShape = true;
+type PendingAskUserShape = NonNullable<Extract<ChatStreamEvent, { type: "sync" }>["pendingAskUser"]>;
 type _AssertPendingAskUserShape = AssertKeys<
-  Extract<ChatStreamEvent, { type: "sync" }>["pendingAskUser"] & {},
+  PendingAskUserShape,
   typeof ASK_USER_SHAPE_REQUIRED,
   typeof ASK_USER_SHAPE_OPTIONAL
 >;
@@ -349,13 +314,13 @@ const isAskUserShape = (value: Record<string, unknown>): boolean =>
   isOptionalBoolean(value.allowCustom);
 
 // ============================================================================
-// task_update.tasks / sync.tasks 共用的任务条目形状
+// sync.tasks 的任务条目形状
 // ============================================================================
 
 const TASK_ITEM_REQUIRED = ["id", "subject", "status"] as const;
 const TASK_ITEM_OPTIONAL = ["description"] as const;
 type _AssertTaskItem = AssertKeys<
-  Extract<ChatStreamEvent, { type: "task_update" }>["tasks"][number],
+  Extract<ChatStreamEvent, { type: "sync" }>["tasks"][number],
   typeof TASK_ITEM_REQUIRED,
   typeof TASK_ITEM_OPTIONAL
 >;
@@ -429,15 +394,6 @@ type _AssertToolCallComplete = AssertKeys<
 >;
 const _assertToolCallComplete: _AssertToolCallComplete = true;
 
-const CONTENT_BLOCK_START_EVENT_REQUIRED = ["type", "block"] as const;
-const CONTENT_BLOCK_START_EVENT_OPTIONAL = ["subAgent"] as const;
-type _AssertContentBlockStartEvent = AssertKeys<
-  Extract<ChatStreamEvent, { type: "content_block_start" }>,
-  typeof CONTENT_BLOCK_START_EVENT_REQUIRED,
-  typeof CONTENT_BLOCK_START_EVENT_OPTIONAL
->;
-const _assertContentBlockStartEvent: _AssertContentBlockStartEvent = true;
-
 const CONTENT_BLOCK_COMPLETE_REQUIRED = ["type", "block"] as const;
 const CONTENT_BLOCK_COMPLETE_OPTIONAL = ["data", "subAgent"] as const;
 type _AssertContentBlockCompleteEvent = AssertKeys<
@@ -470,15 +426,6 @@ type _AssertError = AssertKeys<
 >;
 const _assertError: _AssertError = true;
 
-const RETRY_REQUIRED = ["type", "attempt", "maxRetries", "error", "delayMs"] as const;
-const RETRY_OPTIONAL = ["subAgent"] as const;
-type _AssertRetry = AssertKeys<
-  Extract<ChatStreamEvent, { type: "retry" }>,
-  typeof RETRY_REQUIRED,
-  typeof RETRY_OPTIONAL
->;
-const _assertRetry: _AssertRetry = true;
-
 const SYSTEM_WARNING_REQUIRED = ["type", "message"] as const;
 const SYSTEM_WARNING_OPTIONAL = ["subAgent"] as const;
 type _AssertSystemWarning = AssertKeys<
@@ -487,55 +434,6 @@ type _AssertSystemWarning = AssertKeys<
   typeof SYSTEM_WARNING_OPTIONAL
 >;
 const _assertSystemWarning: _AssertSystemWarning = true;
-
-const ASK_USER_EVENT_REQUIRED = ["type", "id", "question"] as const;
-const ASK_USER_EVENT_OPTIONAL = ["options", "optionValues", "multiple", "allowCustom"] as const;
-type _AssertAskUserEvent = AssertKeys<
-  Extract<ChatStreamEvent, { type: "ask_user" }>,
-  typeof ASK_USER_EVENT_REQUIRED,
-  typeof ASK_USER_EVENT_OPTIONAL
->;
-const _assertAskUserEvent: _AssertAskUserEvent = true;
-
-const ASK_USER_ID_ONLY_REQUIRED = ["type", "id"] as const;
-const ASK_USER_ID_ONLY_OPTIONAL = [] as const;
-type _AssertAskUserExpired = AssertKeys<
-  Extract<ChatStreamEvent, { type: "ask_user_expired" }>,
-  typeof ASK_USER_ID_ONLY_REQUIRED,
-  typeof ASK_USER_ID_ONLY_OPTIONAL
->;
-const _assertAskUserExpired: _AssertAskUserExpired = true;
-type _AssertAskUserResolved = AssertKeys<
-  Extract<ChatStreamEvent, { type: "ask_user_resolved" }>,
-  typeof ASK_USER_ID_ONLY_REQUIRED,
-  typeof ASK_USER_ID_ONLY_OPTIONAL
->;
-const _assertAskUserResolved: _AssertAskUserResolved = true;
-
-// 已知协议债务（本次不修）：chat_service.ts 的子代理事件转发（subSendEvent）会对任意
-// ChatStreamEvent 做 `{ ...evt, subAgent: {...} } as ChatStreamEvent`，包括 task_update，
-// 但声明的 ChatStreamEvent 联合类型只在 ForwardableEvent 派生分支上允许 subAgent，
-// task_update 分支没有该字段。这里按 types.ts 的声明如实建模（不含 subAgent），CAT 当前
-// switch 本就没有 task_update 的 case，因此这份分歧目前对可观察行为没有影响；但如果未来
-// CAT 开始处理子代理的 task_update（例如像其它类型那样过滤子代理事件），这里会拒绝那种
-// 带 subAgent 的运行期对象。这是一个独立的 producer/type 协议决策，不在本次 commit 范围内。
-const TASK_UPDATE_REQUIRED = ["type", "tasks"] as const;
-const TASK_UPDATE_OPTIONAL = [] as const;
-type _AssertTaskUpdate = AssertKeys<
-  Extract<ChatStreamEvent, { type: "task_update" }>,
-  typeof TASK_UPDATE_REQUIRED,
-  typeof TASK_UPDATE_OPTIONAL
->;
-const _assertTaskUpdate: _AssertTaskUpdate = true;
-
-const COMPACT_DONE_REQUIRED = ["type", "summary", "originalCount"] as const;
-const COMPACT_DONE_OPTIONAL = [] as const;
-type _AssertCompactDone = AssertKeys<
-  Extract<ChatStreamEvent, { type: "compact_done" }>,
-  typeof COMPACT_DONE_REQUIRED,
-  typeof COMPACT_DONE_OPTIONAL
->;
-const _assertCompactDone: _AssertCompactDone = true;
 
 const SYNC_REQUIRED = ["type", "tasks", "status"] as const;
 const SYNC_OPTIONAL = ["streamingMessage", "pendingAskUser"] as const;
@@ -553,16 +451,33 @@ const _assertSyncStreamingMessage: _AssertSyncStreamingMessage = true;
 
 const SYNC_STATUS = new Native.Set(["running", "done", "error"]);
 
+export type CatChatStreamEvent = Extract<
+  ChatStreamEvent,
+  {
+    type:
+      | "content_delta"
+      | "thinking_delta"
+      | "tool_call_start"
+      | "tool_call_delta"
+      | "tool_call_complete"
+      | "content_block_complete"
+      | "new_message"
+      | "done"
+      | "error"
+      | "system_warning"
+      | "sync";
+  }
+>;
+
 // ============================================================================
 // 主入口
 // ============================================================================
 
 /**
  * 先 customClone 再做结构校验；校验失败一律返回 undefined，调用方在此之前不得读取
- * 原始 message.data 的任何字段。已声明但当前 switch 未处理的变体（如 retry、ask_user 等）
- * 同样会被接受，交由调用方按现状忽略——校验层不因"今天没人处理"而拒绝合法协议事件。
+ * 原始 message.data 的任何字段。这里只放行 CAT 消费的顶层事件；完整协议由 ChatStreamEvent 表达。
  */
-export const cloneChatStreamEvent = (raw: unknown): ChatStreamEvent | undefined => {
+export const cloneCatChatStreamEvent = (raw: unknown): CatChatStreamEvent | undefined => {
   const cloned = customClone(raw);
   if (!isRecord(cloned) || typeof cloned.type !== "string") return undefined;
 
@@ -571,12 +486,12 @@ export const cloneChatStreamEvent = (raw: unknown): ChatStreamEvent | undefined 
     case "thinking_delta": {
       if (!hasOnlyKeys(cloned, CONTENT_DELTA_REQUIRED, CONTENT_DELTA_OPTIONAL)) return undefined;
       if (typeof cloned.delta !== "string" || !isOptionalSubAgentEventInfo(cloned.subAgent)) return undefined;
-      return cloned as unknown as ChatStreamEvent;
+      return cloned as unknown as CatChatStreamEvent;
     }
     case "tool_call_start": {
       if (!hasOnlyKeys(cloned, TOOL_CALL_START_EVENT_REQUIRED, TOOL_CALL_START_EVENT_OPTIONAL)) return undefined;
       if (!isToolCallStart(cloned.toolCall) || !isOptionalSubAgentEventInfo(cloned.subAgent)) return undefined;
-      return cloned as unknown as ChatStreamEvent;
+      return cloned as unknown as CatChatStreamEvent;
     }
     case "tool_call_delta": {
       if (!hasOnlyKeys(cloned, TOOL_CALL_DELTA_REQUIRED, TOOL_CALL_DELTA_OPTIONAL)) return undefined;
@@ -590,7 +505,7 @@ export const cloneChatStreamEvent = (raw: unknown): ChatStreamEvent | undefined 
       ) {
         return undefined;
       }
-      return cloned as unknown as ChatStreamEvent;
+      return cloned as unknown as CatChatStreamEvent;
     }
     case "tool_call_complete": {
       if (!hasOnlyKeys(cloned, TOOL_CALL_COMPLETE_REQUIRED, TOOL_CALL_COMPLETE_OPTIONAL)) return undefined;
@@ -604,14 +519,7 @@ export const cloneChatStreamEvent = (raw: unknown): ChatStreamEvent | undefined 
       ) {
         return undefined;
       }
-      return cloned as unknown as ChatStreamEvent;
-    }
-    case "content_block_start": {
-      if (!hasOnlyKeys(cloned, CONTENT_BLOCK_START_EVENT_REQUIRED, CONTENT_BLOCK_START_EVENT_OPTIONAL)) {
-        return undefined;
-      }
-      if (!isContentBlockStart(cloned.block) || !isOptionalSubAgentEventInfo(cloned.subAgent)) return undefined;
-      return cloned as unknown as ChatStreamEvent;
+      return cloned as unknown as CatChatStreamEvent;
     }
     case "content_block_complete": {
       if (!hasOnlyKeys(cloned, CONTENT_BLOCK_COMPLETE_REQUIRED, CONTENT_BLOCK_COMPLETE_OPTIONAL)) return undefined;
@@ -622,12 +530,12 @@ export const cloneChatStreamEvent = (raw: unknown): ChatStreamEvent | undefined 
       ) {
         return undefined;
       }
-      return cloned as unknown as ChatStreamEvent;
+      return cloned as unknown as CatChatStreamEvent;
     }
     case "new_message": {
       if (!hasOnlyKeys(cloned, NEW_MESSAGE_REQUIRED, NEW_MESSAGE_OPTIONAL)) return undefined;
       if (!isOptionalSubAgentEventInfo(cloned.subAgent)) return undefined;
-      return cloned as unknown as ChatStreamEvent;
+      return cloned as unknown as CatChatStreamEvent;
     }
     case "done": {
       if (!hasOnlyKeys(cloned, DONE_REQUIRED, DONE_OPTIONAL)) return undefined;
@@ -638,7 +546,7 @@ export const cloneChatStreamEvent = (raw: unknown): ChatStreamEvent | undefined 
       ) {
         return undefined;
       }
-      return cloned as unknown as ChatStreamEvent;
+      return cloned as unknown as CatChatStreamEvent;
     }
     case "error": {
       if (!hasOnlyKeys(cloned, ERROR_REQUIRED, ERROR_OPTIONAL)) return undefined;
@@ -651,55 +559,12 @@ export const cloneChatStreamEvent = (raw: unknown): ChatStreamEvent | undefined 
       ) {
         return undefined;
       }
-      return cloned as unknown as ChatStreamEvent;
-    }
-    case "retry": {
-      if (!hasOnlyKeys(cloned, RETRY_REQUIRED, RETRY_OPTIONAL)) return undefined;
-      if (
-        typeof cloned.attempt !== "number" ||
-        typeof cloned.maxRetries !== "number" ||
-        typeof cloned.error !== "string" ||
-        typeof cloned.delayMs !== "number" ||
-        !isOptionalSubAgentEventInfo(cloned.subAgent)
-      ) {
-        return undefined;
-      }
-      return cloned as unknown as ChatStreamEvent;
+      return cloned as unknown as CatChatStreamEvent;
     }
     case "system_warning": {
       if (!hasOnlyKeys(cloned, SYSTEM_WARNING_REQUIRED, SYSTEM_WARNING_OPTIONAL)) return undefined;
       if (typeof cloned.message !== "string" || !isOptionalSubAgentEventInfo(cloned.subAgent)) return undefined;
-      return cloned as unknown as ChatStreamEvent;
-    }
-    case "ask_user": {
-      if (!hasOnlyKeys(cloned, ASK_USER_EVENT_REQUIRED, ASK_USER_EVENT_OPTIONAL)) return undefined;
-      if (
-        !isNonEmptyString(cloned.id) ||
-        typeof cloned.question !== "string" ||
-        !isOptionalStringArray(cloned.options) ||
-        !isOptionalStringArray(cloned.optionValues) ||
-        !isOptionalBoolean(cloned.multiple) ||
-        !isOptionalBoolean(cloned.allowCustom)
-      ) {
-        return undefined;
-      }
-      return cloned as unknown as ChatStreamEvent;
-    }
-    case "ask_user_expired":
-    case "ask_user_resolved": {
-      if (!hasOnlyKeys(cloned, ASK_USER_ID_ONLY_REQUIRED, ASK_USER_ID_ONLY_OPTIONAL)) return undefined;
-      if (!isNonEmptyString(cloned.id)) return undefined;
-      return cloned as unknown as ChatStreamEvent;
-    }
-    case "task_update": {
-      if (!hasOnlyKeys(cloned, TASK_UPDATE_REQUIRED, TASK_UPDATE_OPTIONAL)) return undefined;
-      if (!isTaskArray(cloned.tasks)) return undefined;
-      return cloned as unknown as ChatStreamEvent;
-    }
-    case "compact_done": {
-      if (!hasOnlyKeys(cloned, COMPACT_DONE_REQUIRED, COMPACT_DONE_OPTIONAL)) return undefined;
-      if (typeof cloned.summary !== "string" || typeof cloned.originalCount !== "number") return undefined;
-      return cloned as unknown as ChatStreamEvent;
+      return cloned as unknown as CatChatStreamEvent;
     }
     case "sync": {
       if (!hasOnlyKeys(cloned, SYNC_REQUIRED, SYNC_OPTIONAL)) return undefined;
@@ -720,7 +585,7 @@ export const cloneChatStreamEvent = (raw: unknown): ChatStreamEvent | undefined 
         const pendingAskUser = cloned.pendingAskUser;
         if (!isRecord(pendingAskUser) || !isAskUserShape(pendingAskUser)) return undefined;
       }
-      return cloned as unknown as ChatStreamEvent;
+      return cloned as unknown as CatChatStreamEvent;
     }
     default:
       return undefined;
@@ -756,7 +621,7 @@ const defineErrorData = (err: Error, key: string, value: unknown): void => {
  * 用固定字段集重建 Error，替代 `Object.assign(new Error(event.message), event)`：
  * 后者对每个 key 做的是普通 [[Set]]，若 event 上有 own enumerable 的 "__proto__" 数据属性，
  * 会经由 Error.prototype 继承的 Object.prototype.__proto__ setter 真的改写这个 Error 实例的
- * 原型链——这与调用的是哪一份 Object.assign 实现无关。cloneChatStreamEvent() 已经用
+ * 原型链——这与调用的是哪一份 Object.assign 实现无关。cloneCatChatStreamEvent() 已经用
  * exact-key allowlist 排除了这种事件，这里只需要按已知字段名逐个搬运，不再整体搬运 event。
  * 用 Native.objectHasOwn 判断是否搬运每个可选字段，保留"own key 存在但值为 undefined"与
  * "整个 key 不存在"的语义差异；用 defineErrorData 而不是普通赋值，避免触发页面可能安装在

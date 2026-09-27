@@ -18,7 +18,7 @@ import type {
 } from "@App/app/service/agent/core/types";
 import { getTextContent } from "@App/app/service/agent/core/content_utils";
 import { Native } from "../global";
-import { buildChatStreamError, cloneChatStreamEvent } from "./cat_stream_event";
+import { buildChatStreamError, cloneCatChatStreamEvent } from "./cat_stream_event";
 
 export type ConversationStreamChunk =
   | StreamChunk
@@ -474,7 +474,7 @@ export class ConversationInstance {
           return;
         }
         if (message.action !== "event") return;
-        const event = cloneChatStreamEvent(message.data);
+        const event = cloneCatChatStreamEvent(message.data);
         if (!event) return;
         if ("subAgent" in event && event.subAgent) return;
         switch (event.type) {
@@ -620,7 +620,7 @@ export class ConversationInstance {
         return;
       }
       if (message.action !== "event") return;
-      const event = cloneChatStreamEvent(message.data);
+      const event = cloneCatChatStreamEvent(message.data);
       if (!event) return;
       if ("subAgent" in event && event.subAgent) return;
       switch (event.type) {
