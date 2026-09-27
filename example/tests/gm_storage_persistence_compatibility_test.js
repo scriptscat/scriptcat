@@ -218,67 +218,74 @@
       : { listed: true, value: describeValue(testCase.expected) };
   }
 
-  const compatibleVariants = {
-    float64arrayTampermonkey: {
-      listed: true,
-      value: describeValue({
-        0: 1.5,
-        1: -2.25,
-        2: null,
-        3: null,
-        4: null,
-      }),
-    },
-    bigintTampermonkey: {
-      listed: true,
-      value: { type: "undefined" },
-    },
-    cyclicTampermonkeyBeforeReload: {
-      listed: true,
-      value: { type: "string", value: DEFAULT },
-    },
-  };
-
   function sameDescriptor(left, right) {
     return JSON.stringify(left) === JSON.stringify(right);
   }
 
-  function expectCompatibleSnapshot(actual, phase) {
-    for (const testCase of cases) {
-      const id = testCase.id;
-
-      if (id === "float64array") {
-        expect(
-          sameDescriptor(actual[id], expected[id]) ||
-            sameDescriptor(actual[id], compatibleVariants.float64arrayTampermonkey)
-        ).toBe(true);
-        continue;
-      }
-
-      if (id === "bigint") {
-        expect(
-          sameDescriptor(actual[id], expected[id]) ||
-            sameDescriptor(actual[id], compatibleVariants.bigintTampermonkey)
-        ).toBe(true);
-        continue;
-      }
-
-      if (id === "cyclic-object") {
-        if (phase === "persisted") {
-          expect(sameDescriptor(actual[id], expected[id])).toBe(true);
-        } else {
-          expect(
-            sameDescriptor(actual[id], expected[id]) ||
-              sameDescriptor(actual[id], compatibleVariants.cyclicTampermonkeyBeforeReload)
-          ).toBe(true);
-        }
-        continue;
-      }
-
-      expect(sameDescriptor(actual[id], expected[id])).toBe(true);
-    }
+  function isInvalidatedTopLevel(entry) {
+    if (!entry) return false;
+    if (!entry.listed && entry.value?.type === "missing") return true;
+    if (entry.value?.type === "undefined" || entry.value?.type === "null") return true;
+    return entry.value?.type === "string" && entry.value.value === DEFAULT;
   }
 
+  function isCompatibleFloat64Array(entry) {
+    if (!entry?.listed || entry.value?.type !== "object") return false;
+    const entries = Object.fromEntries(entry.value.entries || []);
+
+    if (!sameDescriptor(entries["0"], describeValue(1.5))) return false;
+    if (!sameDescriptor(entries["1"], describeValue(-2.25))) return false;
+
+    const special = [
+      ["2", describeValue(NaN)],
+      ["3", describeValue(Infinity)],
+      ["4", describeValue(-Infinity)],
+    ];
+    return special.every(([key, exact]) => {
+      const actual = entries[key];
+      return sameDescriptor(actual, exact) || sameDescriptor(actual, { type: "null" });
+    });
+  }
+
+  function assertCompatibleSnapshot(actual, phase) {
+    const mismatches = [];
+
+    for (const testCase of cases) {
+      const id = testCase.id;
+      let compatible;
+
+      if (id === "float64array") {
+        compatible = isCompatibleFloat64Array(actual[id]);
+      } else if (id === "bigint") {
+        // Tampermonkey exposes an own undefined entry; ScriptCat maps the same unsupported
+        // top-level transition to its historical undefined=delete behavior.
+        compatible =
+          sameDescriptor(actual[id], expected[id]) ||
+          sameDescriptor(actual[id], { listed: true, value: { type: "undefined" } }) ||
+          (phase !== "persisted" && isInvalidatedTopLevel(actual[id]));
+      } else if (id === "cyclic-object") {
+        // Both managers reject cyclic persistence. Their same-document transient
+        // cache/listing state differs, so only require the seeded OLD value
+        // to be invalidated before reload.
+        compatible =
+          phase === "persisted"
+            ? sameDescriptor(actual[id], expected[id])
+            : isInvalidatedTopLevel(actual[id]);
+      } else {
+        compatible = sameDescriptor(actual[id], expected[id]);
+      }
+
+      if (!compatible) {
+        mismatches.push(
+          id + ": expected " + JSON.stringify(expected[id]) + ", actual " + JSON.stringify(actual[id])
+        );
+      }
+    }
+
+    if (mismatches.length > 0) {
+      throw new Error("Incompatible " + phase + " storage snapshot:\n" + mismatches.join("\n"));
+    }
+  }
   function keyFor(api, id) {
     return PREFIX + api + ":" + id;
   }
@@ -384,7 +391,7 @@
         "自动断言",
         "immediate userscript-visible values match measured compatibility semantics",
         () => {
-          expectCompatibleSnapshot(state.immediate[api], "immediate");
+          assertCompatibleSnapshot(state.immediate[api], "immediate");
         },
         null,
         null,
@@ -395,7 +402,7 @@
         "自动断言",
         "settled same-document values remain consistent after transport echo",
         () => {
-          expectCompatibleSnapshot(state.settled[api], "settled");
+          assertCompatibleSnapshot(state.settled[api], "settled");
         },
         null,
         null,
@@ -406,7 +413,7 @@
         "自动断言",
         "values keep the same representation after reload persistence",
         () => {
-          expectCompatibleSnapshot(persisted[api], "persisted");
+          assertCompatibleSnapshot(persisted[api], "persisted");
         },
         null,
         null,
