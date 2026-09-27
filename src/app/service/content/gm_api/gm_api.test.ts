@@ -1350,46 +1350,21 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     );
   });
 
-  it("normalizes a top-level Function to ScriptCat delete semantics immediately", () => {
-    const script = Object.assign({}, scriptRes, { value: { executable: "OLD" } }) as ScriptLoadInfo;
-    script.metadata.grant = ["GM_setValue"];
-    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
-    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
-    const executable = () => "secret";
-
-    api.GM_setValue(api, "executable", executable);
-
-    expect(Object.hasOwn(script.value, "executable")).toBe(false);
-    expect(sendMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ params: [expect.any(String), "executable"] }) })
-    );
-  });
-
-  it("normalizes a top-level BigInt to ScriptCat delete semantics immediately", () => {
-    const script = Object.assign({}, scriptRes, { value: { bigint: "OLD" } }) as ScriptLoadInfo;
+  it.each([
+    ["Function", "executable", () => "secret"],
+    ["BigInt", "bigint", 123n],
+    ["Symbol", "symbol", Symbol("secret")],
+  ] as const)("normalizes a top-level %s to ScriptCat delete semantics immediately", (_type, key, value) => {
+    const script = Object.assign({}, scriptRes, { value: { [key]: "OLD" } }) as ScriptLoadInfo;
     script.metadata.grant = ["GM_setValue"];
     const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
 
-    api.GM_setValue(api, "bigint", 123n);
+    api.GM_setValue(api, key, value);
 
-    expect(Object.hasOwn(script.value, "bigint")).toBe(false);
+    expect(Object.hasOwn(script.value, key)).toBe(false);
     expect(sendMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ params: [expect.any(String), "bigint"] }) })
-    );
-  });
-
-  it("normalizes a top-level Symbol to ScriptCat delete semantics immediately", () => {
-    const script = Object.assign({}, scriptRes, { value: { symbol: "OLD" } }) as ScriptLoadInfo;
-    script.metadata.grant = ["GM_setValue"];
-    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
-    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
-
-    api.GM_setValue(api, "symbol", Symbol("secret"));
-
-    expect(Object.hasOwn(script.value, "symbol")).toBe(false);
-    expect(sendMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ params: [expect.any(String), "symbol"] }) })
+      expect.objectContaining({ data: expect.objectContaining({ params: [expect.any(String), key] }) })
     );
   });
 
