@@ -61,8 +61,8 @@ In both cases `sandbox.ts`:
 3. wires `Server("sandbox")`, `Runtime`, logger and GM plumbing;
 4. transfers only `port2` to the parent with one `parent.postMessage(..., [port2])` call.
 
-The bootstrap envelope contains only protocol type/version. It contains no script, GM, value, event, token,
-configuration, resource, or execution payload.
+The bootstrap is the primitive string `scriptcat/sandbox-message-port/v1`. It contains no script, GM, value, event,
+token, configuration, resource, or execution payload.
 
 ## Readiness semantics
 
@@ -71,8 +71,7 @@ Port transfer is also the readiness signal.
 The parent accepts the bootstrap only when all of these are true:
 
 - the event source is exactly the current sandbox iframe `contentWindow`;
-- the envelope has exactly the expected own data fields;
-- type/version match;
+- the data is exactly the versioned bootstrap string;
 - exactly one transferred `MessagePort` is present.
 
 After accepting the port the parent immediately removes its Window `"message"` bootstrap listener. All subsequent
@@ -178,7 +177,8 @@ The review branch contains:
   - wrong source rejection;
   - one-port bootstrap;
   - Window listener removal;
-  - accessor/proxy bootstrap rejection;
+  - sender-side exact marker and one-shot transfer;
+  - object/accessor/proxy bootstrap rejection without inspecting object values;
   - poisoned `MessageEvent.prototype.data` regression when the test DOM exposes the WebIDL getter.
 - `src/app/service/offscreen/base.test.ts`
   - no Service Worker readiness before port attachment;

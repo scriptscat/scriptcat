@@ -1,45 +1,12 @@
 import type { Message, MessageConnect, OnConnectCallback, OnMessageCallback, TMessage } from "./types";
 import { MessagePortMessage } from "./message_port_message";
 
-export const SANDBOX_CHANNEL_BOOTSTRAP_TYPE = "scriptcat/sandbox-message-port";
-export const SANDBOX_CHANNEL_BOOTSTRAP_VERSION = 1;
-
-type SandboxChannelBootstrap = {
-  type: typeof SANDBOX_CHANNEL_BOOTSTRAP_TYPE;
-  version: typeof SANDBOX_CHANNEL_BOOTSTRAP_VERSION;
-};
+export const SANDBOX_CHANNEL_BOOTSTRAP_MARKER = "scriptcat/sandbox-message-port/v1";
 
 const nativeReflectApply = Reflect.apply;
 const nativeFunctionBind = Function.prototype.bind;
-const nativeReflectOwnKeys = Reflect.ownKeys;
-const nativeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 const bindNative = <T extends (...args: any[]) => any>(fn: T, receiver: any): T =>
   nativeReflectApply(nativeFunctionBind, fn, [receiver]) as T;
-
-const BOOTSTRAP_KEYS = ["type", "version"] as const;
-
-export const parseSandboxChannelBootstrap = (value: unknown): SandboxChannelBootstrap | undefined => {
-  if (value === null || typeof value !== "object") return undefined;
-  try {
-    const keys = nativeReflectOwnKeys(value);
-    if (keys.length !== BOOTSTRAP_KEYS.length) return undefined;
-    for (let i = 0; i < keys.length; i += 1) {
-      if (keys[i] !== "type" && keys[i] !== "version") return undefined;
-    }
-    const type = nativeObjectGetOwnPropertyDescriptor(value, "type");
-    const version = nativeObjectGetOwnPropertyDescriptor(value, "version");
-    if (!type || !("value" in type) || !version || !("value" in version)) return undefined;
-    if (type.value !== SANDBOX_CHANNEL_BOOTSTRAP_TYPE || version.value !== SANDBOX_CHANNEL_BOOTSTRAP_VERSION) {
-      return undefined;
-    }
-    return {
-      type: SANDBOX_CHANNEL_BOOTSTRAP_TYPE,
-      version: SANDBOX_CHANNEL_BOOTSTRAP_VERSION,
-    };
-  } catch {
-    return undefined;
-  }
-};
 
 type PendingListeners = {
   messages: OnMessageCallback[];
@@ -81,7 +48,7 @@ export class SandboxChannelHost implements Message {
         return;
       }
       if (event.source !== expectedSource) return;
-      if (!parseSandboxChannelBootstrap(event.data)) return;
+      if (event.data !== SANDBOX_CHANNEL_BOOTSTRAP_MARKER) return;
       if (event.ports.length !== 1 || !event.ports[0]) return;
 
       const delegate = new MessagePortMessage(event.ports[0]);
@@ -179,14 +146,7 @@ export const createSandboxChannelClient = (
     transferToParent() {
       if (transferred) throw new Error("Sandbox channel has already been transferred.");
       transferred = true;
-      parentPostMessage(
-        {
-          type: SANDBOX_CHANNEL_BOOTSTRAP_TYPE,
-          version: SANDBOX_CHANNEL_BOOTSTRAP_VERSION,
-        } satisfies SandboxChannelBootstrap,
-        "*",
-        [channel.port2]
-      );
+      parentPostMessage(SANDBOX_CHANNEL_BOOTSTRAP_MARKER, "*", [channel.port2]);
     },
   };
 };
