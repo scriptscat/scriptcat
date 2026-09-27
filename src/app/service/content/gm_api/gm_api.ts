@@ -150,7 +150,9 @@ const normalizeGMStorageCompatibilityValue = (
 const cloneGMStorageValue = (value: any): any => {
   if (value === null) return value;
   const valueType = typeof value;
-  if (valueType === "function" || valueType === "symbol") return undefined;
+  // Top-level BigInt follows the same ScriptCat approximation used for other TM-invalid
+  // top-level values. Nested BigInt remains intentionally unspecified until measured directly.
+  if (valueType === "function" || valueType === "symbol" || valueType === "bigint") return undefined;
   if (valueType !== "object") {
     return valueType === "number" && value === 0 && 1 / value === -Infinity ? 0 : value;
   }

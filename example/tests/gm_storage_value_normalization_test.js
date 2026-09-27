@@ -74,6 +74,21 @@
 
     check(
       "自动断言",
+      "BigInt invalidates an existing value without preserving the old value",
+      () => {
+        const key = PREFIX + "bigint";
+        GM_setValue(key, "OLD");
+        GM_setValue(key, 123n);
+
+        expectInvalidatedTopLevel(key);
+      },
+      null,
+      null,
+      null
+    );
+
+    check(
+      "自动断言",
       "invalid top-level write is a state transition and a later valid write still replaces it",
       () => {
         const key = PREFIX + "sequence";

@@ -1365,6 +1365,20 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     );
   });
 
+  it("normalizes a top-level BigInt to ScriptCat delete semantics immediately", () => {
+    const script = Object.assign({}, scriptRes, { value: { bigint: "OLD" } }) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_setValue"];
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+
+    api.GM_setValue(api, "bigint", 123n);
+
+    expect(Object.hasOwn(script.value, "bigint")).toBe(false);
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ params: [expect.any(String), "bigint"] }) })
+    );
+  });
+
   it("normalizes a top-level Symbol to ScriptCat delete semantics immediately", () => {
     const script = Object.assign({}, scriptRes, { value: { symbol: "OLD" } }) as ScriptLoadInfo;
     script.metadata.grant = ["GM_setValue"];
