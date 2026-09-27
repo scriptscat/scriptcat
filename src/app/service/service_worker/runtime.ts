@@ -172,6 +172,15 @@ type UserScriptSession = {
 };
 type UserScriptBootstrap = Omit<UserScriptSession, "transport">;
 
+const bindingMatchesDelivery = (
+  binding: ServiceWorkerExecutionBinding | undefined,
+  targetUuid: unknown,
+  targetStorageName: unknown
+): boolean =>
+  binding !== undefined &&
+  ((targetUuid !== undefined && targetUuid === binding.uuid) ||
+    (targetStorageName !== undefined && targetStorageName === binding.storageName));
+
 const bgScriptStorageNames = new Set<string>();
 
 // For Firefox, StorageArea.setAccessLevel is not implemented.
@@ -507,11 +516,7 @@ export class RuntimeService {
       let bindingMatches = false;
       for (const handle of entry.handles) {
         const binding = this.pageExecutionBindings.get(handle);
-        if (
-          binding &&
-          ((targetUuid !== undefined && targetUuid === binding.uuid) ||
-            (targetStorageName !== undefined && targetStorageName === binding.storageName))
-        ) {
+        if (bindingMatchesDelivery(binding, targetUuid, targetStorageName)) {
           bindingMatches = true;
           break;
         }
@@ -543,11 +548,7 @@ export class RuntimeService {
       for (const script of session.scripts) {
         const handle = script.executionHandle;
         const binding = typeof handle === "string" ? this.pageExecutionBindings.get(handle) : undefined;
-        if (
-          binding &&
-          ((targetUuid !== undefined && targetUuid === binding.uuid) ||
-            (targetStorageName !== undefined && targetStorageName === binding.storageName))
-        ) {
+        if (bindingMatchesDelivery(binding, targetUuid, targetStorageName)) {
           bindingMatches = true;
           break;
         }
