@@ -223,9 +223,17 @@ export class Server {
   }
 
   private connectHandle(msg: string, params: any, con: MessageConnect) {
+    let isDisconnected = false;
+    con.onDisconnect(() => {
+      isDisconnected = true;
+    });
+    const sendResponse = (response: TMessage) => {
+      if (!isDisconnected) con.sendMessage(response);
+    };
+
     const sender = new SenderConnect(con);
     if (!this.isUserScriptActionAllowed(msg, sender.getConnectOrigin(), true)) {
-      con.sendMessage({ code: -1, message: "userScript action is not allowed" });
+      sendResponse({ code: -1, message: "userScript action is not allowed" });
       con.disconnect(true);
       return true;
     }
@@ -236,15 +244,15 @@ export class Server {
         if (ret instanceof Promise) {
           ret
             .then((data) => {
-              data && con.sendMessage({ code: 0, data });
+              data && sendResponse({ code: 0, data });
             })
             .catch((e: Error) => {
-              con.sendMessage({ code: -1, message: formatErrorToClient(e) });
+              sendResponse({ code: -1, message: formatErrorToClient(e) });
               this.logger.error("connectHandle error", Logger.E(e));
             });
           return true;
         } else {
-          con.sendMessage({ code: 0, data: ret });
+          sendResponse({ code: 0, data: ret });
         }
       }
       return true;

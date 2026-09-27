@@ -726,6 +726,32 @@ describe("Server", () => {
       expect(capturedConnection!).toBeDefined();
     });
 
+    it("does not reply when a connected RPC handler rejects after the caller disconnects", async () => {
+      let rejectHandler!: (error: Error) => void;
+      let notifyDisconnect = (_isSelfDisconnected: boolean) => {};
+      const sendMessage = vi.fn();
+      const onDisconnect = vi.fn((callback: (isSelfDisconnected: boolean) => void) => {
+        notifyDisconnect = callback;
+      });
+      const mockConnect = {
+        onMessage: vi.fn(),
+        sendMessage,
+        disconnect: vi.fn(),
+        onDisconnect,
+      } as MessageConnect;
+
+      server.on("on-rejected-after-disconnect", () => new Promise((_, reject) => (rejectHandler = reject)));
+
+      (server as any).connectHandle("on-rejected-after-disconnect", {}, mockConnect);
+      notifyDisconnect(false);
+      rejectHandler(new Error("request cancelled"));
+      await nextTick();
+      await nextTick();
+
+      expect(sendMessage).not.toHaveBeenCalled();
+      expect(onDisconnect).toHaveBeenCalledWith(expect.any(Function));
+    });
+
     it("应该能够通过连接发送消息", async () => {
       let serverConnection: MessageConnect;
       const serverMessageHandler = vi.fn();
