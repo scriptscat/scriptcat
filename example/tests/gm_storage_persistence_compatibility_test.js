@@ -21,7 +21,7 @@
   if (!location.search.includes("GM_STORAGE_PERSISTENCE_COMPATIBILITY")) return;
 
   const PREFIX = "__gm_persistence__:";
-  const STATE_KEY = PREFIX + "state-v1";
+  const STATE_KEY = PREFIX + "state-v2";
   const DEFAULT = PREFIX + "__DEFAULT__";
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -75,25 +75,60 @@
   }
 
   const cases = [
-    { id: "nan", make: () => NaN },
-    { id: "positive-infinity", make: () => Infinity },
-    { id: "negative-infinity", make: () => -Infinity },
-    { id: "negative-zero", make: () => -0 },
-    { id: "special-object", make: makeSpecialObject },
-    { id: "array-special", make: makeArraySpecial },
-    { id: "bigint", make: () => 123456789012345678901234567890n, seed: true },
-    { id: "cyclic-object", make: makeCycle, seed: true },
-  ];
-
-  const expected = {
-    nan: { listed: true, type: "number", value: "NaN" },
-    "positive-infinity": { listed: true, type: "number", value: "Infinity" },
-    "negative-infinity": { listed: true, type: "number", value: "-Infinity" },
-    "negative-zero": { listed: true, type: "number", value: "0" },
-    "special-object": {
-      listed: true,
-      type: "object",
-      json: JSON.stringify({
+    { id: "nan", make: () => NaN, expected: NaN },
+    { id: "positive-infinity", make: () => Infinity, expected: Infinity },
+    { id: "negative-infinity", make: () => -Infinity, expected: -Infinity },
+    { id: "negative-zero", make: () => -0, expected: 0 },
+    { id: "date", make: () => new Date("2024-03-14T12:34:56.789Z"), expected: {} },
+    { id: "invalid-date", make: () => new Date(NaN), expected: {} },
+    { id: "url", make: () => new URL("https://example.com/a/b?q=1#hash"), expected: {} },
+    { id: "regexp", make: () => /foo\d+(bar)?/gimu, expected: {} },
+    {
+      id: "map",
+      make: () =>
+        new Map([
+          ["string-key", 123],
+          [42, "number-key"],
+        ]),
+      expected: {},
+    },
+    { id: "set", make: () => new Set(["alpha", 123]), expected: {} },
+    { id: "array-buffer", make: () => new Uint8Array([0, 1, 2, 255]).buffer, expected: {} },
+    { id: "data-view", make: () => new DataView(new ArrayBuffer(8)), expected: {} },
+    {
+      id: "uint8array",
+      make: () => new Uint8Array([0, 1, 127, 128, 255]),
+      expected: { 0: 0, 1: 1, 2: 127, 3: 128, 4: 255 },
+    },
+    {
+      id: "int16array",
+      make: () => new Int16Array([-32768, -1, 0, 1, 32767]),
+      expected: { 0: -32768, 1: -1, 2: 0, 3: 1, 4: 32767 },
+    },
+    {
+      id: "float64array",
+      make: () => new Float64Array([1.5, -2.25, NaN, Infinity, -Infinity]),
+      expected: { 0: 1.5, 1: -2.25, 2: NaN, 3: Infinity, 4: -Infinity },
+    },
+    {
+      id: "error",
+      make: () => {
+        const error = new TypeError("hidden");
+        error.cause = { reason: "cause" };
+        error.extra = "custom-property";
+        return error;
+      },
+      expected: { cause: { reason: "cause" }, extra: "custom-property" },
+    },
+    {
+      id: "class-instance",
+      make: () => new ProbeClass(),
+      expected: { number: 123, text: "class-instance" },
+    },
+    {
+      id: "special-object",
+      make: makeSpecialObject,
+      expected: {
         date: {},
         invalidDate: {},
         url: {},
@@ -105,32 +140,39 @@
         typed: { 0: 9, 1: 8, 2: 7 },
         error: { cause: { reason: "cause" }, extra: "custom-property" },
         classInstance: { number: 123, text: "class-instance" },
-      }),
+      },
     },
-    "array-special": {
-      listed: true,
-      type: "object",
-      json: JSON.stringify([{}, {}, {}, { 0: 100, 1: 200, 2: 300 }]),
+    {
+      id: "array-special",
+      make: makeArraySpecial,
+      expected: [{}, {}, {}, { 0: 100, 1: 200, 2: 300 }],
     },
-    bigint: { listed: false, type: "missing" },
-    "cyclic-object": { listed: false, type: "missing" },
-  };
+    { id: "bigint", make: () => 123456789012345678901234567890n, seed: true, missing: true },
+    { id: "cyclic-object", make: makeCycle, seed: true, missing: true },
+  ];
 
-  function keyFor(api, id) {
-    return PREFIX + api + ":" + id;
+  if (typeof Blob === "function") {
+    cases.push({
+      id: "blob",
+      make: () => new Blob(["hello GM storage blob"], { type: "text/plain" }),
+      expected: {},
+    });
   }
 
-  function describeKey(key) {
-    const isListed = GM_listValues().includes(key);
-    const value = GM_getValue(key, DEFAULT);
+  if (typeof File === "function") {
+    cases.push({
+      id: "file",
+      make: () => new File(["file payload"], "probe.txt", { type: "text/plain", lastModified: 1700000000123 }),
+      expected: {},
+    });
+  }
 
-    if (!isListed && value === DEFAULT) {
-      return { listed: false, type: "missing" };
-    }
+  function describeValue(value) {
+    if (value === undefined) return { type: "undefined" };
+    if (value === null) return { type: "null" };
 
     if (typeof value === "number") {
       return {
-        listed: isListed,
         type: "number",
         value: Number.isNaN(value)
           ? "NaN"
@@ -144,22 +186,53 @@
       };
     }
 
-    if (value !== null && typeof value === "object") {
+    if (typeof value === "bigint") {
+      return { type: "bigint", value: value.toString() };
+    }
+
+    if (typeof value === "string" || typeof value === "boolean") {
+      return { type: typeof value, value };
+    }
+
+    if (Array.isArray(value)) {
       return {
-        listed: isListed,
-        type: "object",
-        json: JSON.stringify(value),
+        type: "array",
+        items: value.map((item) => describeValue(item)),
       };
     }
 
-    if (value === undefined) {
-      return { listed: isListed, type: "undefined" };
+    if (typeof value === "object") {
+      return {
+        type: "object",
+        entries: Object.keys(value).map((key) => [key, describeValue(value[key])]),
+      };
+    }
+
+    return { type: typeof value, value: String(value) };
+  }
+
+  const expected = {};
+  for (const testCase of cases) {
+    expected[testCase.id] = testCase.missing
+      ? { listed: false, value: { type: "missing" } }
+      : { listed: true, value: describeValue(testCase.expected) };
+  }
+
+  function keyFor(api, id) {
+    return PREFIX + api + ":" + id;
+  }
+
+  function describeKey(key) {
+    const isListed = GM_listValues().includes(key);
+    const value = GM_getValue(key, DEFAULT);
+
+    if (!isListed && value === DEFAULT) {
+      return { listed: false, value: { type: "missing" } };
     }
 
     return {
       listed: isListed,
-      type: value === null ? "null" : typeof value,
-      value,
+      value: describeValue(value),
     };
   }
 
