@@ -3,7 +3,7 @@ import type { Message } from "@Packages/message/types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import type { GMInfoEnv } from "./types";
-import { initEnvInfo, ScriptExecutor } from "./script_executor";
+import { initEnvInfo, ScriptExecutor, type ExecScriptEntry } from "./script_executor";
 import { compileInjectScript, compilePreInjectScript, compileScriptCode } from "./utils";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 import { pageDispatchEvent } from "@Packages/message/common";
@@ -63,6 +63,32 @@ function attachLegacyPreInjectMetadata(scriptFunc: (...args: unknown[]) => unkno
   Object.defineProperty(scriptFunc, documentIdKey, { value: documentId });
 }
 
+type EarlyScriptExecution = {
+  scriptRes: TScriptInfo;
+  reconcileEarlyScript: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => boolean;
+  execContext: any;
+};
+
+function createEarlyExecution(
+  scriptLoadInfo: TScriptInfo,
+  scriptFunc: ExecScriptEntry["scriptFunc"] = () => undefined,
+  message: Message = {} as Message
+) {
+  const executor = new ScriptExecutor(message, {} as Message);
+  executor.execScriptEntry({
+    scriptLoadInfo,
+    scriptFlag: scriptLoadInfo.flag,
+    envInfo: initEnvInfo,
+    scriptFunc,
+  });
+  const exec = (
+    executor as unknown as {
+      execScripts: Map<string, EarlyScriptExecution>;
+    }
+  ).execScripts.get(scriptLoadInfo.uuid)!;
+  return { exec };
+}
+
 describe("ScriptExecutor", () => {
   it("uses the configured transport prefix for USER_SCRIPT GM calls", () => {
     const sendMessage = vi.fn().mockResolvedValue(undefined);
@@ -120,27 +146,7 @@ describe("ScriptExecutor", () => {
       ...makeScript({ metadata: { "early-start": [""], "run-at": ["document-start"] } }),
       scriptRevision: "executor-test-uuid:1:0",
     } as TScriptInfo;
-    const executor = new ScriptExecutor({} as Message, {} as Message);
-
-    executor.execScriptEntry({
-      scriptLoadInfo: initial,
-      scriptFlag: initial.flag,
-      envInfo: initEnvInfo,
-      scriptFunc: () => undefined,
-    });
-
-    const exec = (
-      executor as unknown as {
-        execScripts: Map<
-          string,
-          {
-            scriptRes: TScriptInfo;
-            reconcileEarlyScript: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => boolean;
-            execContext: any;
-          }
-        >;
-      }
-    ).execScripts.get(initial.uuid)!;
+    const { exec } = createEarlyExecution(initial);
     expect(exec.scriptRes.executionHandle).toBeUndefined();
     const gmInfo = exec.execContext.GM_info;
 
@@ -198,31 +204,16 @@ describe("ScriptExecutor", () => {
       scriptRevision: "early-rmw-uuid:1:0",
     } as TScriptInfo;
     const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
-    const executor = new ScriptExecutor({ sendMessage } as unknown as Message, {} as Message);
-
-    executor.execScriptEntry({
-      scriptLoadInfo: initial,
-      scriptFlag: initial.flag,
-      envInfo: initEnvInfo,
-      scriptFunc: (_token: string, context: any) => {
+    const { exec: execScript } = createEarlyExecution(
+      initial,
+      (_token: string, context: any) => {
         const counter = context.GM_getValue("counter", 0);
         context.GM_setValue("counter", counter + 1);
         context.GM_setValue("local-only", "local");
         context.GM_deleteValue("deleted");
       },
-    });
-
-    const execScript = (
-      executor as unknown as {
-        execScripts: Map<
-          string,
-          {
-            scriptRes: TScriptInfo;
-            reconcileEarlyScript: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => boolean;
-          }
-        >;
-      }
-    ).execScripts.get(initial.uuid)!;
+      { sendMessage } as unknown as Message
+    );
 
     expect(execScript.scriptRes.value).toEqual({
       counter: 101,
@@ -279,21 +270,7 @@ describe("ScriptExecutor", () => {
         }),
         scriptRevision: "inherited-setter-test-uuid:1:0",
       } as TScriptInfo;
-      const executor = new ScriptExecutor({} as Message, {} as Message);
-      executor.execScriptEntry({
-        scriptLoadInfo: initial,
-        scriptFlag: initial.flag,
-        envInfo: initEnvInfo,
-        scriptFunc: () => undefined,
-      });
-      const exec = (
-        executor as unknown as {
-          execScripts: Map<
-            string,
-            { scriptRes: TScriptInfo; reconcileEarlyScript: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => boolean }
-          >;
-        }
-      ).execScripts.get(initial.uuid)!;
+      const { exec } = createEarlyExecution(initial);
 
       const ok = exec.reconcileEarlyScript(initEnvInfo, {
         ...initial,
@@ -328,21 +305,7 @@ describe("ScriptExecutor", () => {
       }),
       scriptRevision: "proto-key-test-uuid:1:0",
     } as TScriptInfo;
-    const executor = new ScriptExecutor({} as Message, {} as Message);
-    executor.execScriptEntry({
-      scriptLoadInfo: initial,
-      scriptFlag: initial.flag,
-      envInfo: initEnvInfo,
-      scriptFunc: () => undefined,
-    });
-    const exec = (
-      executor as unknown as {
-        execScripts: Map<
-          string,
-          { scriptRes: TScriptInfo; reconcileEarlyScript: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => boolean }
-        >;
-      }
-    ).execScripts.get(initial.uuid)!;
+    const { exec } = createEarlyExecution(initial);
     const originalPrototype = Object.getPrototypeOf(exec.scriptRes);
 
     const forgedScriptInfo: Record<string, unknown> = {
@@ -372,25 +335,7 @@ describe("ScriptExecutor", () => {
       }),
       scriptRevision: "gminfo-setter-test-uuid:1:0",
     } as TScriptInfo;
-    const executor = new ScriptExecutor({} as Message, {} as Message);
-    executor.execScriptEntry({
-      scriptLoadInfo: initial,
-      scriptFlag: initial.flag,
-      envInfo: initEnvInfo,
-      scriptFunc: () => undefined,
-    });
-    const exec = (
-      executor as unknown as {
-        execScripts: Map<
-          string,
-          {
-            scriptRes: TScriptInfo;
-            reconcileEarlyScript: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => boolean;
-            execContext: any;
-          }
-        >;
-      }
-    ).execScripts.get(initial.uuid)!;
+    const { exec } = createEarlyExecution(initial);
     const gmInfo = exec.execContext.GM_info;
 
     let setterCalls = 0;
@@ -427,25 +372,7 @@ describe("ScriptExecutor", () => {
       }),
       scriptRevision: "gminfo-nonconfigurable-test-uuid:1:0",
     } as TScriptInfo;
-    const executor = new ScriptExecutor({} as Message, {} as Message);
-    executor.execScriptEntry({
-      scriptLoadInfo: initial,
-      scriptFlag: initial.flag,
-      envInfo: initEnvInfo,
-      scriptFunc: () => undefined,
-    });
-    const exec = (
-      executor as unknown as {
-        execScripts: Map<
-          string,
-          {
-            scriptRes: TScriptInfo;
-            reconcileEarlyScript: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => boolean;
-            execContext: any;
-          }
-        >;
-      }
-    ).execScripts.get(initial.uuid)!;
+    const { exec } = createEarlyExecution(initial);
     const gmInfo = exec.execContext.GM_info;
 
     let setterCalls = 0;
@@ -492,25 +419,7 @@ describe("ScriptExecutor", () => {
       }),
       scriptRevision: "gminfo-identity-test-uuid:1:0",
     } as TScriptInfo;
-    const executor = new ScriptExecutor({} as Message, {} as Message);
-    executor.execScriptEntry({
-      scriptLoadInfo: initial,
-      scriptFlag: initial.flag,
-      envInfo: initEnvInfo,
-      scriptFunc: () => undefined,
-    });
-    const exec = (
-      executor as unknown as {
-        execScripts: Map<
-          string,
-          {
-            scriptRes: TScriptInfo;
-            reconcileEarlyScript: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => boolean;
-            execContext: any;
-          }
-        >;
-      }
-    ).execScripts.get(initial.uuid)!;
+    const { exec } = createEarlyExecution(initial);
 
     const gmInfoBefore = exec.execContext.GM_info;
     expect(exec.execContext.GM.info).toBe(gmInfoBefore);
