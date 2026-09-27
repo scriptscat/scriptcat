@@ -9,6 +9,7 @@
 // @grant        GM_setValue
 // @grant        GM_setValues
 // @grant        GM_listValues
+// @grant        GM.setValue
 // @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@36ab4ce5ff23c820a32cd13ac5a04d8834ab4d82/example/tests/lib/sctest.js
 // ==/UserScript==
 
@@ -168,6 +169,86 @@
         expectInvalidatedTopLevel(symbolKey);
         expect(GM_getValue(objectKey)).toEqual({ before: 1, after: 2 });
         expect(GM_getValue(arrayKey)).toEqual([1, null, null, null, 5]);
+      },
+      null,
+      null,
+      null
+    );
+  });
+
+  describe("measured scalar and object compatibility", () => {
+    check(
+      "自动断言",
+      "non-array special objects become enumerable-property bags",
+      () => {
+        const key = PREFIX + "special-property-bags";
+        const error = new Error("hidden");
+        error.extra = "visible";
+
+        GM_setValue(key, {
+          date: new Date("2024-01-02T03:04:05.000Z"),
+          invalidDate: new Date(NaN),
+          url: new URL("https://example.com/path"),
+          regexp: /probe/gi,
+          map: new Map([["a", 1]]),
+          set: new Set(["x"]),
+          typed: new Uint8Array([9, 8, 7]),
+          error,
+        });
+
+        expect(GM_getValue(key)).toEqual({
+          date: {},
+          invalidDate: {},
+          url: {},
+          regexp: {},
+          map: {},
+          set: {},
+          typed: { 0: 9, 1: 8, 2: 7 },
+          error: { extra: "visible" },
+        });
+      },
+      null,
+      null,
+      null
+    );
+
+    check(
+      "自动断言",
+      "negative zero is canonicalized to positive zero",
+      () => {
+        const key = PREFIX + "negative-zero";
+        GM_setValue(key, -0);
+        const stored = GM_getValue(key);
+
+        expect(stored).toBe(0);
+        expect(Object.is(stored, -0)).toBe(false);
+      },
+      null,
+      null,
+      null
+    );
+
+    check(
+      "自动断言",
+      "GM.setValue keeps NaN and infinities lossless after await",
+      async () => {
+        const values = {
+          nan: NaN,
+          positiveInfinity: Infinity,
+          negativeInfinity: -Infinity,
+        };
+
+        for (const [name, value] of Object.entries(values)) {
+          const key = PREFIX + "async-" + name;
+          await GM.setValue(key, value);
+          const stored = GM_getValue(key);
+
+          if (Number.isNaN(value)) {
+            expect(Number.isNaN(stored)).toBe(true);
+          } else {
+            expect(stored).toBe(value);
+          }
+        }
       },
       null,
       null,

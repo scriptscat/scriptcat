@@ -82,84 +82,84 @@ const setOwnValue = (store: Record<string, any>, key: string, value: any): void 
 };
 
 const gmStorageOmit = Native.objectCreate(null);
-
-const isPlainGMStorageObject = (value: object): boolean => {
-  if (Native.arrayIsArray(value)) return false;
-  try {
-    const prototype = Native.objectGetPrototypeOf(value);
-    // Works for ordinary objects from either the userscript or page realm without relying on
-    // a mutable constructor property. Class instances and built-in special objects keep their
-    // existing structured-clone path.
-    return prototype === null || Native.objectGetPrototypeOf(prototype) === null;
-  } catch {
-    return false;
-  }
-};
+const gmStorageInvalid = Native.objectCreate(null);
 
 const normalizeGMStorageCompatibilityValue = (
   value: any,
-  seen: WeakMap<object, any> = new Native.WeakMap<object, any>()
+  active: WeakMap<object, true> = new Native.WeakMap<object, true>()
 ): any => {
   if (value === undefined || typeof value === "function" || typeof value === "symbol") {
     return gmStorageOmit;
   }
-  if (value === null || typeof value !== "object") return value;
+  if (value === null || typeof value !== "object") {
+    // Tampermonkey canonicalizes negative zero when values cross the GM storage boundary.
+    return typeof value === "number" && value === 0 && 1 / value === -Infinity ? 0 : value;
+  }
 
-  const existing = seen.get(value);
-  if (existing !== undefined) return existing;
+  // GM storage is serialization, not graph cloning. Reject cycles but serialize repeated
+  // non-cyclic references independently after their recursion frame has completed.
+  if (active.has(value)) return gmStorageInvalid;
+  active.set(value, true);
 
-  if (Native.arrayIsArray(value)) {
-    const result: any[] = [];
-    seen.set(value, result);
-    const length = Native.reflectGet(value, "length") as number;
-    for (let index = 0; index < length; index += 1) {
-      const normalized = normalizeGMStorageCompatibilityValue(Native.reflectGet(value, `${index}`), seen);
-      Native.objectDefineProperty(result, index, {
-        configurable: true,
-        enumerable: true,
-        writable: true,
-        value: normalized === gmStorageOmit ? null : normalized,
-      });
+  try {
+    if (Native.arrayIsArray(value)) {
+      const result: any[] = [];
+      const length = Native.reflectGet(value, "length") as number;
+      for (let index = 0; index < length; index += 1) {
+        const normalized = normalizeGMStorageCompatibilityValue(Native.reflectGet(value, `${index}`), active);
+        if (normalized === gmStorageInvalid) return gmStorageInvalid;
+        Native.objectDefineProperty(result, index, {
+          configurable: true,
+          enumerable: true,
+          writable: true,
+          value: normalized === gmStorageOmit ? null : normalized,
+        });
+      }
+      return result;
+    }
+
+    // Tampermonkey treats every non-array object as an enumerable-own-string-property bag.
+    // Date/URL/Map/Set/RegExp/ArrayBuffer/etc. therefore become {} unless they expose their
+    // own enumerable properties; typed arrays naturally keep their enumerable numeric keys.
+    const result = Native.objectCreate(null) as Record<string, unknown>;
+    const keys = Native.reflectOwnKeys(value);
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
+      if (typeof key !== "string") continue;
+      const descriptor = Native.objectGetOwnPropertyDescriptor(value, key);
+      if (!descriptor?.enumerable) continue;
+      const normalized = normalizeGMStorageCompatibilityValue(Native.reflectGet(value, key), active);
+      if (normalized === gmStorageInvalid) return gmStorageInvalid;
+      if (normalized === gmStorageOmit) continue;
+      setOwnValue(result, key, normalized);
     }
     return result;
+  } finally {
+    active.delete(value);
   }
-
-  if (!isPlainGMStorageObject(value)) return value;
-
-  const result = Native.objectCreate(null) as Record<string, unknown>;
-  seen.set(value, result);
-  const keys = Native.reflectOwnKeys(value);
-  for (let index = 0; index < keys.length; index += 1) {
-    const key = keys[index];
-    if (typeof key !== "string") continue;
-    const descriptor = Native.objectGetOwnPropertyDescriptor(value, key);
-    if (!descriptor?.enumerable) continue;
-    const normalized = normalizeGMStorageCompatibilityValue(Native.reflectGet(value, key), seen);
-    if (normalized === gmStorageOmit) continue;
-    setOwnValue(result, key, normalized);
-  }
-  return result;
 };
 
 /**
- * GM storage is a userscript compatibility boundary. Tampermonkey-style unsupported values
- * are normalized only inside plain objects/arrays: object properties are omitted and array
- * slots become null. Special objects (Date/Map/Set/RegExp/TypedArray/...) deliberately keep
- * the existing structured-clone path until their compatibility contract is measured.
+ * GM storage is a userscript compatibility boundary. Arrays retain array shape while every
+ * non-array object is serialized as its own enumerable string-keyed property bag. Unsupported
+ * nested values are omitted from objects and become null in arrays; cyclic graphs are rejected.
  *
- * Proxy/accessor reads are intentionally observable here. If normalization or structured
- * cloning cannot handle a value, retain the historical JSON fallback.
+ * Proxy/accessor reads are intentionally observable here. If normalization itself throws,
+ * retain the historical structured-clone/JSON fallback for hostile inputs.
  */
 const cloneGMStorageValue = (value: any): any => {
   if (value === null) return value;
   const valueType = typeof value;
   if (valueType === "function" || valueType === "symbol") return undefined;
-  if (valueType !== "object") return value;
+  if (valueType !== "object") {
+    return valueType === "number" && value === 0 && 1 / value === -Infinity ? 0 : value;
+  }
 
   let cloneSource = value;
   try {
     const normalized = normalizeGMStorageCompatibilityValue(value);
-    if (normalized !== gmStorageOmit) cloneSource = normalized;
+    if (normalized === gmStorageInvalid || normalized === gmStorageOmit) return undefined;
+    cloneSource = normalized;
   } catch {
     // Preserve the existing fallback behavior for hostile Proxy/accessor inputs.
   }
@@ -472,11 +472,9 @@ export default class GMApi extends GM_Base {
     }
     const id = `${valChangeRandomId}::${++valChangeCounterId}`;
     // Normalize before mutating local state. ScriptCat intentionally keeps its historical
-    // top-level undefined=delete contract, so Function/Symbol normalize to the same delete
-    // semantics instead of creating a transient own-undefined entry.
-    if (typeof value === "function" || typeof value === "symbol" || (value !== null && typeof value === "object")) {
-      value = cloneGMStorageValue(value);
-    }
+    // top-level undefined=delete contract, so unsupported top-level values normalize to the
+    // same delete semantics instead of creating a transient own-undefined entry.
+    value = cloneGMStorageValue(value);
     if (value === undefined) {
       if (Native.objectHasOwn(a.scriptRes.value, key)) delete a.scriptRes.value[key];
       return a.sendMessage("GM_setValue", [id, key]);
@@ -518,14 +516,7 @@ export default class GMApi extends GM_Base {
       // Same compatibility rule as GM_setValue: the userscript-visible local write wins until
       // the queued authoritative write is flushed after bootstrap.
       a.pendingEarlyValueKeys?.add(key);
-      let value_ = value;
-      if (
-        typeof value_ === "function" ||
-        typeof value_ === "symbol" ||
-        (value_ !== null && typeof value_ === "object")
-      ) {
-        value_ = cloneGMStorageValue(value_);
-      }
+      const value_ = cloneGMStorageValue(value);
       if (value_ === undefined) {
         if (Native.objectHasOwn(valueStore, key)) delete valueStore[key];
       } else {

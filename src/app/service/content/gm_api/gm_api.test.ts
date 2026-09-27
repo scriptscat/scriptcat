@@ -1446,6 +1446,81 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     );
   });
 
+  it("normalizes every non-array object to enumerable own string properties", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_getValue", "GM_setValue"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+
+    const error = new Error("hidden message") as Error & { extra?: string };
+    error.extra = "visible";
+    class Box {
+      visible = 7;
+    }
+
+    api.GM_setValue(api, "special", {
+      date: new Date("2024-01-02T03:04:05.000Z"),
+      invalidDate: new Date(Number.NaN),
+      url: new URL("https://example.com/path"),
+      regexp: /probe/gi,
+      map: new Map([["a", 1]]),
+      set: new Set(["x"]),
+      typed: new Uint8Array([9, 8, 7]),
+      error,
+      box: new Box(),
+    });
+
+    expect(api.GM_getValue(api, "special")).toEqual({
+      date: {},
+      invalidDate: {},
+      url: {},
+      regexp: {},
+      map: {},
+      set: {},
+      typed: { 0: 9, 1: 8, 2: 7 },
+      error: { extra: "visible" },
+      box: { visible: 7 },
+    });
+  });
+
+  it("rejects cyclic GM storage graphs instead of preserving them through structuredClone", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_getValue", "GM_setValue"] },
+      value: { cyclic: "OLD" },
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const cyclic: Record<string, unknown> = { value: 1 };
+    cyclic.self = cyclic;
+
+    api.GM_setValue(api, "cyclic", cyclic);
+
+    expect(api.GM_getValue(api, "cyclic", "MISSING")).toBe("MISSING");
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ params: [expect.any(String), "cyclic"] }) })
+    );
+  });
+
+  it("canonicalizes negative zero to positive zero for single and batch writes", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_getValue", "GM_setValue", "GM_setValues"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+
+    api.GM_setValue(api, "single", -0);
+    api.GM_setValues(api, { batch: -0, nested: { value: -0 }, array: [-0] });
+
+    expect(Object.is(api.GM_getValue(api, "single"), -0)).toBe(false);
+    expect(api.GM_getValue(api, "single")).toBe(0);
+    expect(api.GM_getValue(api, "batch")).toBe(0);
+    expect(api.GM_getValue(api, "nested")).toEqual({ value: 0 });
+    expect(api.GM_getValue(api, "array")).toEqual([0]);
+  });
+
   it("GM_setValues deletes existing falsy values when given undefined", () => {
     const script = Object.assign({}, scriptRes, {
       metadata: { grant: ["GM_setValues"] },
