@@ -562,16 +562,14 @@ function patchGMApiTestCode(code: string, mockOrigin: string): string {
 const SW_E2E_ERROR_BUFFER = "__scriptcatE2EUnhandledErrors";
 
 async function installServiceWorkerErrorCapture(worker: Worker): Promise<void> {
-  await worker.evaluate(() => {
-    const target = globalThis as typeof globalThis & {
-      __scriptcatE2EUnhandledErrors?: string[];
-      __scriptcatE2EUnhandledErrorsInstalled?: boolean;
-    };
-    if (target.__scriptcatE2EUnhandledErrorsInstalled) return;
+  await worker.evaluate((bufferKey) => {
+    const target = globalThis as typeof globalThis & Record<string, unknown>;
+    const installedKey = `${bufferKey}Installed`;
+    if (target[installedKey]) return;
 
     const errors: string[] = [];
-    target.__scriptcatE2EUnhandledErrors = errors;
-    target.__scriptcatE2EUnhandledErrorsInstalled = true;
+    target[bufferKey] = errors;
+    target[installedKey] = true;
 
     const describe = (value: unknown) => {
       if (value instanceof Error) return value.stack || `${value.name}: ${value.message}`;
@@ -591,17 +589,18 @@ async function installServiceWorkerErrorCapture(worker: Worker): Promise<void> {
       const detail = event as Event & { reason?: unknown };
       errors.push(`Unhandled rejection: ${describe(detail.reason)}`);
     });
-  });
+  }, SW_E2E_ERROR_BUFFER);
 }
 
 async function readServiceWorkerErrors(context: BrowserContext): Promise<string[]> {
   const batches = await Promise.all(
     context.serviceWorkers().map(async (worker) => {
       try {
-        return await worker.evaluate(() => {
-          const target = globalThis as typeof globalThis & { __scriptcatE2EUnhandledErrors?: string[] };
-          return [...(target.__scriptcatE2EUnhandledErrors || [])];
-        });
+        return await worker.evaluate((bufferKey) => {
+          const target = globalThis as typeof globalThis & Record<string, unknown>;
+          const errors = target[bufferKey];
+          return Array.isArray(errors) ? (errors as string[]).slice() : [];
+        }, SW_E2E_ERROR_BUFFER);
       } catch {
         return [];
       }
