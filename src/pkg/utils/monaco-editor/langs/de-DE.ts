@@ -54,6 +54,7 @@ export default {
   replaceMatchTldWildcardWithInclude: "@match-TLD-Wildcard durch @include {0} ersetzen",
   replaceIncludeWithMatch: "@include durch @match {0} ersetzen",
   grantConflict: "@grant none kann nicht zusammen mit GM-APIs verwendet werden. Entfernen Sie none oder alle GM-APIs.",
+  duplicateResourceName: '@resource-Name "{0}" wird mehrfach deklariert.',
   unsupportedGrant: "@grant {0} wird von ScriptCat nicht unterstützt und hat keine Wirkung.",
   grantValuePrompts,
   prompt: {
