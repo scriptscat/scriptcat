@@ -145,7 +145,7 @@ describe("SubscribeService —— 手动检查更新", () => {
     const mq = new MessageQueue();
     const service = new SubscribeService(server.group("subscribe"), mq, {} as ScriptService);
     service.init();
-    return { client: new SubscribeClient(mockMessage), fetchMock, tabsCreate, mq };
+    return { client: new SubscribeClient(mockMessage), fetchMock, tabsCreate, mq, service };
   };
 
   it("远端版本更高且无需确认时应静默更新并返回 updated", async () => {
@@ -157,6 +157,41 @@ describe("SubscribeService —— 手动检查更新", () => {
     expect(fetchMock).toHaveBeenCalledWith(SUB_URL, expect.anything());
     expect(res).toBe("updated");
     expect((await synced).subscribe.metadata.version).toEqual(["0.3.4"]);
+    expect(tabsCreate).not.toHaveBeenCalled();
+  });
+
+  it("静默更新保存完成后才返回 updated", async () => {
+    const { client, service, mq } = await setup(subscribeCode("0.3.4"));
+    let finishSave!: (subscribe: Subscribe) => void;
+    const savePending = new Promise<Subscribe>((resolve) => {
+      finishSave = resolve;
+    });
+    const save = vi.spyOn(service.subscribeDAO, "save").mockReturnValue(savePending);
+    const installed = new Promise<TInstallSubscribe>((resolve) => mq.subscribe("installSubscribe", resolve));
+    let settled = false;
+    const result = client.checkUpdate(SUB_URL).then((value) => {
+      settled = true;
+      return value;
+    });
+
+    try {
+      await vi.waitFor(() => expect(save).toHaveBeenCalledOnce());
+      expect(settled).toBe(false);
+    } finally {
+      finishSave(makeSubscribe({ metadata: { usersubscribe: [], version: ["0.3.4"] } }));
+    }
+
+    await expect(result).resolves.toBe("updated");
+    await expect(installed).resolves.toMatchObject({ subscribe: { metadata: { version: ["0.3.4"] } } });
+  });
+
+  it("静默更新保存失败时返回 false", async () => {
+    const { client, service, tabsCreate } = await setup(subscribeCode("0.3.4"));
+    const failedInstall = Promise.reject(new Error("storage unavailable"));
+    void failedInstall.catch(() => {});
+    vi.spyOn(service, "install").mockReturnValue(failedInstall);
+
+    await expect(client.checkUpdate(SUB_URL)).resolves.toBe(false);
     expect(tabsCreate).not.toHaveBeenCalled();
   });
 

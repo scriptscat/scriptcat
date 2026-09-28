@@ -301,17 +301,19 @@ export class SubscribeService {
     const logger = this.logger.with({
       url,
     });
+    let newSubscribe: Awaited<ReturnType<typeof prepareSubscribeByCode>>;
     try {
-      const newSubscribe = await prepareSubscribeByCode(code, url);
-      if (checkSilenceUpdate(newSubscribe.oldSubscribe!.metadata, newSubscribe.subscribe.metadata)) {
-        logger.info("silence update subscribe");
-        this.install({
-          subscribe: newSubscribe.subscribe,
-        });
-        return true;
-      }
+      newSubscribe = await prepareSubscribeByCode(code, url);
     } catch (e) {
       logger.error("prepare script failed", Logger.E(e));
+      return;
+    }
+    if (checkSilenceUpdate(newSubscribe.oldSubscribe!.metadata, newSubscribe.subscribe.metadata)) {
+      logger.info("silence update subscribe");
+      await this.install({
+        subscribe: newSubscribe.subscribe,
+      });
+      return true;
     }
   }
 
