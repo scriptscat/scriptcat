@@ -282,7 +282,7 @@ export class SubscribeService {
             savedAt: Date.now(),
             type: TempStorageItemType.tempCode,
           });
-          chrome.tabs.create({
+          await chrome.tabs.create({
             url: `/src/install.html?uuid=${uuid}`,
           });
         }

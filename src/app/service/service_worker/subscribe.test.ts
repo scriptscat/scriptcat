@@ -204,6 +204,42 @@ describe("SubscribeService —— 手动检查更新", () => {
     expect(tabsCreate).toHaveBeenCalledWith({ url: expect.stringContaining("/src/install.html?uuid=") });
   });
 
+  it("安装确认页创建完成后才返回 confirm", async () => {
+    const { client, tabsCreate } = await setup(subscribeCode("0.3.4", ["new.example.com"]));
+    let finishCreate!: (tab: chrome.tabs.Tab) => void;
+    const createPending = new Promise<chrome.tabs.Tab>((resolve) => {
+      finishCreate = resolve;
+    });
+    tabsCreate.mockImplementation(() => createPending);
+    let settled = false;
+    const result = client.checkUpdate(SUB_URL).then((value) => {
+      settled = true;
+      return value;
+    });
+
+    await vi.waitFor(() => expect(tabsCreate).toHaveBeenCalledOnce());
+    expect(settled).toBe(false);
+    finishCreate({} as chrome.tabs.Tab);
+
+    await expect(result).resolves.toBe("confirm");
+  });
+
+  it("安装确认页创建失败时不返回 confirm", async () => {
+    const { client, tabsCreate } = await setup(subscribeCode("0.3.4", ["new.example.com"]));
+    let failCreate!: (error: Error) => void;
+    const createPending = new Promise<chrome.tabs.Tab>((_, reject) => {
+      failCreate = reject;
+    });
+    void createPending.catch(() => {});
+    tabsCreate.mockImplementation(() => createPending);
+
+    const result = client.checkUpdate(SUB_URL);
+    await vi.waitFor(() => expect(tabsCreate).toHaveBeenCalledOnce());
+    failCreate(new Error("tab creation failed"));
+
+    await expect(result).resolves.toBe(false);
+  });
+
   it("远端版本未升高时返回 false", async () => {
     const { client, tabsCreate } = await setup(subscribeCode("0.3.3"));
 
