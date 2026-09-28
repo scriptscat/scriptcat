@@ -1,5 +1,6 @@
 import type { editor } from "monaco-editor";
 import { isSupportedGrant, resolveMetadataTagBase } from "@App/pkg/utils/script_compat";
+import { parseResourceDeclaration } from "@App/pkg/utils/resource";
 
 export type MetadataAlignmentLine = {
   lineNumber: number;
@@ -26,6 +27,13 @@ export type UndefinedMetadataTagMatch = {
   lineNumber: number;
   startColumn: number;
   endColumn: number;
+};
+
+export type DuplicateResourceNameMatch = {
+  lineNumber: number;
+  startColumn: number;
+  endColumn: number;
+  name: string;
 };
 
 export type UnsupportedGrantMatch = {
@@ -123,6 +131,48 @@ export const getUndefinedMetadataTagMatches = (
         startColumn: prefix.length + 1,
         endColumn: prefix.length + tag.length + 1,
       });
+    }
+  }
+
+  return matches;
+};
+
+/**
+ * 只检查第一个有效 metadata 区块内的 @resource 声明（block 已由 getMetadataAlignmentBlocks
+ * 限定为第一个成对闭合的区块）。名称按大小写敏感分组，复用 parseResourceDeclaration 解析
+ * `<name> <url>`，格式不合法的声明会被 parseResourceDeclaration 拒绝并忽略。
+ */
+export const getDuplicateResourceNameMatches = (blocks: MetadataAlignmentBlock[]): DuplicateResourceNameMatch[] => {
+  const matches: DuplicateResourceNameMatch[] = [];
+
+  for (const block of blocks) {
+    const linesByName = new Map<string, MetadataAlignmentLine[]>();
+
+    for (const line of block.lines) {
+      if (line.tag.toLowerCase() !== "resource") continue;
+
+      const declaration = parseResourceDeclaration(line.value.trim());
+      if (!declaration) continue;
+
+      const lines = linesByName.get(declaration.name);
+      if (lines) {
+        lines.push(line);
+      } else {
+        linesByName.set(declaration.name, [line]);
+      }
+    }
+
+    for (const [name, lines] of linesByName) {
+      if (lines.length < 2) continue;
+
+      for (const line of lines) {
+        matches.push({
+          lineNumber: line.lineNumber,
+          startColumn: line.valueColumn + 1,
+          endColumn: line.valueColumn + 1 + name.length,
+          name,
+        });
+      }
     }
   }
 

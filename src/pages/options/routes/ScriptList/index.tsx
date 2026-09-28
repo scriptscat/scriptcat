@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, memo, useMemo, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
+import { RefreshCw, TriangleAlert } from "lucide-react";
 import { arrayMove } from "@dnd-kit/sortable";
 import {
   SCRIPT_STATUS_ENABLE,
@@ -37,6 +38,8 @@ import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
 import ScriptListMobile from "./ScriptListMobile";
 import TrashTable from "./TrashTable";
 import { notify } from "@App/pages/components/ui/toast";
+import { Button } from "@App/pages/components/ui/button";
+import { StateScreen } from "@App/pages/components/ui/state-screen";
 import { useUserConfigPreload } from "./preload";
 import { reindexScriptList } from "./sort";
 import type { SortState } from "./sort";
@@ -105,7 +108,7 @@ export default function ScriptList() {
   }, []);
 
   // 2. 数据 Hook
-  const { scriptList, setScriptList, loadingList } = useScriptDataManagement();
+  const { scriptList, setScriptList, loadingList, scriptListError, reloadScriptList } = useScriptDataManagement();
   const isMobile = useIsMobile();
   const { stats, filterItems } = useScriptFilters(scriptList, selectedFilters, searchRequest);
   const [filterScriptList, setFilterScriptList] = useState<ScriptLoading[]>([]);
@@ -423,6 +426,27 @@ export default function ScriptList() {
       })}
     </div>
   );
+
+  if (scriptListError) {
+    return (
+      <div className="flex h-full flex-col">
+        <StateScreen
+          icon={TriangleAlert}
+          tone="error"
+          title={t("script:operation_failed")}
+          detail={scriptListError instanceof Error ? scriptListError.message : String(scriptListError)}
+          action={
+            <Button onClick={reloadScriptList}>
+              <RefreshCw />
+              {t("editor:retry")}
+            </Button>
+          }
+        />
+        {userConfigDialog}
+        {cloudDialog}
+      </div>
+    );
+  }
 
   if (isMobile) {
     return (

@@ -437,6 +437,19 @@ export const extractSchemesOfGlobs = (globs: string[]): string[] => {
   return [...set];
 };
 
+// chrome.userScripts 与 Firefox 都接受的 match pattern scheme；其余（chrome://、edge://、about: 等）
+// 注册时会抛 Invalid scheme，而批量注册是原子的，一个脚本出错会让整批失败
+const API_SUPPORTED_MATCH_SCHEMES = new Set(["*", "http", "https", "file", "ftp"]);
+
+export const isApiSupportedMatchPattern = (pattern: string) =>
+  API_SUPPORTED_MATCH_SCHEMES.has(pattern.substring(0, pattern.indexOf("://")));
+
+// 用户输入的 @match 值能否产生可注册的规则：解析失败的会被静默忽略，不支持的 scheme 会在注册时被丢弃
+export const isRegistrableMatchPattern = (pattern: string) => {
+  const [rule] = extractUrlPatterns([`@match ${pattern}`]);
+  return rule?.ruleType === RuleType.MATCH_INCLUDE && isApiSupportedMatchPattern(rule.patternString);
+};
+
 export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
   const urlMatching = scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_INCLUDE);
   const urlSpecificMatching = urlMatching.filter((e) => e.patternString !== "*://*/*");
@@ -524,7 +537,8 @@ export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
   }
 
   return {
-    matches: apiMatches, // primary
+    // 放在最后过滤：过滤后为空时调用方会不注册该脚本；若提前过滤，上面的逻辑会把空列表当成「无 match」退回 *://*/*
+    matches: apiMatches.filter(isApiSupportedMatchPattern), // primary
     includeGlobs: apiIncludeGlobs, // includeGlobs applied after matches
   };
 };
