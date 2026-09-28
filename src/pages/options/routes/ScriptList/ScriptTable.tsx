@@ -79,7 +79,7 @@ function DraggableRow({ id, children }: { id: string; children: React.ReactNode 
     zIndex: isDragging ? 10 : "auto",
   };
   const handle = (
-    <span ref={setActivatorNodeRef} {...listeners} className="cursor-grab opacity-0 group-hover/row:opacity-50">
+    <span ref={setActivatorNodeRef} {...listeners} className="cursor-move opacity-0 group-hover/row:opacity-50">
       <GripVertical className="w-4 h-4 text-muted-foreground" />
     </span>
   );
