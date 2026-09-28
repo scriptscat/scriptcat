@@ -33,22 +33,18 @@ describe("page GM RPC", () => {
     expect(allowed).toEqual(expect.arrayContaining(["GM.openInTab", "GM_openInTab", "GM_closeInTab"]));
   });
 
-  it("includes storage APIs used by delete wrappers", () => {
-    expect(getPageRpcAllowedAPIs(["GM_deleteValue"])).toEqual(
-      expect.arrayContaining(["GM_deleteValue", "GM_setValue"])
-    );
-    expect(getPageRpcAllowedAPIs(["GM.deleteValues"])).toEqual(
-      expect.arrayContaining(["GM.deleteValues", "GM_setValues"])
-    );
+  it.each([
+    { deleteAPI: "GM_deleteValue", setAPI: "GM_setValue" },
+    { deleteAPI: "GM.deleteValues", setAPI: "GM_setValues" },
+  ])("includes $setAPI for the $deleteAPI wrapper dependency", ({ deleteAPI, setAPI }) => {
+    expect(getPageRpcAllowedAPIs([deleteAPI])).toEqual(expect.arrayContaining([deleteAPI, setAPI]));
   });
 
-  it("includes the nested cookie methods exposed by both cookie grant spellings", () => {
-    expect(getPageRpcAllowedAPIs(["GM.cookie"])).toEqual(
-      expect.arrayContaining(["GM.cookie.set", "GM.cookie.list", "GM.cookie.delete"])
-    );
-    expect(getPageRpcAllowedAPIs(["GM_cookie"])).toEqual(
-      expect.arrayContaining(["GM_cookie.set", "GM_cookie.list", "GM_cookie.delete"])
-    );
+  it.each([
+    { grant: "GM.cookie", methods: ["GM.cookie.set", "GM.cookie.list", "GM.cookie.delete"] },
+    { grant: "GM_cookie", methods: ["GM_cookie.set", "GM_cookie.list", "GM_cookie.delete"] },
+  ])("includes nested cookie methods for $grant", ({ grant, methods }) => {
+    expect(getPageRpcAllowedAPIs([grant])).toEqual(expect.arrayContaining(methods));
   });
 
   it("does not create a GM capability set for a none grant", () => {
@@ -110,22 +106,16 @@ describe("page GM RPC", () => {
     expect(allowed).not.toContain("CAT_createBlobUrl");
   });
 
-  it("rejects direct internal fetch helpers from a GM XHR binding", () => {
+  it.each([
+    { api: "CAT_fetchBlob", params: ["https://example.com/file"] },
+    { api: "CAT_fetchDocument", params: ["https://example.com/file", false] },
+  ])("rejects direct internal fetch helper $api from a GM XHR binding", ({ api, params }) => {
     const registry = new PageRpcRegistry();
     const handle = registry.register("handle-a", getPageRpcAllowedAPIs(["GM_xmlhttpRequest"]));
 
-    expect(() =>
-      validatePageGMRequest(
-        { version: 2, sequence: 1, handle, api: "CAT_fetchBlob", params: ["https://example.com/file"] },
-        registry
-      )
-    ).toThrow("API is not granted");
-    expect(() =>
-      validatePageGMRequest(
-        { version: 2, sequence: 1, handle, api: "CAT_fetchDocument", params: ["https://example.com/file", false] },
-        registry
-      )
-    ).toThrow("API is not granted");
+    expect(() => validatePageGMRequest({ version: 2, sequence: 1, handle, api, params }, registry)).toThrow(
+      "API is not granted"
+    );
   });
 
   it("accepts a request for the active execution binding and clones parameters", () => {
