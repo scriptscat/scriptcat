@@ -303,7 +303,7 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
 
       await vi.waitFor(async () => {
         const syncData = await chrome.storage.sync.get("system_eslint_config");
-        expect(JSON.parse(syncData["system_eslint_config"] as string)).toEqual({
+        expect(syncData["system_eslint_config"]).toEqual({
           format: "scriptcat-json-overrides",
           version: 1,
           overrides: { rules: { "no-debugger": ["warn"], "custom/added-rule": ["error"] } },
@@ -313,11 +313,11 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
 
     it("读取时应将存储的差异合并到最新默认配置", async () => {
       await chrome.storage.sync.set({
-        system_eslint_config: JSON.stringify({
+        system_eslint_config: {
           format: "scriptcat-json-overrides",
           version: 1,
           overrides: { rules: { "no-debugger": ["warn"] } },
-        }),
+        },
       });
 
       const result = JSON.parse(await new SystemConfig(new MessageQueue()).getEslintConfig());
@@ -327,24 +327,60 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
       expect(result.globals).toEqual(defaults.globals);
     });
 
-    it("旧版全量配置应自动获得新默认字段且保留用户改动", async () => {
-      // 模拟旧版本存储的全量 JSON：缺少后续新增的默认规则，且用户改过其中一条
+    it("读取旧版全量配置时保留已有值并补充当前缺失字段", async () => {
       const legacy = JSON.parse(eslintDefaultConfig);
       legacy.rules["no-debugger"] = ["off"];
       delete legacy.rules["no-empty"];
-      await chrome.storage.sync.set({ system_eslint_config: JSON.stringify(legacy) });
+      const legacyString = JSON.stringify(legacy);
+      await chrome.storage.sync.set({ system_eslint_config: legacyString });
 
       const result = JSON.parse(await new SystemConfig(new MessageQueue()).getEslintConfig());
       expect(result.rules["no-debugger"]).toEqual(["off"]);
-      // 新增的默认规则应自动生效
       expect(result.rules["no-empty"]).toEqual(JSON.parse(eslintDefaultConfig).rules["no-empty"]);
+    });
 
-      const stored = await chrome.storage.sync.get("system_eslint_config");
-      expect(JSON.parse(stored["system_eslint_config"] as string)).toEqual({
+    it("读取旧版全量配置不会写回 storage", async () => {
+      const legacy = JSON.parse(eslintDefaultConfig);
+      legacy.rules["no-debugger"] = ["off"];
+      const legacyString = JSON.stringify(legacy);
+      await chrome.storage.sync.set({ system_eslint_config: legacyString });
+      const before = await chrome.storage.sync.get("system_eslint_config");
+
+      await new SystemConfig(new MessageQueue()).getEslintConfig();
+
+      const after = await chrome.storage.sync.get("system_eslint_config");
+      expect(after).toEqual(before);
+    });
+
+    it("用户明确保存旧版全量配置后才转换为 V1 sparse object", async () => {
+      const legacy = JSON.parse(eslintDefaultConfig);
+      legacy.rules["no-debugger"] = ["off"];
+      const legacyString = JSON.stringify(legacy);
+      await chrome.storage.sync.set({ system_eslint_config: legacyString });
+
+      const resolved = await config.getEslintConfig();
+      config.setEslintConfig(resolved);
+
+      await vi.waitFor(async () => {
+        const syncData = await chrome.storage.sync.get("system_eslint_config");
+        expect(syncData["system_eslint_config"]).toEqual({
+          format: "scriptcat-json-overrides",
+          version: 1,
+          overrides: { rules: { "no-debugger": ["off"] } },
+        });
+      });
+    });
+
+    it("旧版全量配置中像 envelope 的字段仍按用户配置保留", async () => {
+      const legacy = JSON.stringify({
         format: "scriptcat-json-overrides",
         version: 1,
-        overrides: { rules: { "no-debugger": ["off"] } },
+        overrides: { a: 99 },
       });
+      await chrome.storage.sync.set({ system_eslint_config: legacy });
+
+      const result = JSON.parse(await new SystemConfig(new MessageQueue()).getEslintConfig());
+      expect(result).toMatchObject({ format: "scriptcat-json-overrides", version: 1, overrides: { a: 99 } });
     });
 
     it("保存与默认配置一致的内容时应清除存储", async () => {
@@ -377,7 +413,7 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
 
       await vi.waitFor(async () => {
         const syncData = await chrome.storage.sync.get("system_editor_config");
-        expect(JSON.parse(syncData["system_editor_config"] as string)).toEqual({
+        expect(syncData["system_editor_config"]).toEqual({
           format: "scriptcat-json-overrides",
           version: 1,
           overrides: { strict: false },

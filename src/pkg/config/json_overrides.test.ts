@@ -1,119 +1,171 @@
 import { describe, expect, it } from "vitest";
-import { decodeJsonConfig, deepMerge, deepDiff, mergeJsonConfig, diffJsonConfig } from "./json_overrides";
+import { decodeJsonConfig, deepDiff, deepMerge, encodeJsonConfig, type StoredJsonOverridesV1 } from "./json_overrides";
 
-describe("deepMerge 深度合并", () => {
-  it("应以覆盖值优先合并嵌套对象", () => {
-    const defaults = { a: 1, nested: { x: 1, y: 2 } };
-    const overrides = { nested: { y: 3 } };
-    expect(deepMerge(defaults, overrides)).toEqual({ a: 1, nested: { x: 1, y: 3 } });
+describe("deepMerge", () => {
+  it("deeply merges nested objects with override values winning", () => {
+    expect(deepMerge({ a: 1, nested: { x: 1, y: 2 } }, { nested: { y: 3 } })).toEqual({
+      a: 1,
+      nested: { x: 1, y: 3 },
+    });
   });
 
-  it("数组应整体替换而非合并", () => {
-    const defaults = { rule: ["error", { allow: true }] };
-    const overrides = { rule: ["warn"] };
-    expect(deepMerge(defaults, overrides)).toEqual({ rule: ["warn"] });
+  it("replaces arrays as whole values", () => {
+    expect(deepMerge({ rule: ["error", { allow: true }] }, { rule: ["warn"] })).toEqual({ rule: ["warn"] });
   });
 
-  it("覆盖配置独有的键应保留", () => {
-    expect(deepMerge({ a: 1 }, { b: 2 })).toEqual({ a: 1, b: 2 });
-  });
-
-  it("类型不同时应使用覆盖值", () => {
+  it("lets overrides replace values when object and scalar types differ", () => {
     expect(deepMerge({ a: { x: 1 } }, { a: false })).toEqual({ a: false });
+    expect(deepMerge({ a: false }, { a: { x: 1 } })).toEqual({ a: { x: 1 } });
+  });
+
+  it("preserves custom user keys", () => {
+    expect(deepMerge({ a: 1 }, { custom: "x" })).toEqual({ a: 1, custom: "x" });
+  });
+
+  it("treats __proto__ as an ordinary JSON property", () => {
+    const overrides = JSON.parse('{"__proto__":{"polluted":true}}');
+    const merged = deepMerge({}, overrides) as Record<string, unknown>;
+
+    expect(Object.prototype.hasOwnProperty.call(merged, "__proto__")).toBe(true);
+    expect(merged.__proto__).toEqual({ polluted: true });
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 });
 
-describe("deepDiff 稀疏差异", () => {
-  it("与默认值一致时应返回 undefined", () => {
+describe("deepDiff", () => {
+  it("returns undefined for equal values", () => {
     const defaults = { a: 1, nested: { x: [1, 2], y: { z: true } } };
     expect(deepDiff(structuredClone(defaults), defaults)).toBeUndefined();
   });
 
-  it("应只保留与默认值不同的部分", () => {
-    const defaults = { a: 1, nested: { x: 1, y: 2 } };
-    const value = { a: 1, nested: { x: 1, y: 3 } };
-    expect(deepDiff(value, defaults)).toEqual({ nested: { y: 3 } });
+  it("keeps only sparse nested differences", () => {
+    expect(deepDiff({ a: 1, nested: { x: 1, y: 3 } }, { a: 1, nested: { x: 1, y: 2 } })).toEqual({
+      nested: { y: 3 },
+    });
   });
 
-  it("深度相等的数组应被去除", () => {
-    const defaults = { rule: ["error", { allow: true }], other: 1 };
-    const value = { rule: ["error", { allow: true }], other: 2 };
-    expect(deepDiff(value, defaults)).toEqual({ other: 2 });
+  it("replaces arrays instead of diffing their indexes", () => {
+    expect(deepDiff({ rule: ["warn"], other: 1 }, { rule: ["error"], other: 1 })).toEqual({ rule: ["warn"] });
   });
 
-  it("用户新增的键应保留", () => {
-    expect(deepDiff({ a: 1, custom: "x" }, { a: 1 })).toEqual({ custom: "x" });
-  });
+  it("preserves custom keys and prototype-sensitive keys", () => {
+    const value = JSON.parse('{"a":1,"custom":"x","__proto__":{"polluted":true}}');
+    const diff = deepDiff(value, { a: 1 }) as Record<string, unknown>;
 
-  it("__proto__ 键应作为普通 JSON 属性参与差异计算", () => {
-    const value = JSON.parse('{"__proto__":{"polluted":true}}');
-
-    expect(deepDiff(value, {})).toEqual(value);
-    expect(deepMerge({}, value)).toEqual(value);
+    expect(Object.prototype.hasOwnProperty.call(diff, "__proto__")).toBe(true);
+    expect(diff).toEqual(JSON.parse('{"custom":"x","__proto__":{"polluted":true}}'));
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 });
 
-describe("JSON 配置字符串编解码", () => {
-  const defaultStr = JSON.stringify({ rules: { "no-debugger": ["error"], "no-eval": ["warn"] } });
+describe("JSON config storage codec", () => {
+  const currentDefaultStr = JSON.stringify({ rules: { "no-debugger": ["error"], "no-eval": ["warn"] } });
 
-  it("diffJsonConfig 应只保留差异，无差异时返回 undefined", () => {
-    expect(diffJsonConfig(defaultStr, defaultStr)).toBeUndefined();
-    const user = JSON.stringify({ rules: { "no-debugger": ["warn"], "no-eval": ["warn"] } });
-    expect(JSON.parse(diffJsonConfig(defaultStr, user)!)).toEqual({
+  it("encodes a modified config as an object V1 envelope", () => {
+    const value = JSON.stringify({ rules: { "no-debugger": ["off"], "no-eval": ["warn"] } });
+
+    expect(encodeJsonConfig(currentDefaultStr, value)).toEqual<StoredJsonOverridesV1>({
       format: "scriptcat-json-overrides",
       version: 1,
-      overrides: { rules: { "no-debugger": ["warn"] } },
+      overrides: { rules: { "no-debugger": ["off"] } },
     });
   });
 
-  it("mergeJsonConfig 应将用户差异合并到最新默认配置", () => {
-    const stored = JSON.stringify({ rules: { "no-debugger": ["warn"] } });
-    expect(JSON.parse(mergeJsonConfig(defaultStr, stored))).toEqual({
-      rules: { "no-debugger": ["warn"], "no-eval": ["warn"] },
-    });
+  it("returns undefined when the complete config equals current defaults", () => {
+    expect(encodeJsonConfig(currentDefaultStr, JSON.stringify(JSON.parse(currentDefaultStr)))).toBeUndefined();
   });
 
-  it("合并 diff 结果应还原用户配置", () => {
-    const user = JSON.stringify({ rules: { "no-debugger": ["off"], "custom/rule": ["error"], "no-eval": ["warn"] } });
-    const diff = diffJsonConfig(defaultStr, user)!;
-    expect(JSON.parse(mergeJsonConfig(defaultStr, diff))).toEqual(JSON.parse(user));
-  });
-
-  it("旧版全量配置迁移时应按旧默认值提取差异", () => {
-    const legacyDefault = JSON.stringify({ a: 1, b: 1 });
-    const currentDefault = JSON.stringify({ a: 3, b: 1 });
-    const legacyValue = JSON.stringify({ a: 1, b: 2 });
-
-    const decoded = decodeJsonConfig(currentDefault, legacyDefault, legacyValue);
-
-    expect(JSON.parse(decoded.value)).toEqual({ a: 3, b: 2 });
-    expect(JSON.parse(decoded.migration!.value!)).toEqual({
+  it("decodes a V1 envelope by merging overrides into current defaults", () => {
+    const stored: StoredJsonOverridesV1 = {
       format: "scriptcat-json-overrides",
       version: 1,
-      overrides: { b: 2 },
+      overrides: { rules: { "no-debugger": ["off"] } },
+    };
+
+    expect(JSON.parse(decodeJsonConfig(currentDefaultStr, stored))).toEqual({
+      rules: { "no-debugger": ["off"], "no-eval": ["warn"] },
     });
   });
 
-  it("旧版配置中的 format 键不应被当作稀疏存储 envelope", () => {
-    const decoded = decodeJsonConfig(
-      JSON.stringify({ a: 2 }),
-      JSON.stringify({ a: 1 }),
-      JSON.stringify({ a: 1, format: "scriptcat-json-overrides" })
-    );
+  it("uses a newer current default for fields without an override", () => {
+    const stored: StoredJsonOverridesV1 = {
+      format: "scriptcat-json-overrides",
+      version: 1,
+      overrides: { a: 9 },
+    };
 
-    expect(JSON.parse(decoded.value)).toEqual({ a: 2, format: "scriptcat-json-overrides" });
+    expect(JSON.parse(decodeJsonConfig(JSON.stringify({ a: 2, b: 3, newField: true }), stored))).toEqual({
+      a: 9,
+      b: 3,
+      newField: true,
+    });
   });
 
-  it("未知的稀疏格式版本应拒绝解码", () => {
+  it("rejects an unsupported ScriptCat storage version", () => {
     expect(() =>
-      mergeJsonConfig(
-        defaultStr,
-        JSON.stringify({
-          format: "scriptcat-json-overrides",
-          version: 2,
-          overrides: {},
-        })
-      )
+      decodeJsonConfig(currentDefaultStr, {
+        format: "scriptcat-json-overrides",
+        version: 2,
+        overrides: {},
+      })
     ).toThrow("Unsupported JSON config storage version: 2");
+  });
+
+  it("rejects malformed object storage representations", () => {
+    expect(() => decodeJsonConfig(currentDefaultStr, { rules: {} })).toThrow("Invalid JSON config storage envelope");
+    expect(() => decodeJsonConfig(currentDefaultStr, { format: "scriptcat-json-overrides", version: 1 })).toThrow(
+      "Invalid JSON config storage envelope"
+    );
+  });
+
+  it("preserves every field in a legacy full JSON string", () => {
+    const current = JSON.stringify({ a: 2, b: 1, newField: true });
+    const legacy = JSON.stringify({ a: 1, b: 2 });
+
+    expect(JSON.parse(decodeJsonConfig(current, legacy))).toEqual({ a: 1, b: 2, newField: true });
+  });
+
+  it("does not infer historical defaults from a legacy full JSON string", () => {
+    const current = JSON.stringify({ a: 2, b: 1 });
+    const legacy = JSON.stringify({ a: 1, b: 2 });
+
+    expect(JSON.parse(decodeJsonConfig(current, legacy))).not.toEqual({ a: 2, b: 2 });
+  });
+
+  it("adds current-only fields to a legacy full JSON string", () => {
+    expect(JSON.parse(decodeJsonConfig(JSON.stringify({ a: 2, newField: true }), JSON.stringify({ a: 1 })))).toEqual({
+      a: 1,
+      newField: true,
+    });
+  });
+
+  it("preserves custom legacy keys", () => {
+    expect(JSON.parse(decodeJsonConfig(JSON.stringify({ a: 2 }), JSON.stringify({ a: 1, custom: "x" })))).toEqual({
+      a: 1,
+      custom: "x",
+    });
+  });
+
+  it("treats format-like fields inside legacy strings as user config", () => {
+    const legacy = JSON.stringify({
+      a: 1,
+      format: "scriptcat-json-overrides",
+      version: 1,
+      overrides: { a: 99 },
+    });
+
+    expect(JSON.parse(decodeJsonConfig(JSON.stringify({ a: 2 }), legacy))).toEqual({
+      a: 1,
+      format: "scriptcat-json-overrides",
+      version: 1,
+      overrides: { a: 99 },
+    });
+  });
+
+  it("preserves legacy arrays and scalar/object replacements", () => {
+    const current = JSON.stringify({ a: { x: 1 }, b: [1], c: 1 });
+    const legacy = JSON.stringify({ a: false, b: [2], c: { x: 2 } });
+
+    expect(JSON.parse(decodeJsonConfig(current, legacy))).toEqual({ a: false, b: [2], c: { x: 2 } });
   });
 });
