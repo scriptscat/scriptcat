@@ -35,6 +35,30 @@ function makeScript(overrides: Partial<ScriptLoadInfo & Pick<TScriptInfo, "requi
   };
 }
 
+function makeEarlyScript(overrides: Parameters<typeof makeScript>[0] = {}): TScriptInfo {
+  const script = makeScript({
+    ...overrides,
+    metadata: {
+      "early-start": [""],
+      "run-at": ["document-start"],
+      ...overrides.metadata,
+    },
+  });
+  return { ...script, scriptRevision: overrides.scriptRevision ?? `${script.uuid}:1:0` } as TScriptInfo;
+}
+
+function withPageBinding(
+  script: TScriptInfo,
+  overrides: Partial<Pick<TScriptInfo, "executionHandle" | "executionEnvTag" | "executionRunFlag">> = {}
+): TScriptInfo {
+  return {
+    ...script,
+    executionHandle: overrides.executionHandle ?? "page-binding",
+    executionEnvTag: overrides.executionEnvTag ?? "it",
+    executionRunFlag: overrides.executionRunFlag ?? "page-run",
+  };
+}
+
 function mountInjectScript(script: ScriptLoadInfo, code: string) {
   const execute = new Function("window", compileInjectScript(script, code)) as (target: Window) => void;
   execute(window);
@@ -142,29 +166,26 @@ describe("ScriptExecutor", () => {
   });
 
   it("attaches the page execution binding when an early-start script is reconciled", () => {
-    const initial = {
-      ...makeScript({ metadata: { "early-start": [""], "run-at": ["document-start"] } }),
-      scriptRevision: "executor-test-uuid:1:0",
-    } as TScriptInfo;
+    const initial = makeEarlyScript();
     const { exec } = createEarlyExecution(initial);
     expect(exec.scriptRes.executionHandle).toBeUndefined();
     const gmInfo = exec.execContext.GM_info;
 
     expect(
-      exec.reconcileEarlyScript(initEnvInfo, {
-        ...initial,
-        value: { secret: "authoritative-value" },
-        config: {
-          private: { secret: { title: "Private", description: "", index: 0, default: "authoritative" } },
-        },
-        userConfig: {
-          account: { profile: { title: "Profile", description: "", index: 0, default: "authoritative" } },
-        },
-        userConfigStr: '{"profile":"authoritative"}',
-        executionHandle: "page-binding",
-        executionEnvTag: "it",
-        executionRunFlag: "page-run",
-      })
+      exec.reconcileEarlyScript(
+        initEnvInfo,
+        withPageBinding({
+          ...initial,
+          value: { secret: "authoritative-value" },
+          config: {
+            private: { secret: { title: "Private", description: "", index: 0, default: "authoritative" } },
+          },
+          userConfig: {
+            account: { profile: { title: "Profile", description: "", index: 0, default: "authoritative" } },
+          },
+          userConfigStr: '{"profile":"authoritative"}',
+        })
+      )
     ).toBe(true);
 
     expect(exec.scriptRes.executionHandle).toBe("page-binding");
@@ -190,19 +211,16 @@ describe("ScriptExecutor", () => {
   });
 
   it("preserves synchronous early-start value writes across authoritative reconciliation", () => {
-    const initial = {
-      ...makeScript({
-        uuid: "early-rmw-uuid",
-        flag: "early-rmw-flag",
-        metadata: {
-          grant: ["GM_getValue", "GM_setValue", "GM_deleteValue"],
-          "early-start": [""],
-          "run-at": ["document-start"],
-        },
-        value: { counter: 100, deleted: "preload", untouched: "preload" },
-      }),
-      scriptRevision: "early-rmw-uuid:1:0",
-    } as TScriptInfo;
+    const initial = makeEarlyScript({
+      uuid: "early-rmw-uuid",
+      flag: "early-rmw-flag",
+      metadata: {
+        grant: ["GM_getValue", "GM_setValue", "GM_deleteValue"],
+        "early-start": [""],
+        "run-at": ["document-start"],
+      },
+      value: { counter: 100, deleted: "preload", untouched: "preload" },
+    });
     const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const { exec: execScript } = createEarlyExecution(
       initial,
@@ -222,18 +240,21 @@ describe("ScriptExecutor", () => {
     });
 
     expect(
-      execScript.reconcileEarlyScript(initEnvInfo, {
-        ...initial,
-        value: {
-          counter: 999,
-          deleted: "authoritative",
-          untouched: "authoritative",
-          "server-only": "server",
-        },
-        executionHandle: "early-rmw-binding",
-        executionEnvTag: "it",
-        executionRunFlag: "early-rmw-run",
-      })
+      execScript.reconcileEarlyScript(
+        initEnvInfo,
+        withPageBinding(
+          {
+            ...initial,
+            value: {
+              counter: 999,
+              deleted: "authoritative",
+              untouched: "authoritative",
+              "server-only": "server",
+            },
+          },
+          { executionHandle: "early-rmw-binding", executionRunFlag: "early-rmw-run" }
+        )
+      )
     ).toBe(true);
 
     expect(execScript.scriptRes.value).toEqual({
@@ -262,22 +283,13 @@ describe("ScriptExecutor", () => {
       },
     });
     try {
-      const initial = {
-        ...makeScript({
-          uuid: "inherited-setter-test-uuid",
-          flag: "inherited-setter-test-flag",
-          metadata: { "early-start": [""], "run-at": ["document-start"] },
-        }),
-        scriptRevision: "inherited-setter-test-uuid:1:0",
-      } as TScriptInfo;
+      const initial = makeEarlyScript({
+        uuid: "inherited-setter-test-uuid",
+        flag: "inherited-setter-test-flag",
+      });
       const { exec } = createEarlyExecution(initial);
 
-      const ok = exec.reconcileEarlyScript(initEnvInfo, {
-        ...initial,
-        executionHandle: "page-binding",
-        executionEnvTag: "it",
-        executionRunFlag: "page-run",
-      });
+      const ok = exec.reconcileEarlyScript(initEnvInfo, withPageBinding(initial));
 
       expect(ok).toBe(true);
       expect(setterCalls).toBe(0);
@@ -297,23 +309,14 @@ describe("ScriptExecutor", () => {
     // 所以一份经由 pageLoad 传输的 scriptInfo 理论上仍可能带有一个 own enumerable 的
     // "__proto__" 数据属性。Object.assign 对它做普通 [[Set]] 会触发 Object.prototype 上继承的
     // __proto__ setter，真的改写 current 的原型；安全的安装原语必须把它当成普通数据字段。
-    const initial = {
-      ...makeScript({
-        uuid: "proto-key-test-uuid",
-        flag: "proto-key-test-flag",
-        metadata: { "early-start": [""], "run-at": ["document-start"] },
-      }),
-      scriptRevision: "proto-key-test-uuid:1:0",
-    } as TScriptInfo;
+    const initial = makeEarlyScript({
+      uuid: "proto-key-test-uuid",
+      flag: "proto-key-test-flag",
+    });
     const { exec } = createEarlyExecution(initial);
     const originalPrototype = Object.getPrototypeOf(exec.scriptRes);
 
-    const forgedScriptInfo: Record<string, unknown> = {
-      ...initial,
-      executionHandle: "page-binding",
-      executionEnvTag: "it",
-      executionRunFlag: "page-run",
-    };
+    const forgedScriptInfo: Record<string, unknown> = { ...withPageBinding(initial) };
     Object.defineProperty(forgedScriptInfo, "__proto__", {
       configurable: true,
       enumerable: true,
@@ -327,14 +330,10 @@ describe("ScriptExecutor", () => {
   });
 
   it("early-start reconciliation never invokes a userscript-installed configurable setter on GM_info, and replaces it with authoritative data", () => {
-    const initial = {
-      ...makeScript({
-        uuid: "gminfo-setter-test-uuid",
-        flag: "gminfo-setter-test-flag",
-        metadata: { "early-start": [""], "run-at": ["document-start"] },
-      }),
-      scriptRevision: "gminfo-setter-test-uuid:1:0",
-    } as TScriptInfo;
+    const initial = makeEarlyScript({
+      uuid: "gminfo-setter-test-uuid",
+      flag: "gminfo-setter-test-flag",
+    });
     const { exec } = createEarlyExecution(initial);
     const gmInfo = exec.execContext.GM_info;
 
@@ -350,12 +349,7 @@ describe("ScriptExecutor", () => {
       },
     });
 
-    const ok = exec.reconcileEarlyScript(initEnvInfo, {
-      ...initial,
-      executionHandle: "page-binding",
-      executionEnvTag: "it",
-      executionRunFlag: "page-run",
-    });
+    const ok = exec.reconcileEarlyScript(initEnvInfo, withPageBinding(initial));
 
     expect(ok).toBe(true);
     expect(setterCalls).toBe(0);
@@ -364,14 +358,10 @@ describe("ScriptExecutor", () => {
   });
 
   it("early-start reconciliation is not blocked by a non-configurable hostile GM_info accessor; the locked field is skipped but everything else still reconciles", () => {
-    const initial = {
-      ...makeScript({
-        uuid: "gminfo-nonconfigurable-test-uuid",
-        flag: "gminfo-nonconfigurable-test-flag",
-        metadata: { "early-start": [""], "run-at": ["document-start"] },
-      }),
-      scriptRevision: "gminfo-nonconfigurable-test-uuid:1:0",
-    } as TScriptInfo;
+    const initial = makeEarlyScript({
+      uuid: "gminfo-nonconfigurable-test-uuid",
+      flag: "gminfo-nonconfigurable-test-flag",
+    });
     const { exec } = createEarlyExecution(initial);
     const gmInfo = exec.execContext.GM_info;
 
@@ -388,13 +378,10 @@ describe("ScriptExecutor", () => {
       },
     });
 
-    const ok = exec.reconcileEarlyScript(initEnvInfo, {
-      ...initial,
-      value: { secret: "authoritative-value" },
-      executionHandle: "page-binding",
-      executionEnvTag: "it",
-      executionRunFlag: "page-run",
-    });
+    const ok = exec.reconcileEarlyScript(
+      initEnvInfo,
+      withPageBinding({ ...initial, value: { secret: "authoritative-value" } })
+    );
 
     // 内部权威状态（scriptRes、execution binding、load lifecycle）必须照常完全生效，
     // 完全不受脚本锁死自己 GM_info 某个字段这件事影响。
@@ -411,25 +398,16 @@ describe("ScriptExecutor", () => {
   });
 
   it("GM.info stays the same object as GM_info across early-start reconciliation", () => {
-    const initial = {
-      ...makeScript({
-        uuid: "gminfo-identity-test-uuid",
-        flag: "gminfo-identity-test-flag",
-        metadata: { "early-start": [""], "run-at": ["document-start"] },
-      }),
-      scriptRevision: "gminfo-identity-test-uuid:1:0",
-    } as TScriptInfo;
+    const initial = makeEarlyScript({
+      uuid: "gminfo-identity-test-uuid",
+      flag: "gminfo-identity-test-flag",
+    });
     const { exec } = createEarlyExecution(initial);
 
     const gmInfoBefore = exec.execContext.GM_info;
     expect(exec.execContext.GM.info).toBe(gmInfoBefore);
 
-    const ok = exec.reconcileEarlyScript(initEnvInfo, {
-      ...initial,
-      executionHandle: "page-binding",
-      executionEnvTag: "it",
-      executionRunFlag: "page-run",
-    });
+    const ok = exec.reconcileEarlyScript(initEnvInfo, withPageBinding(initial));
 
     expect(ok).toBe(true);
     expect(exec.execContext.GM_info).toBe(gmInfoBefore);
@@ -437,23 +415,18 @@ describe("ScriptExecutor", () => {
   });
 
   it("rejects a different early-start revision and cancels its pending GM work", async () => {
-    const initial = {
-      ...makeScript({
-        uuid: "early-revision-mismatch",
-        flag: "early-revision-mismatch-flag",
-        createtime: 1,
-        updatetime: 2,
-        metadata: { grant: ["CAT_scriptLoaded", "GM.setValue"], "early-start": [""], "run-at": ["document-start"] },
-      }),
+    const initial = makeEarlyScript({
+      uuid: "early-revision-mismatch",
+      flag: "early-revision-mismatch-flag",
+      createtime: 1,
+      updatetime: 2,
+      metadata: { grant: ["CAT_scriptLoaded", "GM.setValue"], "early-start": [""], "run-at": ["document-start"] },
       scriptRevision: "early-revision-mismatch:1:2",
-    } as TScriptInfo;
-    const authoritative = {
-      ...initial,
-      scriptRevision: "early-revision-mismatch:1:3",
-      executionHandle: "current-binding",
-      executionEnvTag: "it",
-      executionRunFlag: "current-run",
-    } as TScriptInfo;
+    });
+    const authoritative = withPageBinding(
+      { ...initial, scriptRevision: "early-revision-mismatch:1:3" },
+      { executionHandle: "current-binding", executionRunFlag: "current-run" }
+    );
     const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const executor = new ScriptExecutor({ sendMessage } as unknown as Message, {} as Message);
     let loadPromise: Promise<void> | undefined;
@@ -482,21 +455,18 @@ describe("ScriptExecutor", () => {
   });
 
   it("invalidates early-start scripts omitted from an authoritative pageLoad", () => {
-    const early = {
-      ...makeScript({
-        uuid: "early-omitted-script",
-        flag: "early-omitted-flag",
-        metadata: { grant: ["GM_log"], "early-start": [""], "run-at": ["document-start"] },
-      }),
-      scriptRevision: "early-omitted-script:1:0",
-    } as TScriptInfo;
-    const other = {
-      ...makeScript({ uuid: "current-script", flag: "current-script-flag" }),
-      scriptRevision: "current-script:1:0",
-      executionHandle: "current-binding",
-      executionEnvTag: "it",
-      executionRunFlag: "current-run",
-    } as TScriptInfo;
+    const early = makeEarlyScript({
+      uuid: "early-omitted-script",
+      flag: "early-omitted-flag",
+      metadata: { grant: ["GM_log"] },
+    });
+    const other = withPageBinding(
+      {
+        ...makeScript({ uuid: "current-script", flag: "current-script-flag" }),
+        scriptRevision: "current-script:1:0",
+      } as TScriptInfo,
+      { executionHandle: "current-binding", executionRunFlag: "current-run" }
+    );
     const executor = new ScriptExecutor({} as Message, {} as Message);
     executor.execScriptEntry({
       scriptLoadInfo: early,
@@ -535,14 +505,11 @@ describe("ScriptExecutor", () => {
   });
 
   it("requires a binding before reconciling an early script with GM grants", () => {
-    const initial = {
-      ...makeScript({
-        uuid: "early-unbound-script",
-        flag: "early-unbound-flag",
-        metadata: { grant: ["GM_log"], "early-start": [""], "run-at": ["document-start"] },
-      }),
-      scriptRevision: "early-unbound-script:1:0",
-    } as TScriptInfo;
+    const initial = makeEarlyScript({
+      uuid: "early-unbound-script",
+      flag: "early-unbound-flag",
+      metadata: { grant: ["GM_log"] },
+    });
     const executor = new ScriptExecutor({} as Message, {} as Message);
     executor.execScriptEntry({
       scriptLoadInfo: initial,
@@ -851,14 +818,10 @@ describe("ScriptExecutor", () => {
   });
 
   it("continues loading later scripts after reconciling an early-start entry", () => {
-    const early = {
-      ...makeScript({
-        uuid: "early-script",
-        flag: "executor-early-batch",
-        metadata: { "early-start": [""], "run-at": ["document-start"] },
-      }),
-      scriptRevision: "early-script:1:0",
-    } as TScriptInfo;
+    const early = makeEarlyScript({
+      uuid: "early-script",
+      flag: "executor-early-batch",
+    });
     const later = makeScript({
       uuid: "later-script",
       flag: "executor-later-batch",
