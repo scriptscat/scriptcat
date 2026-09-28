@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, Trash2 } from "lucide-react";
+import { Download, Eye, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { notify } from "@App/pages/components/ui/toast";
 import { RESOURCE_CHUNK_BYTES, RESOURCE_LIST_PAGE_SIZE, type ResourceListItem } from "@App/app/repo/resource";
@@ -12,6 +12,7 @@ import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { SearchInput } from "@App/pages/components/ui/search-input";
 import { TooltipIconButton } from "@App/pages/components/ui/tooltip-icon-button";
 import { createPreloadableQuery } from "@App/pages/preloadable-query";
+import ResourcePreviewDialog, { getResourceDisplayName } from "./ResourcePreviewDialog";
 
 type ResItem = ResourceListItem;
 
@@ -65,7 +66,7 @@ export function usePreloadResourcePane(uuid?: string) {
   }, [uuid, t]);
 }
 
-function fileName(url: string): string {
+function downloadFileName(url: string): string {
   return url.split("/").pop() || url;
 }
 
@@ -76,12 +77,21 @@ export interface ResourcePaneProps {
 export default function ResourcePane({ uuid }: ResourcePaneProps) {
   const { t } = useTranslation();
   const [keyword, setKeyword] = useState("");
+  const [previewItem, setPreviewItem] = useState<{ uuid: string; resource: ResItem } | null>(null);
   const resources = resourcePaneQuery.useQuery(uuid);
   const list = resources.data ?? EMPTY_RESOURCES;
+  const previewResource = previewItem?.uuid === uuid ? previewItem.resource : null;
 
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
-    return kw ? list.filter((r) => r.key.toLowerCase().includes(kw)) : list;
+    return kw
+      ? list.filter((r) =>
+          [r.key, r.url, getResourceDisplayName(r), r.contentType, TYPE_BADGE[r.type] ?? r.type]
+            .join(" ")
+            .toLowerCase()
+            .includes(kw)
+        )
+      : list;
   }, [list, keyword]);
 
   const totalBytes = useMemo(() => list.reduce((s, r) => s + r.byteSize, 0), [list]);
@@ -136,7 +146,7 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
           blob: new Blob(chunks, { type: r.contentType }),
           persistence: false,
         });
-        await chrome.downloads.download({ url: url as string, saveAs: true, filename: fileName(r.key) });
+        await chrome.downloads.download({ url: url as string, saveAs: true, filename: downloadFileName(r.key) });
       })().catch((e) => notify.error(`${t("script:operation_failed")}: ${e.message}`));
     },
     [t, uuid]
@@ -183,38 +193,52 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
         <DataPanel>
           <DataPanelHeader className="hidden md:flex">
             <span className="min-w-0 flex-1">{t("editor:resource")}</span>
-            <span className="w-52 shrink-0">{t("type")}</span>
+            <span className="w-52 shrink-0">{t("editor:mime_type")}</span>
             <span className="w-20 shrink-0">{t("size")}</span>
-            <span className="w-16 shrink-0 text-right">{t("action")}</span>
+            <span className="w-24 shrink-0 text-right">{t("action")}</span>
           </DataPanelHeader>
 
           {filtered.length === 0 ? (
             <DataPanelEmpty>{t("no_data")}</DataPanelEmpty>
           ) : (
             filtered.map((r) => (
-              <DataPanelRow key={r.key} className="flex-col items-stretch gap-1.5 md:flex-row md:items-center md:gap-3">
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="truncate text-foreground" title={r.key}>
-                    {fileName(r.key)}
+              <DataPanelRow key={r.key} className="flex-col items-stretch gap-2 md:flex-row md:items-center md:gap-3">
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-foreground" title={getResourceDisplayName(r)}>
+                      {getResourceDisplayName(r)}
+                    </span>
+                    <Badge variant="secondary" className="shrink-0 font-mono text-[10px]">
+                      {TYPE_BADGE[r.type] ?? r.type}
+                    </Badge>
+                  </div>
+                  <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground" title={r.url}>
+                    {r.url}
                   </span>
-                  <Badge variant="secondary" className="shrink-0 font-mono text-[10px]">
-                    {TYPE_BADGE[r.type] ?? r.type}
-                  </Badge>
                 </div>
-                <span
-                  className="min-w-0 truncate font-mono text-muted-foreground md:w-52 md:shrink-0"
-                  title={r.contentType}
-                >
-                  {r.contentType || "-"}
-                </span>
-                {/* md:contents 让大小/操作在桌面端回到与表头对齐的独立列 */}
-                <div className="flex items-center justify-between gap-2 md:contents">
-                  <span className="font-mono text-muted-foreground md:w-20 md:shrink-0">{formatBytes(r.byteSize)}</span>
-                  <div className="flex items-center justify-end gap-1 md:w-16 md:shrink-0">
+                <div className="flex min-w-0 items-center justify-between gap-2 md:contents">
+                  <span
+                    className="min-w-0 truncate font-mono text-muted-foreground md:w-52 md:flex-none md:shrink-0"
+                    title={r.contentType}
+                  >
+                    {r.contentType || "-"}
+                  </span>
+                  <span className="shrink-0 font-mono text-muted-foreground md:w-20 md:shrink-0">
+                    {formatBytes(r.byteSize)}
+                  </span>
+                  <div className="flex shrink-0 items-center justify-end gap-2 md:w-24 md:gap-1 md:shrink-0">
+                    <TooltipIconButton
+                      label={t("editor:view_resource")}
+                      icon={Eye}
+                      size="icon-xs"
+                      className="size-11 p-0 [&_svg]:size-5 md:size-6 md:[&_svg]:size-3"
+                      onClick={() => setPreviewItem({ uuid, resource: r })}
+                    />
                     <TooltipIconButton
                       label={t("download")}
                       icon={Download}
                       size="icon-xs"
+                      className="size-11 p-0 [&_svg]:size-5 md:size-6 md:[&_svg]:size-3"
                       onClick={() => onDownload(r)}
                     />
                     <Popconfirm
@@ -225,7 +249,13 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
                       side="left"
                       onConfirm={() => onDelete(r)}
                     >
-                      <TooltipIconButton label={t("delete")} icon={Trash2} size="icon-xs" destructive />
+                      <TooltipIconButton
+                        label={t("delete")}
+                        icon={Trash2}
+                        size="icon-xs"
+                        className="size-11 p-0 [&_svg]:size-5 md:size-6 md:[&_svg]:size-3"
+                        destructive
+                      />
                     </Popconfirm>
                   </div>
                 </div>
@@ -234,6 +264,14 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
           )}
         </DataPanel>
       </div>
+      {previewResource && (
+        <ResourcePreviewDialog
+          uuid={uuid}
+          resource={previewResource}
+          onOpenChange={(open) => !open && setPreviewItem(null)}
+          onDownload={onDownload}
+        />
+      )}
     </div>
   );
 }
