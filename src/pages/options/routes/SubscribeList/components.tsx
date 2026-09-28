@@ -104,19 +104,26 @@ export const SubscribeSourceTag = React.memo(({ url }: { url: string }) => {
 SubscribeSourceTag.displayName = "SubscribeSourceTag";
 
 // ========== UpdateTimeCell ==========
-// 「最后更新」就近放置检查更新入口：idle → checking → latest（2s 恢复）/ has-update
+// 「最后更新」就近放置检查更新入口：idle → checking → latest（2s 恢复）/ has-update / idle（已静默更新）
 type CheckUpdateState = "idle" | "checking" | "latest" | "has-update";
 
 export const SubscribeUpdateTimeCell = React.memo(({ url, updatetime }: { url: string; updatetime?: number }) => {
   const { t } = useTranslation();
   const [state, setState] = useState<CheckUpdateState>("idle");
 
+  // 用户在安装页确认更新后 updatetime 随广播变化，「存在新版本」已失效
+  const [prevUpdatetime, setPrevUpdatetime] = useState(updatetime);
+  if (updatetime !== prevUpdatetime) {
+    setPrevUpdatetime(updatetime);
+    if (state === "has-update") setState("idle");
+  }
+
   const handleCheck = useCallback(() => {
     if (state === "checking") return;
     setState("checking");
     requestCheckSubscribeUpdate(url)
-      // res 为 true 时表示发现新版本并已打开更新页；false/undefined 表示已是最新
-      .then((res) => setState(res ? "has-update" : "latest"))
+      // updated：已静默更新，新的更新时间随广播到达；confirm：已打开安装页待确认
+      .then((res) => setState(res === "updated" ? "idle" : res === "confirm" ? "has-update" : "latest"))
       .catch((e) => {
         setState("idle");
         notify.error(`${t("script:update_check_failed")}: ${e}`);

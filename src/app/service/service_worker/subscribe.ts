@@ -16,6 +16,9 @@ import i18n, { i18nName } from "@App/locales/locales";
 import { InfoNotification } from "./utils";
 import { TempStorageDAO, TempStorageItemType } from "@App/app/repo/tempStorage";
 
+// updated：已静默更新；confirm：@connect 新增了域，已打开安装页等待用户确认；false：无更新或检查失败
+export type SubscribeCheckUpdateResult = "updated" | "confirm" | false;
+
 export class SubscribeService {
   logger: Logger;
   subscribeDAO = new SubscribeDAO();
@@ -188,7 +191,11 @@ export class SubscribeService {
     await Promise.allSettled(promises);
 
     // 把 subscribe.scripts 的新资讯储存到 subscribeDAO
-    await this.subscribeDAO.update(subscribe.url, subscribe);
+    const saved = await this.subscribeDAO.update(subscribe.url, subscribe);
+    // 脚本关联到此才是最终结果，订阅列表页据此刷新；installSubscribe 早于脚本同步，不能用于刷新
+    if (saved) {
+      this.mq.publish<TInstallSubscribe>("upsertSubscribe", { subscribe: saved });
+    }
 
     InfoNotification(
       i18n.t("settings:notification.subscribe_update", { subscribeName: subscribe.name }),
@@ -247,7 +254,7 @@ export class SubscribeService {
    * @param source 系统自动检查: "system"; subscribeClient.checkUpdate(subscribe.url) 的时候: "user"
    * @returns
    */
-  async checkUpdate(url: string, source: InstallSource) {
+  async checkUpdate(url: string, source: InstallSource): Promise<SubscribeCheckUpdateResult> {
     const subscribe = await this.subscribeDAO.get(url);
     if (!subscribe) {
       return false;
@@ -266,7 +273,7 @@ export class SubscribeService {
       try {
         // 进行更新
         if (true === (await this.trySilenceUpdate(code, url))) {
-          // slience update
+          return "updated";
         } else {
           const si = await createTempCodeEntry(false, uuid, code, url, source, metadata, {});
           await new TempStorageDAO().save({
@@ -279,12 +286,13 @@ export class SubscribeService {
             url: `/src/install.html?uuid=${uuid}`,
           });
         }
-        return true;
+        return "confirm";
       } catch (e) {
         logger.error("check update failed", { ...Logger.E(e), subscribe_url: url });
         return false;
       }
     }
+    return false;
   }
 
   // 订阅始终尝试静默更新，不受「非重要变更静默更新脚本」开关控制

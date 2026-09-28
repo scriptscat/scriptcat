@@ -6,10 +6,12 @@ import { ScriptDAO, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_
 import type { Script } from "@App/app/repo/scripts";
 import { SubscribeDAO, SubscribeStatusType } from "@App/app/repo/subscribe";
 import type { Subscribe } from "@App/app/repo/subscribe";
+import type { TInstallSubscribe } from "../queue";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { MockMessage } from "@Packages/message/mock_message";
 import { Server } from "@Packages/message/server";
 import { SubscribeClient } from "./client";
+import { createMockOPFS } from "@App/app/repo/test-helpers";
 import EventEmitter from "eventemitter3";
 
 initTestEnv();
@@ -55,7 +57,7 @@ const buildService = () => {
     installByUrl: vi.fn(async () => makeScript()),
   } as unknown as ScriptService;
   const service = new SubscribeService(group, mq, scriptService);
-  return { service, scriptService };
+  return { service, scriptService, mq };
 };
 
 // 回收站按 deleteBy 提供「订阅」来源筛选；订阅链路删除脚本时若不标记来源，
@@ -87,37 +89,92 @@ describe("SubscribeService —— 删除脚本的来源标记", () => {
   });
 });
 
+// 订阅列表页只在挂载时拉取一次数据，列表要跟上后台变化，只能靠脚本同步完成后的广播
+describe("SubscribeService —— 订阅列表同步广播", () => {
+  beforeEach(async () => {
+    await chrome.storage.local.clear();
+  });
+
+  it("订阅脚本同步完成后应广播含最新脚本关联的订阅", async () => {
+    await new SubscribeDAO().save(makeSubscribe({ scripts: {} }));
+    const { service, mq } = buildService();
+    const published = new Promise<TInstallSubscribe>((resolve) => mq.subscribe("upsertSubscribe", resolve));
+
+    await service.upsertScript(SUB_URL);
+
+    const { subscribe } = await published;
+    expect(subscribe.url).toBe(SUB_URL);
+    expect(subscribe.scripts[SCRIPT_URL]).toEqual({ url: SCRIPT_URL, uuid: "sub-script-1" });
+  });
+});
+
+const subscribeCode = (version: string, connect: string[] = []) =>
+  [
+    "// ==UserSubscribe==",
+    "// @name 测试订阅",
+    "// @namespace ns",
+    `// @version ${version}`,
+    ...connect.map((c) => `// @connect ${c}`),
+    "// ==/UserSubscribe==",
+    "",
+  ].join("\n");
+
 // options 页经 SubscribeClient 以 { url } 发送检查更新；SW 端若按字符串接收，
 // 会以 "[object Object]" 查订阅而查不到，手动检查永远显示「已是最新」且不发请求。
 describe("SubscribeService —— 手动检查更新", () => {
   beforeEach(async () => {
     await chrome.storage.local.clear();
+    // 需用户确认时更新代码暂存于 OPFS，再打开安装页
+    createMockOPFS();
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  it("经 SubscribeClient 检查更新时应拉取订阅并发现新版本", async () => {
+  const setup = async (remoteCode: string) => {
     await new SubscribeDAO().save(makeSubscribe({ scripts: {}, metadata: { usersubscribe: [], version: ["0.3.3"] } }));
-    const fetchMock = vi.fn(
-      async () =>
-        new Response(
-          "// ==UserSubscribe==\n// @name 测试订阅\n// @namespace ns\n// @version 0.3.4\n// ==/UserSubscribe==\n",
-          { status: 200 }
-        )
-    );
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => new Response(remoteCode, { status: 200 }));
+    const tabsCreate = vi.spyOn(chrome.tabs, "create");
     // chrome.alarms 在 chrome-extension-mock 中没有实现，init() 会调用 clear
-    vi.stubGlobal("chrome", { ...chrome, alarms: { clear: vi.fn() } });
+    Object.assign(chrome, { alarms: { clear: vi.fn() } });
     const mockMessage = new MockMessage(new EventEmitter<string, any>());
     const server = new Server("serviceWorker", mockMessage);
-    const service = new SubscribeService(server.group("subscribe"), new MessageQueue(), {} as ScriptService);
+    const mq = new MessageQueue();
+    const service = new SubscribeService(server.group("subscribe"), mq, {} as ScriptService);
     service.init();
+    return { client: new SubscribeClient(mockMessage), fetchMock, tabsCreate, mq };
+  };
 
-    const res = await new SubscribeClient(mockMessage).checkUpdate(SUB_URL);
+  it("远端版本更高且无需确认时应静默更新并返回 updated", async () => {
+    const { client, fetchMock, tabsCreate, mq } = await setup(subscribeCode("0.3.4"));
+    const synced = new Promise<TInstallSubscribe>((resolve) => mq.subscribe("upsertSubscribe", resolve));
+
+    const res = await client.checkUpdate(SUB_URL);
 
     expect(fetchMock).toHaveBeenCalledWith(SUB_URL, expect.anything());
-    expect(res).toBe(true);
+    expect(res).toBe("updated");
+    expect((await synced).subscribe.metadata.version).toEqual(["0.3.4"]);
+    expect(tabsCreate).not.toHaveBeenCalled();
+  });
+
+  it("远端新增 @connect 域时应打开安装页并返回 confirm", async () => {
+    const { client, tabsCreate } = await setup(subscribeCode("0.3.4", ["new.example.com"]));
+
+    const res = await client.checkUpdate(SUB_URL);
+
+    expect(res).toBe("confirm");
+    expect(tabsCreate).toHaveBeenCalledWith({ url: expect.stringContaining("/src/install.html?uuid=") });
+  });
+
+  it("远端版本未升高时返回 false", async () => {
+    const { client, tabsCreate } = await setup(subscribeCode("0.3.3"));
+
+    const res = await client.checkUpdate(SUB_URL);
+
+    expect(res).toBe(false);
+    expect(tabsCreate).not.toHaveBeenCalled();
   });
 });
