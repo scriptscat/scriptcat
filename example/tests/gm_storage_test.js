@@ -1,11 +1,9 @@
 // ==UserScript==
-// @name         GM Storage Compatibility Test
+// @name         GM Storage Compatibility: Values, Cloning, and Persistence
 // @namespace    https://example.invalid/gm-storage
 // @version      1.0.0
-// @description  Regression coverage for GM storage compatibility, normalization, and persistence
-// @match        https://example.com/*?GM_STORAGE_CLONE_COMPATIBILITY
-// @match        https://example.com/*?GM_STORAGE_PERSISTENCE_COMPATIBILITY
-// @match        https://example.com/*?GM_STORAGE_VALUE_NORMALIZATION
+// @description  Verifies legacy and modern GM storage behavior for structured-value cloning, value normalization and unsupported-value handling, dictionary shape, settled writes, and persistence across page reloads. Results are reported in three named SCTest suites.
+// @match        https://example.com/*?GM_STORAGE_COMPATIBILITY
 // @run-at       document-idle
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -20,10 +18,8 @@
 // @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@36ab4ce5ff23c820a32cd13ac5a04d8834ab4d82/example/tests/lib/sctest.js
 // ==/UserScript==
 
-(async function () {
+async function runGMStorageCloneCompatibility() {
   "use strict";
-
-  if (!location.search.includes("GM_STORAGE_CLONE_COMPATIBILITY")) return;
 
   const { describe, check, expect, run } = SCTest.create({ name: "GM Storage Clone Compatibility" });
 
@@ -247,12 +243,10 @@
   });
 
   await run();
-})();
+}
 
-(async function () {
+async function runGMStoragePersistenceCompatibility() {
   "use strict";
-
-  if (!location.search.includes("GM_STORAGE_PERSISTENCE_COMPATIBILITY")) return;
 
   const PREFIX = "__gm_persistence__:";
   const STATE_KEY = PREFIX + "state-v2";
@@ -659,12 +653,10 @@
   }
 
   await run();
-})();
+}
 
-(async function () {
+async function runGMStorageValueNormalization() {
   "use strict";
-
-  if (!location.search.includes("GM_STORAGE_VALUE_NORMALIZATION")) return;
 
   const { describe, check, expect, run } = SCTest.create({ name: "GM Storage Value Normalization" });
 
@@ -1026,4 +1018,26 @@
   });
 
   await run();
+}
+
+(async function runGMStorageCompatibility() {
+  "use strict";
+
+  if (!location.search.includes("GM_STORAGE_COMPATIBILITY")) return;
+
+  let persistenceState = null;
+  try {
+    persistenceState = JSON.parse(sessionStorage.getItem("__gm_persistence__:state-v2") || "null");
+  } catch {
+    sessionStorage.removeItem("__gm_persistence__:state-v2");
+  }
+
+  if (persistenceState?.phase === "verify") {
+    await runGMStoragePersistenceCompatibility();
+    return;
+  }
+
+  await runGMStorageCloneCompatibility();
+  await runGMStorageValueNormalization();
+  await runGMStoragePersistenceCompatibility();
 })();

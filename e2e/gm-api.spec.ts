@@ -516,7 +516,7 @@ function patchTargetMatchCode(code: string, targetUrl: string): string {
   const url = new URL(targetUrl);
   const targetPattern = `${url.protocol}//${url.hostname}/*${url.search}`;
   return code.replace(
-    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|early_inject_content|early_inject_page|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test|GM_XHR_REDIRECT_TEST_SC|GM_XHR_TEST_SC|GM_STORAGE_CLONE_COMPATIBILITY|GM_STORAGE_VALUE_NORMALIZATION|GM_STORAGE_PERSISTENCE_COMPATIBILITY)$/gm,
+    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|early_inject_content|early_inject_page|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test|GM_XHR_REDIRECT_TEST_SC|GM_XHR_TEST_SC|GM_STORAGE_COMPATIBILITY)$/gm,
     `// @match        ${targetPattern}`
   );
 }
@@ -618,12 +618,13 @@ async function runTestScript(
   options?: {
     patchCode?: (code: string) => string;
     requireOrigin?: string;
+    expectedSummaryCount?: number;
     // 声明为 auto:false 的 sctest 套件不随页面加载开跑，要先点面板的「运行」按钮。首次加载时
     // ConsoleReporter 已经打过一次汇总（那时用例全被预置为 skip，即 "通过: 0 / 失败: 0"），
     // 所以点击后必须等**新的一次**汇总，不能沿用已有值。
     beforeCollect?: (page: Page) => Promise<void>;
   }
-): Promise<{ summary: SCTestSummary; logs: string[] }> {
+): Promise<{ summary: SCTestSummary; summaries: SCTestSummary[]; logs: string[] }> {
   let code = fs.readFileSync(path.join(__dirname, `../example/tests/${scriptFile}`), "utf-8");
   code = patchScriptCode(code);
   if (options?.requireOrigin) code = patchRequireCode(code, options.requireOrigin);
@@ -649,8 +650,10 @@ async function runTestScript(
   const page = await context.newPage();
   const logs: string[] = [];
   const pageErrors: string[] = [];
+  const summaries: SCTestSummary[] = [];
   let summary: SCTestSummary | null = null;
   let summaryCount = 0;
+  const expectedSummaryCount = options?.expectedSummaryCount ?? 1;
 
   page.on("pageerror", (error) => {
     const detail = error.stack || `${error.name}: ${error.message}`;
@@ -666,6 +669,7 @@ async function runTestScript(
       const parsed = JSON.parse(text.slice("[SCTEST_RESULT] ".length)) as SCTestSummary;
       if (parsed.protocol !== "sctest/v1") return;
       summary = parsed;
+      summaries.push(parsed);
       summaryCount++;
     } catch {
       // Keep collecting console output; the assertion below reports a missing valid summary.
@@ -695,13 +699,13 @@ async function runTestScript(
 
     if (options?.beforeCollect) {
       await expect
-        .poll(async () => summaryCount > 0 || (await collectFatalErrors()).length > 0, {
+        .poll(async () => summaryCount >= expectedSummaryCount || (await collectFatalErrors()).length > 0, {
           timeout: timeoutMs,
           intervals: [100, 250, 500, 1_000],
         })
         .toBe(true)
         .catch(() => undefined);
-      await throwIfStartupFailed(1, 0, "startup");
+      await throwIfStartupFailed(expectedSummaryCount, 0, "startup");
 
       const seenBefore = summaryCount;
       const seenFatalCount = (await collectFatalErrors()).length;
@@ -716,13 +720,13 @@ async function runTestScript(
       await throwIfStartupFailed(seenBefore + 1, seenFatalCount, "post-action");
     } else {
       await expect
-        .poll(async () => summary !== null || (await collectFatalErrors()).length > 0, {
+        .poll(async () => summaryCount >= expectedSummaryCount || (await collectFatalErrors()).length > 0, {
           timeout: timeoutMs,
           intervals: [100, 250, 500, 1_000],
         })
         .toBe(true)
         .catch(() => undefined);
-      await throwIfStartupFailed(1, 0, "startup");
+      await throwIfStartupFailed(expectedSummaryCount, 0, "startup");
     }
   } finally {
     context.off("serviceworker", handleServiceWorker);
@@ -731,9 +735,15 @@ async function runTestScript(
 
   expect(
     summary,
-    `No valid SCTest summary found for ${scriptFile}:\n${[...diagnosticLogs, ...logs].join("\n")}`
+    `Expected ${expectedSummaryCount} valid SCTest summary result(s) for ${scriptFile}; found ${summaryCount}:\n${[
+      ...diagnosticLogs,
+      ...logs,
+    ].join("\n")}`
   ).not.toBeNull();
-  return { summary: summary!, logs: [...diagnosticLogs, ...logs] };
+  expect(summaryCount, `Expected ${expectedSummaryCount} SCTest summary result(s) for ${scriptFile}`).toBe(
+    expectedSummaryCount
+  );
+  return { summary: summary!, summaries, logs: [...diagnosticLogs, ...logs] };
 }
 // 设计稿统一为“运行全部”入口；旧面板若仍提供 suite 专属按钮则优先使用。
 // 两条路径都只执行自动用例，itManual 保持待人工确认。
@@ -984,61 +994,35 @@ test.describe("GM API", () => {
     expect(summary.passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
-  test("GM storage clone compatibility (gm_storage_clone_compatibility_test.js)", async ({ context, extensionId }) => {
-    const { summary, logs } = await runTestScript(
-      context,
-      extensionId,
-      "gm_storage_clone_compatibility_test.js",
-      `${gmApiMockServer.cspOrigin}/?GM_STORAGE_CLONE_COMPATIBILITY`,
-      30_000,
-      { requireOrigin: gmApiMockServer.origin }
-    );
-
-    console.log(`[gm_storage_clone_compatibility_test]`, summary);
-    if (summary.failed !== 0) {
-      console.log("[gm_storage_clone_compatibility_test] logs:", logs.join("\\n"));
-    }
-    expect(summary.failed, "Some GM storage clone compatibility tests failed").toBe(0);
-    expect(summary.passed, "No GM storage clone compatibility results found - script may not have run").toBe(6);
-  });
-
-  test("GM storage value normalization (gm_storage_value_normalization_test.js)", async ({ context, extensionId }) => {
-    const { summary, logs } = await runTestScript(
-      context,
-      extensionId,
-      "gm_storage_value_normalization_test.js",
-      `${gmApiMockServer.cspOrigin}/?GM_STORAGE_VALUE_NORMALIZATION`,
-      30_000,
-      { requireOrigin: gmApiMockServer.origin }
-    );
-
-    console.log(`[gm_storage_value_normalization_test]`, summary);
-    if (summary.failed !== 0) {
-      console.log("[gm_storage_value_normalization_test] logs:", logs.join("\\n"));
-    }
-    expect(summary.failed, "Some GM storage value normalization tests failed").toBe(0);
-    expect(summary.passed, "No GM storage value normalization results found - script may not have run").toBe(12);
-  });
-
-  test("GM storage persistence compatibility (gm_storage_persistence_compatibility_test.js)", async ({
+  test("GM storage compatibility script checks cloning, value normalization, and reload persistence from one URL", async ({
     context,
     extensionId,
   }) => {
-    const { summary, logs } = await runTestScript(
-      context,
-      extensionId,
-      "gm_storage_persistence_compatibility_test.js",
-      `${gmApiMockServer.cspOrigin}/?GM_STORAGE_PERSISTENCE_COMPATIBILITY`,
-      45_000,
-      { requireOrigin: gmApiMockServer.origin }
-    );
+    const targetUrl = `${gmApiMockServer.cspOrigin}/?GM_STORAGE_COMPATIBILITY`;
+    const { summaries, logs } = await runTestScript(context, extensionId, "gm_storage_test.js", targetUrl, 60_000, {
+      requireOrigin: gmApiMockServer.origin,
+      expectedSummaryCount: 3,
+    });
 
-    console.log(`[gm_storage_persistence_compatibility_test]`, summary);
-    if (summary.failed !== 0) {
-      console.log("[gm_storage_persistence_compatibility_test] logs:", logs.join("\\n"));
+    const expectedSuites = [
+      { name: "GM Storage Clone Compatibility", passed: 6 },
+      { name: "GM Storage Value Normalization", passed: 12 },
+      { name: "GM Storage Persistence Compatibility", passed: 6 },
+    ];
+    expect(summaries.map(({ name }) => name)).toEqual(expectedSuites.map(({ name }) => name));
+    expect(summaries.map(({ environment }) => environment.url)).toEqual([targetUrl, targetUrl, targetUrl]);
+    for (const expected of expectedSuites) {
+      const summary = summaries.find(({ name }) => name === expected.name)!;
+      console.log(`[${expected.name}]`, summary);
+      if (summary.failed !== 0) {
+        console.log(`[${expected.name}] logs:`, logs.join("\n"));
+      }
+      expect(summary.failed, `${expected.name} reports failed storage assertions`).toBe(0);
+      expect(
+        summary.passed,
+        `${expected.name} must report all expected checks after running from the shared compatibility URL`
+      ).toBe(expected.passed);
     }
-    expect(summary.failed, "Some GM storage persistence compatibility tests failed").toBe(0);
-    expect(summary.passed, "No GM storage persistence compatibility results found - script may not have run").toBe(6);
   });
 
   test("GM.* async API tests (gm_api_async_test.js)", async ({ context, extensionId }) => {
