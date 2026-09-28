@@ -228,7 +228,7 @@ export function RunStatusBadge({ runStatus }: { runStatus?: string }) {
 // 点击后依次进入 检查中 → 已是最新（2s 后恢复）/ 存在新版本 状态。
 type CheckUpdateState = "idle" | "checking" | "latest" | "has-update";
 
-export const UpdateTimeCell = React.memo(({ script }: { script: ScriptLoading }) => {
+export const UpdateTimeCell = React.memo(({ script, emphasized }: { script: ScriptLoading; emphasized?: boolean }) => {
   const { t } = useTranslation();
   const [state, setState] = useState<CheckUpdateState>("idle");
 
@@ -277,7 +277,10 @@ export const UpdateTimeCell = React.memo(({ script }: { script: ScriptLoading })
           <TooltipContent>{t("check_update")}</TooltipContent>
         </Tooltip>
       ) : (
-        <span className="text-xs text-muted-foreground">{time}</span>
+        // 强调用前景色加粗而非主色：主色在本列表示可点击（旁边的「存在新版本」入口就是主色）
+        <span className={cn("text-xs", emphasized ? "font-medium text-foreground" : "text-muted-foreground")}>
+          {time}
+        </span>
       )}
       {/* 固定宽度槽位：仅放无更新时的小刷新图标，其余状态留空占位以保持列对齐 */}
       <span className="inline-flex w-4">

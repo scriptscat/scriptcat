@@ -12,7 +12,8 @@ import {
 } from "@App/pages/components/ui/dropdown-menu";
 import { SearchInput } from "@App/pages/components/ui/search-input";
 import { SortMenu } from "./SortMenu";
-import type { SortKey, SortState } from "./sort";
+import { scriptSortOptions } from "./sort";
+import type { SortState } from "./sort";
 
 // 搜索范围：auto = 名称 + 代码
 const scopeOptions: {
@@ -53,11 +54,7 @@ export function Toolbar({
   leading,
 }: ToolbarProps) {
   const { t } = useTranslation();
-  const sortOptions: { key: SortKey; label: string }[] = [
-    { key: "status", label: t("script:script_list.sidebar.status") },
-    { key: "name", label: t("name") },
-    { key: "updatetime", label: t("logs:last_updated") },
-  ];
+  const sortOptions = scriptSortOptions(t);
   return (
     <div className="flex items-center gap-4 h-14 px-6 shrink-0 bg-card">
       {leading ?? (

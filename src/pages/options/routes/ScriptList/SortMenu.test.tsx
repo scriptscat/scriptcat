@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { SortMenu } from "./SortMenu";
@@ -56,6 +56,36 @@ describe("SortMenu 排序下拉", () => {
     openMenu();
     fireEvent.click(screen.getByText("状态"));
     expect(onChange).toHaveBeenLastCalledWith({ key: null, order: "asc" });
+  });
+
+  it("未排序时触发器不呈激活态，也没有重置按钮", () => {
+    render(<SortMenu options={[...options]} value={{ key: null, order: "asc" }} onChange={vi.fn()} />);
+
+    expect(screen.getByTestId("sort-menu")).not.toHaveAttribute("data-active");
+    expect(screen.queryByRole("button", { name: "重置排序" })).not.toBeInTheDocument();
+  });
+
+  it("已排序时触发器呈激活态并直接标出方向，不必展开菜单才知道是升序还是降序", () => {
+    const { rerender } = render(
+      <SortMenu options={[...options]} value={{ key: "name", order: "asc" }} onChange={vi.fn()} />
+    );
+
+    const trigger = screen.getByTestId("sort-menu");
+    expect(trigger).toHaveAttribute("data-active", "true");
+    expect(within(trigger).getByLabelText("升序")).toBeInTheDocument();
+
+    rerender(<SortMenu options={[...options]} value={{ key: "name", order: "desc" }} onChange={vi.fn()} />);
+    expect(within(screen.getByTestId("sort-menu")).getByLabelText("降序")).toBeInTheDocument();
+  });
+
+  it("已排序时点重置按钮一步回到默认顺序，且不展开菜单", () => {
+    const onChange = vi.fn();
+    render(<SortMenu options={[...options]} value={{ key: "status", order: "desc" }} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "重置排序" }));
+
+    expect(onChange).toHaveBeenCalledWith({ key: null, order: "asc" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   it("菜单里有「默认」项，一步回到自然顺序（拖拽顺序）", () => {
