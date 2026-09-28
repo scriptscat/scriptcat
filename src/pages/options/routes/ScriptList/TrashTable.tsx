@@ -78,10 +78,10 @@ export default function TrashTable({
   const [purgeAllOpen, setPurgeAllOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [keyword, setKeyword] = useState("");
-  // 回收站默认按删除时间倒序：最近删掉的最可能是误删，应当最先看到
+  // null 表示页面默认顺序：按删除时间倒序。这样 SortMenu 的「默认」与重置入口语义一致。
   const [sortState, setSortState] = useState<{ key: TrashSortKey | null; order: SortOrder }>({
-    key: "deleteTime",
-    order: "desc",
+    key: null,
+    order: "asc",
   });
   const [retentionDays] = useSystemConfig("trash_retention_days");
   const [trashEnabled] = useSystemConfig("trash_enabled");
@@ -165,9 +165,9 @@ export default function TrashTable({
         (sourceFilter === "all" || item.deleteBy === sourceFilter) &&
         (!kw || item.name.toLowerCase().includes(kw) || item.namespace.toLowerCase().includes(kw))
     );
-    if (sortState.key === null) return filtered;
-    const cmp = TRASH_COMPARATORS[sortState.key];
-    const dir = sortState.order === "asc" ? 1 : -1;
+    const key = sortState.key ?? "deleteTime";
+    const cmp = TRASH_COMPARATORS[key];
+    const dir = sortState.key === null ? -1 : sortState.order === "asc" ? 1 : -1;
     return [...filtered].sort((a, b) => dir * cmp(a, b));
   }, [list, sourceFilter, keyword, sortState]);
 

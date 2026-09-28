@@ -87,6 +87,26 @@ describe("SettingsPane 基本信息", () => {
     await expect(preloadSettingsPane("u1")).rejects.toThrow("boom");
   });
 
+  it("数据返回前应显示加载状态而不是空白", async () => {
+    fetchScript.mockReturnValue(new Promise(() => {}));
+
+    render(<SettingsPane uuid="u1" />);
+
+    expect(await screen.findByRole("status", { name: t("loading") })).toBeInTheDocument();
+  });
+
+  it("读取失败时应显示错误详情，点击重试后重新加载", async () => {
+    fetchScript.mockRejectedValueOnce(new Error("boom"));
+
+    render(<SettingsPane uuid="u1" />);
+
+    expect(await screen.findByText(t("editor:settings_load_failed"))).toBeInTheDocument();
+    expect(screen.getByText("boom")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: t("editor:retry") }));
+    expect(await screen.findByText("alpha")).toBeInTheDocument();
+    expect(fetchScript).toHaveBeenCalledTimes(2);
+  });
+
   it("预加载后挂载应复用脚本与授权数据", async () => {
     await preloadSettingsPane("u1");
     render(<SettingsPane uuid="u1" />);
@@ -267,6 +287,33 @@ describe("SettingsPane 网站匹配/排除", () => {
       "*://user.com/*",
       "https://new.example.com/*",
       "*://trimmed.example.org/*",
+    ]);
+  });
+
+  it("添加匹配时浏览器无法注册的规则应标为无效且不写入", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("*://script.com/*");
+
+    fireEvent.click(screen.getByText(t("editor:add_match"), { selector: "button" }));
+    fireEvent.change(screen.getByLabelText(t("editor:bulk_values")), {
+      target: {
+        value: `
+          edge://settings/*
+          example.com
+          www.youtube.com/*
+          https://ok.example.com/*
+        `,
+      },
+    });
+
+    expect(screen.getAllByText(t("editor:bulk_status_invalid"))).toHaveLength(2);
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+
+    expect(resetMatch).toHaveBeenCalledWith("u1", [
+      "*://script.com/*",
+      "*://user.com/*",
+      "www.youtube.com/*",
+      "https://ok.example.com/*",
     ]);
   });
 

@@ -17,7 +17,11 @@ body:
     attributes:
       label: Pre-check
       options:
-        - label: I have searched existing issues, and confirmed this is related to a userscript or userscript API.
+        - label: I have searched existing issues and confirmed that this is not a duplicate.
+          required: true
+        - label: Where possible, I have tried to reproduce this issue using the latest stable or beta version and confirmed that it still occurs.
+          required: true
+        - label: I have confirmed that this issue is related to a userscript or userscript API, rather than ScriptCat's general UI, sync, installation, or extension behavior.
           required: true
 
   - type: input

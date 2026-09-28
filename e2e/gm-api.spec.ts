@@ -451,6 +451,11 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
       return;
     }
 
+    if (url.pathname === "/hang") {
+      // 超时和中止只要求请求保持未完成，不需要等待真实服务端的秒级延迟。
+      return;
+    }
+
     const delayMatch = url.pathname.match(/^\/delay\/(\d+)$/);
     if (delayMatch) {
       const delayMs = Number(delayMatch[1]) * 1000;
@@ -545,6 +550,12 @@ function patchGMApiTestCode(code: string, mockOrigin: string): string {
       // @connect 127.0.0.1，而重复的 @connect 值会让脚本完全不执行。
       .replace(/https:\/\/raw\.githubusercontent\.com\/\S*?\/([\w.-]+)\?/g, `${mockOrigin}/raw/$1?`)
       .replace(/https:\/\/translate\.googleapis\.com/g, mockOrigin)
+      // 慢端点只验证超时/中止和 progress 的相对顺序；在本地 mock 中压缩等待，避免 E2E 为真实秒级延迟买单。
+      .replace(/\$\{HB\}\/delay\/(?:3|5|10)/g, "${HB}/hang")
+      .replace("timeout: 1000,", "timeout: 250,")
+      .replace("timeout: 2000,", "timeout: 250,")
+      .replace("{ abortAfterMs: 4000 }", "{ abortAfterMs: 300 }")
+      .replace(/duration=2&delay=1&numbytes=2048/g, "duration=0.5&delay=0.05&numbytes=2048")
   );
 }
 

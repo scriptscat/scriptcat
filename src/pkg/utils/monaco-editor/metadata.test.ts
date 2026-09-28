@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { editor } from "monaco-editor";
 import {
   contentChangeCanAffectMetadataMarkers,
+  getDuplicateResourceNameMatches,
   getMetadataAlignmentBlocks,
   getUndefinedMetadataTagMatches,
+  getUnsupportedGrantMatches,
   isKnownMetadataTag,
 } from "./metadata";
 
@@ -98,6 +100,72 @@ describe("getUndefinedMetadataTagMatches", () => {
   });
 });
 
+describe("getUnsupportedGrantMatches", () => {
+  it.each(["GM_webRequest", "GM_audio", "GM_addScript", "GM_createObjectURL"])(
+    "应标记脚本猫不支持的 @grant %s",
+    (grant) => {
+      const model = createMockModel(["// ==UserScript==", `// @grant ${grant}`, "// ==/UserScript=="]);
+      const blocks = getMetadataAlignmentBlocks(model);
+      const matches = getUnsupportedGrantMatches(blocks);
+      expect(matches).toHaveLength(1);
+      expect(matches[0].grant).toBe(grant);
+    }
+  );
+
+  it.each([
+    "GM_setValue",
+    "GM.setValue",
+    "GM_xmlhttpRequest",
+    "GM.xmlHttpRequest",
+    "CAT_fileStorage",
+    "unsafeWindow",
+    "GM_info",
+    "none",
+  ])("不应标记脚本猫支持的 @grant %s", (grant) => {
+    const model = createMockModel(["// ==UserScript==", `// @grant ${grant}`, "// ==/UserScript=="]);
+    const blocks = getMetadataAlignmentBlocks(model);
+    expect(getUnsupportedGrantMatches(blocks)).toEqual([]);
+  });
+
+  it("应返回精确的列范围", () => {
+    const model = createMockModel(["// ==UserScript==", "// @grant GM_webRequest", "// ==/UserScript=="]);
+    const blocks = getMetadataAlignmentBlocks(model);
+    const matches = getUnsupportedGrantMatches(blocks);
+    expect(matches).toEqual([{ lineNumber: 2, startColumn: 11, endColumn: 24, grant: "GM_webRequest" }]);
+  });
+
+  it("将 @grant 改为受支持的取值后应不再标记", () => {
+    const before = createMockModel(["// ==UserScript==", "// @grant GM_webRequest", "// ==/UserScript=="]);
+    expect(getUnsupportedGrantMatches(getMetadataAlignmentBlocks(before))).toHaveLength(1);
+
+    const after = createMockModel(["// ==UserScript==", "// @grant GM_setValue", "// ==/UserScript=="]);
+    expect(getUnsupportedGrantMatches(getMetadataAlignmentBlocks(after))).toEqual([]);
+  });
+
+  it("删除该 metadata 行后应不再标记", () => {
+    const before = createMockModel(["// ==UserScript==", "// @grant GM_webRequest", "// ==/UserScript=="]);
+    expect(getUnsupportedGrantMatches(getMetadataAlignmentBlocks(before))).toHaveLength(1);
+
+    const after = createMockModel(["// ==UserScript==", "// ==/UserScript=="]);
+    expect(getUnsupportedGrantMatches(getMetadataAlignmentBlocks(after))).toEqual([]);
+  });
+
+  it("区块内新增一行不支持的 @grant 后应正确重新计算，不影响其它诊断", () => {
+    const before = createMockModel(["// ==UserScript==", "// @grant GM_setValue", "// ==/UserScript=="]);
+    expect(getUnsupportedGrantMatches(getMetadataAlignmentBlocks(before))).toEqual([]);
+
+    const after = createMockModel([
+      "// ==UserScript==",
+      "// @grant GM_setValue",
+      "// @grant GM_audio",
+      "// ==/UserScript==",
+    ]);
+    const matches = getUnsupportedGrantMatches(getMetadataAlignmentBlocks(after));
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ lineNumber: 3, grant: "GM_audio" });
+  });
+});
+
 const createChangeEvent = (
   changes: Array<{ startLineNumber: number; endLineNumber: number; text: string; rangeLength: number }>
 ): editor.IModelContentChangedEvent =>
@@ -115,6 +183,116 @@ const createChangeEvent = (
       text: change.text,
     })),
   }) as unknown as editor.IModelContentChangedEvent;
+
+describe("getDuplicateResourceNameMatches", () => {
+  it("同名资源使用不同 URL 时，两个声明都应产出重复匹配", () => {
+    const model = createMockModel([
+      "// ==UserScript==",
+      "// @resource Resource_vConsoleVueDevtools https://fastly.jsdelivr.net/npm/vue-vconsole-devtools@1.0.9",
+      "// @resource Resource_vConsoleVueDevtools https://talking-english.net/wp-content/uploads/2019/01/camera.jpg",
+      "// ==/UserScript==",
+    ]);
+    const blocks = getMetadataAlignmentBlocks(model);
+    const matches = getDuplicateResourceNameMatches(blocks);
+    expect(matches).toHaveLength(2);
+    expect(matches.map((match) => match.lineNumber)).toEqual([2, 3]);
+    expect(matches.every((match) => match.name === "Resource_vConsoleVueDevtools")).toBe(true);
+  });
+
+  it("同名资源即便 URL 相同，仍应视为重复", () => {
+    const model = createMockModel([
+      "// ==UserScript==",
+      "// @resource res https://example.com/a.js",
+      "// @resource res https://example.com/a.js",
+      "// ==/UserScript==",
+    ]);
+    const blocks = getMetadataAlignmentBlocks(model);
+    expect(getDuplicateResourceNameMatches(blocks)).toHaveLength(2);
+  });
+
+  it("不同名称的资源不应产出警告", () => {
+    const model = createMockModel([
+      "// ==UserScript==",
+      "// @resource resA https://example.com/a.js",
+      "// @resource resB https://example.com/b.js",
+      "// ==/UserScript==",
+    ]);
+    const blocks = getMetadataAlignmentBlocks(model);
+    expect(getDuplicateResourceNameMatches(blocks)).toEqual([]);
+  });
+
+  it("资源名称按大小写敏感比较，foo 与 Foo 不冲突", () => {
+    const model = createMockModel([
+      "// ==UserScript==",
+      "// @resource foo https://example.com/a.js",
+      "// @resource Foo https://example.com/b.js",
+      "// ==/UserScript==",
+    ]);
+    const blocks = getMetadataAlignmentBlocks(model);
+    expect(getDuplicateResourceNameMatches(blocks)).toEqual([]);
+  });
+
+  it("格式不合法的 @resource 声明应被忽略", () => {
+    const model = createMockModel([
+      "// ==UserScript==",
+      "// @resource onlyName",
+      "// @resource onlyName",
+      "// ==/UserScript==",
+    ]);
+    const blocks = getMetadataAlignmentBlocks(model);
+    expect(getDuplicateResourceNameMatches(blocks)).toEqual([]);
+  });
+
+  it("同名值出现在 @require 等其他标签时应被忽略", () => {
+    const model = createMockModel([
+      "// ==UserScript==",
+      "// @require https://example.com/lib.js",
+      "// @resource https://example.com/lib.js https://example.com/lib.js",
+      "// ==/UserScript==",
+    ]);
+    const blocks = getMetadataAlignmentBlocks(model);
+    expect(getDuplicateResourceNameMatches(blocks)).toEqual([]);
+  });
+
+  it("有效 UserScript 区块之外的 @resource 应被忽略", () => {
+    const model = createMockModel([
+      "// @resource res https://example.com/a.js",
+      "// ==UserScript==",
+      "// @resource res https://example.com/b.js",
+      "// ==/UserScript==",
+    ]);
+    const blocks = getMetadataAlignmentBlocks(model);
+    expect(getDuplicateResourceNameMatches(blocks)).toEqual([]);
+  });
+
+  it("第一个有效区块之后的第二个 UserScript 区块应被忽略，保持与现有解析器语义一致", () => {
+    const model = createMockModel([
+      "// ==UserScript==",
+      "// @resource res https://example.com/a.js",
+      "// ==/UserScript==",
+      "// ==UserScript==",
+      "// @resource res https://example.com/b.js",
+      "// ==/UserScript==",
+    ]);
+    const blocks = getMetadataAlignmentBlocks(model);
+    expect(getDuplicateResourceNameMatches(blocks)).toEqual([]);
+  });
+
+  it("返回的列范围应精确覆盖资源名称", () => {
+    const model = createMockModel([
+      "// ==UserScript==",
+      "// @resource     Resource_x https://example.com/a.js",
+      "// @resource     Resource_x https://example.com/b.js",
+      "// ==/UserScript==",
+    ]);
+    const blocks = getMetadataAlignmentBlocks(model);
+    const matches = getDuplicateResourceNameMatches(blocks);
+    expect(matches).toEqual([
+      { lineNumber: 2, startColumn: 18, endColumn: 28, name: "Resource_x" },
+      { lineNumber: 3, startColumn: 18, endColumn: 28, name: "Resource_x" },
+    ]);
+  });
+});
 
 describe("contentChangeCanAffectMetadataMarkers", () => {
   it("在已知区块行首插入字符（导致该行不再形似注释）时仍应触发重新计算", () => {

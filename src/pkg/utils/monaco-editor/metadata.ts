@@ -1,5 +1,6 @@
 import type { editor } from "monaco-editor";
-import { resolveMetadataTagBase } from "@App/pkg/utils/script_compat";
+import { isSupportedGrant, resolveMetadataTagBase } from "@App/pkg/utils/script_compat";
+import { parseResourceDeclaration } from "@App/pkg/utils/resource";
 
 export type MetadataAlignmentLine = {
   lineNumber: number;
@@ -26,6 +27,20 @@ export type UndefinedMetadataTagMatch = {
   lineNumber: number;
   startColumn: number;
   endColumn: number;
+};
+
+export type DuplicateResourceNameMatch = {
+  lineNumber: number;
+  startColumn: number;
+  endColumn: number;
+  name: string;
+};
+
+export type UnsupportedGrantMatch = {
+  lineNumber: number;
+  startColumn: number;
+  endColumn: number;
+  grant: string;
 };
 
 export const metadataHoverPattern = /^(\s*\/\/[ \t]*@)(\S+)([ \t]*)(.*)$/;
@@ -115,6 +130,73 @@ export const getUndefinedMetadataTagMatches = (
         lineNumber,
         startColumn: prefix.length + 1,
         endColumn: prefix.length + tag.length + 1,
+      });
+    }
+  }
+
+  return matches;
+};
+
+/**
+ * 只检查第一个有效 metadata 区块内的 @resource 声明（block 已由 getMetadataAlignmentBlocks
+ * 限定为第一个成对闭合的区块）。名称按大小写敏感分组，复用 parseResourceDeclaration 解析
+ * `<name> <url>`，格式不合法的声明会被 parseResourceDeclaration 拒绝并忽略。
+ */
+export const getDuplicateResourceNameMatches = (blocks: MetadataAlignmentBlock[]): DuplicateResourceNameMatch[] => {
+  const matches: DuplicateResourceNameMatch[] = [];
+
+  for (const block of blocks) {
+    const linesByName = new Map<string, MetadataAlignmentLine[]>();
+
+    for (const line of block.lines) {
+      if (line.tag.toLowerCase() !== "resource") continue;
+
+      const declaration = parseResourceDeclaration(line.value.trim());
+      if (!declaration) continue;
+
+      const lines = linesByName.get(declaration.name);
+      if (lines) {
+        lines.push(line);
+      } else {
+        linesByName.set(declaration.name, [line]);
+      }
+    }
+
+    for (const [name, lines] of linesByName) {
+      if (lines.length < 2) continue;
+
+      for (const line of lines) {
+        matches.push({
+          lineNumber: line.lineNumber,
+          startColumn: line.valueColumn + 1,
+          endColumn: line.valueColumn + 1 + name.length,
+          name,
+        });
+      }
+    }
+  }
+
+  return matches;
+};
+
+export const getMetadataValueToken = (value: string): string => /^\S+/.exec(value)?.[0] || "";
+
+/** 只看已识别的 metadata 区块里的 @grant 行，取值判定复用运行时同一套 isSupportedGrant */
+export const getUnsupportedGrantMatches = (blocks: MetadataAlignmentBlock[]): UnsupportedGrantMatch[] => {
+  const matches: UnsupportedGrantMatch[] = [];
+
+  for (const block of blocks) {
+    for (const line of block.lines) {
+      if (line.tag.toLowerCase() !== "grant") continue;
+
+      const grant = getMetadataValueToken(line.value);
+      if (!grant || isSupportedGrant(grant)) continue;
+
+      matches.push({
+        lineNumber: line.lineNumber,
+        startColumn: line.valueColumn + 1,
+        endColumn: line.valueColumn + 1 + grant.length,
+        grant,
       });
     }
   }

@@ -15,7 +15,7 @@
 // @grant        GM.setValue
 // @grant        GM.deleteValue
 // @grant        window.onurlchange
-// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@b8c6d0839c75ee5e4e4276dd10e201011c445df8/example/tests/lib/sctest.js
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@36ab4ce5ff23c820a32cd13ac5a04d8834ab4d82/example/tests/lib/sctest.js
 // @inject-into  content
 // ==/UserScript==
 

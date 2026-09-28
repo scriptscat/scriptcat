@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useBlocker, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { RefreshCw, TriangleAlert } from "lucide-react";
 import type { editor } from "monaco-editor";
 import type { Script } from "@App/app/repo/scripts";
 import { ScriptDAO, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
@@ -20,6 +21,9 @@ import {
   AlertDialogTitle,
 } from "@App/pages/components/ui/alert-dialog";
 import { notify } from "@App/pages/components/ui/toast";
+import { LoadingState } from "@App/pages/components/ui/loading-state";
+import { StateScreen } from "@App/pages/components/ui/state-screen";
+import { Button } from "@App/pages/components/ui/button";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { editorTabsReducer, initialEditorTabsState } from "./useEditorTabs";
 import { useActiveEditorFocus } from "./useActiveEditorFocus";
@@ -52,7 +56,7 @@ export default function ScriptEditor() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 
-  const { scriptList, setScriptList, loadingList } = useScriptDataManagement();
+  const { scriptList, setScriptList, loadingList, scriptListError, reloadScriptList } = useScriptDataManagement();
   const [state, dispatch] = useReducer(editorTabsReducer, initialEditorTabsState);
   const [status, setStatus] = useState<EditorStatus | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
@@ -131,7 +135,7 @@ export default function ScriptEditor() {
 
   // 初始化：列表就绪后根据 URL uuid 打开
   useEffect(() => {
-    if (loadingList) return;
+    if (loadingList || scriptListError) return;
     const uuid = params.uuid;
     if (uuid) {
       if (uuid === stateRef.current.activeUuid) return;
@@ -148,7 +152,7 @@ export default function ScriptEditor() {
       void openScript(undefined, templateRef.current, targetRef.current);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingList, params.uuid]);
+  }, [loadingList, scriptListError, params.uuid]);
 
   const activeTab = useMemo(() => state.tabs.find((x) => x.uuid === state.activeUuid), [state.tabs, state.activeUuid]);
   const activeTabScriptName = activeTab?.script && i18nName(activeTab.script);
@@ -424,6 +428,24 @@ export default function ScriptEditor() {
   const editorArea = useMemo(
     () => (
       <div className="relative min-h-0 flex-1">
+        {/* 列表就绪前还打不开 URL 指定的脚本，编辑区不能留白 */}
+        {scriptListError && state.tabs.length === 0 ? (
+          <StateScreen
+            icon={TriangleAlert}
+            tone="error"
+            compact
+            title={t("script:operation_failed")}
+            detail={scriptListError instanceof Error ? scriptListError.message : String(scriptListError)}
+            action={
+              <Button onClick={reloadScriptList}>
+                <RefreshCw />
+                {t("editor:retry")}
+              </Button>
+            }
+          />
+        ) : (
+          loadingList && state.tabs.length === 0 && <LoadingState label={t("loading")} className="h-full" />
+        )}
         {state.tabs.map((tab) => (
           <div
             key={tab.uuid}
@@ -459,7 +481,19 @@ export default function ScriptEditor() {
         )}
       </div>
     ),
-    [state.tabs, state.activeUuid, subView, activeTab, doSave, doSaveAs, doRun]
+    [
+      loadingList,
+      scriptListError,
+      reloadScriptList,
+      t,
+      state.tabs,
+      state.activeUuid,
+      subView,
+      activeTab,
+      doSave,
+      doSaveAs,
+      doRun,
+    ]
   );
 
   return (

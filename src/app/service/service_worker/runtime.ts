@@ -53,7 +53,13 @@ import Logger from "@App/app/logger/logger";
 import type { GMInfoEnv, ValueUpdateDataEncoded } from "../content/types";
 import { initLocalesPromise, localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
-import { extractUrlPatterns, RuleType, RuleTypeBit, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
+import {
+  extractUrlPatterns,
+  isApiSupportedMatchPattern,
+  RuleType,
+  RuleTypeBit,
+  type URLRuleEntry,
+} from "@App/pkg/utils/url_matcher";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
 import type { CompiledResource, Resource, ResourceType } from "@App/app/repo/resource";
 import { CompiledResourceDAO, CompiledResourceNamespace } from "@App/app/repo/resource";
@@ -827,8 +833,8 @@ export class RuntimeService {
     const excludeGlobs = [];
     for (const rule of rules) {
       if (rule.ruleType === RuleType.MATCH_INCLUDE) {
-        // matches -> excludeMatches
-        excludeMatches.push(rule.patternString);
+        // matches -> excludeMatches；不支持的 scheme 会让所有脚本注册失败，只留给 blackMatch 判断
+        if (isApiSupportedMatchPattern(rule.patternString)) excludeMatches.push(rule.patternString);
       } else if (rule.ruleType === RuleType.GLOB_INCLUDE) {
         // includeGlobs -> excludeGlobs
         excludeGlobs.push(rule.patternString);
@@ -875,9 +881,9 @@ export class RuntimeService {
       registerScript.js![0].code = jsCode = code;
     }
 
-    // 过滤掉matches为空的脚本
+    // 只匹配浏览器不支持的 scheme（如 edge://）的脚本没有可注册的 matches，属预期情况
     if (!registerScript.matches || registerScript.matches.length === 0) {
-      this.logger.error("registerScript matches is empty", {
+      this.logger.warn("registerScript has no registrable matches", {
         script: script.name,
         uuid: script.uuid,
       });

@@ -122,7 +122,7 @@ function MobileSwipeRow({
         // inert 与 aria-hidden 必须同进退：pointer-events-none 只挡指针，
         // 键盘仍能 Tab 进这棵不播报的子树并触发「删除」
         inert={!open}
-        className={cn("absolute inset-y-0 right-0 flex items-stretch", !open && "pointer-events-none")}
+        className={cn("absolute inset-y-0 right-0 flex items-stretch", !open && "invisible pointer-events-none")}
       >
         {actions}
       </div>

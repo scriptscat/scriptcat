@@ -362,6 +362,34 @@ describe.concurrent("getApiMatchesAndGlobs-1 （基础测试）", () => {
   });
 });
 
+describe.concurrent("getApiMatchesAndGlobs 浏览器不支持的 scheme", () => {
+  it.concurrent("只剩不支持的 scheme 时 matches 为空，不能退回 *://*/*", () => {
+    const { matches } = getApiMatchesAndGlobs(extractUrlPatterns(["@match edge://settings/*"]));
+
+    expect(matches).toEqual([]);
+  });
+
+  it.concurrent("与支持的 scheme 混用时只丢弃不支持的", () => {
+    const { matches } = getApiMatchesAndGlobs(
+      extractUrlPatterns([
+        "@match chrome://extensions/*",
+        "@match https://example.com/*",
+        "@match ftp://example.com/*",
+        "@match file:///tmp/*",
+      ])
+    );
+
+    expect(matches).toEqual(["https://example.com/*", "ftp://example.com/*", "file:///tmp/*"]);
+  });
+
+  it.concurrent("glob 推导出的不支持 scheme 也要丢弃", () => {
+    const { matches, includeGlobs } = getApiMatchesAndGlobs(extractUrlPatterns(["@include edge://*"]));
+
+    expect(matches).toEqual(["*://*/*"]);
+    expect(includeGlobs).toEqual(["edge://*"]);
+  });
+});
+
 describe.concurrent("getApiMatchesAndGlobs-2 （实际例子测试）", () => {
   it.concurrent("match1", () => {
     // 测试真实例子，验证解析结果
