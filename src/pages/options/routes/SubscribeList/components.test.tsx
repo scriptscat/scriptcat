@@ -86,4 +86,36 @@ describe("订阅更新时间格的检查更新状态", () => {
 
     expect(screen.queryByText(t("script:new_version_available"))).toBeNull();
   });
+
+  it("检查期间订阅更新时间变化后忽略过期的确认结果", async () => {
+    let resolveCheck!: (result: "confirm") => void;
+    const pendingCheck = new Promise<"confirm">((resolve) => {
+      resolveCheck = resolve;
+    });
+    vi.mocked(requestCheckSubscribeUpdate).mockReturnValueOnce(pendingCheck);
+    const { rerender } = render(renderCell(1000));
+
+    await clickCheck();
+    rerender(renderCell(2000));
+
+    await act(async () => {
+      resolveCheck("confirm");
+      await pendingCheck;
+    });
+
+    expect(screen.queryByText(t("script:new_version_available"))).toBeNull();
+  });
+
+  it("订阅更新时间变化后重置已是最新状态", async () => {
+    vi.mocked(requestCheckSubscribeUpdate).mockResolvedValueOnce(false);
+    const { rerender } = render(renderCell(1000));
+
+    await clickCheck();
+    expect(screen.getByText(t("script:latest_version"))).toBeInTheDocument();
+
+    rerender(renderCell(2000));
+
+    expect(screen.queryByText(t("script:latest_version"))).toBeNull();
+    expect(screen.getByRole("button", { name: t("check_update") })).toBeInTheDocument();
+  });
 });
