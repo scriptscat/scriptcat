@@ -50,7 +50,6 @@ function assertRuleId(ruleId) {
  * Vitest 用例用 `ruleCountAt({ code, filename, ruleId })` 断言命中数量，并先合并同名虚拟文件的代码片段。
  */
 function ruleIdsAt({ code, filename }) {
-  // 非法参数直接报错
   assertFixtureCode(code);
   assertFixtureFilename(filename);
   const messages = linter.verify(code, syntaxOnlyConfig, { filename });
@@ -63,7 +62,6 @@ function ruleIdsAt({ code, filename }) {
 
 /** 返回指定 ruleId 的诊断数量。 */
 function ruleCountAt({ code, filename, ruleId }) {
-  // 非法参数直接报错
   assertRuleId(ruleId);
   return ruleIdsAt({ code, filename }).filter((id) => id === ruleId).length;
 }
@@ -488,8 +486,10 @@ describe("harness lint 规则", () => {
       expect(
         ruleCountAt({
           code: `
-            const Array = { from() {} };
-            Array.from({ length: PAGE_SIZE + 1 }, makeRow);
+            function shadowedArrayCase() {
+              const Array = { from() {} };
+              Array.from({ length: PAGE_SIZE + 1 }, makeRow);
+            }
 
             // eslint-disable-next-line scriptcat/no-test-large-boundary-fixture -- pagination boundary
             Array.from({ length: PAGE_SIZE + 1 }, makeRow);
