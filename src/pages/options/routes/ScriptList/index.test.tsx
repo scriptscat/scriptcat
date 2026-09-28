@@ -29,6 +29,8 @@ const { mockScriptData, getScriptValue } = vi.hoisted(() => ({
     scriptList: [] as ScriptLoading[],
     setScriptList: vi.fn(),
     loadingList: false,
+    scriptListError: undefined as unknown,
+    reloadScriptList: vi.fn(),
   },
   getScriptValue: vi.fn(),
 }));
@@ -107,6 +109,8 @@ beforeEach(() => {
   mockScriptData.scriptList = [];
   mockScriptData.setScriptList = vi.fn();
   mockScriptData.loadingList = false;
+  mockScriptData.scriptListError = undefined;
+  mockScriptData.reloadScriptList.mockClear();
   getScriptValue.mockReset();
   getScriptValue.mockResolvedValue({});
   localStorage.removeItem(SCRIPT_LIST_PREFERENCES_KEY);
@@ -143,6 +147,21 @@ describe("脚本列表删除接口调用", () => {
     render(<ScriptList />, { wrapper: MemoryRouter });
     fireEvent.click(screen.getByText("trigger-batch-delete"));
     expect(requestDeleteScripts).not.toHaveBeenCalled();
+  });
+});
+
+describe("脚本列表加载失败", () => {
+  it("显示错误详情并允许重试", () => {
+    mockScriptData.scriptListError = new Error("list failed");
+
+    render(<ScriptList />, { wrapper: MemoryRouter });
+
+    expect(screen.getByText("list failed")).toBeInTheDocument();
+    expect(screen.queryByText("trigger-delete")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: t("editor:retry") }));
+
+    expect(mockScriptData.reloadScriptList).toHaveBeenCalledTimes(1);
   });
 });
 
