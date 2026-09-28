@@ -106,6 +106,77 @@ describe("SubscribeService —— 订阅列表同步广播", () => {
     expect(subscribe.url).toBe(SUB_URL);
     expect(subscribe.scripts[SCRIPT_URL]).toEqual({ url: SCRIPT_URL, uuid: "sub-script-1" });
   });
+
+  it("较旧的脚本同步完成较晚时保留较新的订阅", async () => {
+    await new SubscribeDAO().save(
+      makeSubscribe({
+        scripts: {},
+        metadata: { usersubscribe: [], scripturl: [SCRIPT_URL], version: ["0.3.4"] },
+      })
+    );
+    const { service, scriptService, mq } = buildService();
+    let finishScriptInstall!: (script: Script) => void;
+    const scriptInstallPending = new Promise<Script>((resolve) => {
+      finishScriptInstall = resolve;
+    });
+    vi.spyOn(scriptService, "installByUrl").mockImplementation(() => scriptInstallPending);
+    const save = vi.spyOn(service.subscribeDAO, "save");
+    const olderSync = service.upsertScript(SUB_URL);
+
+    await vi.waitFor(() => expect(scriptService.installByUrl).toHaveBeenCalledOnce());
+
+    const newerInstall = service.install({
+      subscribe: makeSubscribe({
+        scripts: {},
+        metadata: { usersubscribe: [], scripturl: [], version: ["0.3.5"] },
+      }),
+    });
+    const newerInstallComplete = newerInstall.then(() => undefined);
+    const savedWhileOlderSyncPending = save.mock.calls.length > 0;
+    if (savedWhileOlderSyncPending) await newerInstallComplete;
+
+    finishScriptInstall(makeScript());
+    await Promise.all([olderSync, newerInstall]);
+    const latestBroadcast = new Promise<TInstallSubscribe>((resolve) => mq.subscribe("upsertSubscribe", resolve));
+    await service.upsertScript(SUB_URL);
+
+    const saved = await new SubscribeDAO().get(SUB_URL);
+    expect(savedWhileOlderSyncPending).toBe(false);
+    expect(saved?.metadata.version).toEqual(["0.3.5"]);
+    expect(saved?.scripts).toEqual({});
+    await expect(latestBroadcast).resolves.toMatchObject({
+      subscribe: { metadata: { version: ["0.3.5"] }, scripts: {} },
+    });
+  });
+
+  it("脚本同步期间不启动同一订阅的更新检查", async () => {
+    await new SubscribeDAO().save(
+      makeSubscribe({
+        scripts: {},
+        metadata: { usersubscribe: [], scripturl: [SCRIPT_URL], version: ["0.3.4"] },
+      })
+    );
+    const { service, scriptService } = buildService();
+    let finishScriptInstall!: (script: Script) => void;
+    const scriptInstallPending = new Promise<Script>((resolve) => {
+      finishScriptInstall = resolve;
+    });
+    vi.spyOn(scriptService, "installByUrl").mockImplementation(() => scriptInstallPending);
+    const get = vi.spyOn(service.subscribeDAO, "get");
+    const syncing = service.upsertScript(SUB_URL);
+
+    await vi.waitFor(() => expect(scriptService.installByUrl).toHaveBeenCalledOnce());
+
+    const checkAvailable = vi.spyOn(service, "_checkUpdateAvailable").mockResolvedValue(false);
+    const checking = service.checkUpdate(SUB_URL, "user");
+    const checkStartedBeforeSyncFinished = get.mock.calls.length > 1;
+
+    finishScriptInstall(makeScript());
+    await Promise.all([syncing, checking]);
+
+    expect(checkStartedBeforeSyncFinished).toBe(false);
+    expect(checkAvailable).toHaveBeenCalledOnce();
+  });
 });
 
 const subscribeCode = (version: string, connect: string[] = []) =>
@@ -189,7 +260,7 @@ describe("SubscribeService —— 手动检查更新", () => {
     const { client, service, tabsCreate } = await setup(subscribeCode("0.3.4"));
     const failedInstall = Promise.reject(new Error("storage unavailable"));
     void failedInstall.catch(() => {});
-    vi.spyOn(service, "install").mockReturnValue(failedInstall);
+    vi.spyOn(service.subscribeDAO, "save").mockReturnValue(failedInstall);
 
     await expect(client.checkUpdate(SUB_URL)).resolves.toBe(false);
     expect(tabsCreate).not.toHaveBeenCalled();

@@ -23,6 +23,8 @@ export class SubscribeService {
   logger: Logger;
   subscribeDAO = new SubscribeDAO();
   scriptDAO = new ScriptDAO();
+  // Same-subscription sync writes full snapshots after async script work, so serialize all record mutations by URL.
+  private readonly subscribeOperations = new Map<string, Promise<void>>();
 
   constructor(
     private group: Group,
@@ -32,7 +34,25 @@ export class SubscribeService {
     this.logger = LoggerCore.logger().with({ service: "subscribe" });
   }
 
-  async install(param: { subscribe: Subscribe }) {
+  private withSubscribeOperation<T>(url: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.subscribeOperations.get(url) ?? Promise.resolve();
+    const result = previous.then(operation);
+    const current = result.then(
+      () => undefined,
+      () => undefined
+    );
+    this.subscribeOperations.set(url, current);
+    void current.then(() => {
+      if (this.subscribeOperations.get(url) === current) this.subscribeOperations.delete(url);
+    });
+    return result;
+  }
+
+  install(param: { subscribe: Subscribe }) {
+    return this.withSubscribeOperation(param.subscribe.url, () => this.installSubscribe(param));
+  }
+
+  private async installSubscribe(param: { subscribe: Subscribe }) {
     // 1）由安装页呼叫，进行 user.sub.js 的安装
     // 2）静默更新启动状态下，Subscribe 列表自动更新
     const logger = this.logger.with({
@@ -54,7 +74,11 @@ export class SubscribeService {
     }
   }
 
-  async delete(param: { url: string }) {
+  delete(param: { url: string }) {
+    return this.withSubscribeOperation(param.url, () => this.deleteSubscribe(param));
+  }
+
+  private async deleteSubscribe(param: { url: string }) {
     const url = param.url;
     const logger = this.logger.with({
       subscribeUrl: url,
@@ -91,7 +115,11 @@ export class SubscribeService {
 
   // 更新订阅的脚本（ installSubscribe ）
   // 已订阅的脚本则根据 Script脚本 本身的更新逻辑更新，与 Subscribe脚本 的更新无关
-  async upsertScript(url: string) {
+  upsertScript(url: string) {
+    return this.withSubscribeOperation(url, () => this.upsertSubscribeScripts(url));
+  }
+
+  private async upsertSubscribeScripts(url: string) {
     const subscribe = await this.subscribeDAO.get(url);
     if (!subscribe || !subscribe.metadata.usersubscribe) return; // 有效的 Subscribe 必定有 usersubscribe
     const logger = this.logger.with({
@@ -254,7 +282,11 @@ export class SubscribeService {
    * @param source 系统自动检查: "system"; subscribeClient.checkUpdate(subscribe.url) 的时候: "user"
    * @returns
    */
-  async checkUpdate(url: string, source: InstallSource): Promise<SubscribeCheckUpdateResult> {
+  checkUpdate(url: string, source: InstallSource): Promise<SubscribeCheckUpdateResult> {
+    return this.withSubscribeOperation(url, () => this.checkUpdateSubscribe(url, source));
+  }
+
+  private async checkUpdateSubscribe(url: string, source: InstallSource): Promise<SubscribeCheckUpdateResult> {
     const subscribe = await this.subscribeDAO.get(url);
     if (!subscribe) {
       return false;
@@ -310,7 +342,7 @@ export class SubscribeService {
     }
     if (checkSilenceUpdate(newSubscribe.oldSubscribe!.metadata, newSubscribe.subscribe.metadata)) {
       logger.info("silence update subscribe");
-      await this.install({
+      await this.installSubscribe({
         subscribe: newSubscribe.subscribe,
       });
       return true;
@@ -340,7 +372,11 @@ export class SubscribeService {
     return this.subscribeDAO.find();
   }
 
-  async enable(param: { url: string; enable: boolean }) {
+  enable(param: { url: string; enable: boolean }) {
+    return this.withSubscribeOperation(param.url, () => this.enableSubscribe(param));
+  }
+
+  private async enableSubscribe(param: { url: string; enable: boolean }) {
     const logger = this.logger.with({
       url: param.url,
     });
