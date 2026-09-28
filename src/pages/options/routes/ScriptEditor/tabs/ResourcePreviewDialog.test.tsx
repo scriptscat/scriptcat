@@ -8,6 +8,14 @@ import type { ResourceListItem } from "@App/app/repo/resource";
 
 const { getResourceChunk } = vi.hoisted(() => ({ getResourceChunk: vi.fn() }));
 vi.mock("@App/pages/store/features/script", () => ({ resourceClient: { getResourceChunk } }));
+// Monaco 无法在 jsdom 中渲染，这里只观察对话框交给只读查看器的文本与语言
+vi.mock("./ResourceCodeViewer", () => ({
+  ResourceCodeViewer: ({ value, language, ariaLabel }: { value: string; language: string; ariaLabel: string }) => (
+    <pre data-testid="resource-preview-content" data-language={language} aria-label={ariaLabel}>
+      {value}
+    </pre>
+  ),
+}));
 
 import ResourcePreviewDialog, { RESOURCE_PREVIEW_LIMIT_BYTES } from "./ResourcePreviewDialog";
 
@@ -70,6 +78,22 @@ describe("ResourcePreviewDialog 缓存资源预览", () => {
   });
 
   it.each([
+    { contentType: "application/javascript", url: "https://cdn.test/a.js", language: "javascript" },
+    { contentType: "text/plain; charset=utf-8", url: "https://raw.test/a.user.js", language: "javascript" },
+    { contentType: "application/json", url: "https://cdn.test/data", language: "json" },
+    { contentType: "application/manifest+json", url: "https://cdn.test/app.webmanifest", language: "json" },
+    { contentType: "text/css", url: "https://cdn.test/a.css", language: "css" },
+    { contentType: "text/html", url: "https://cdn.test/a.html", language: "html" },
+    { contentType: "application/octet-stream", url: "https://cdn.test/a.yml", language: "yaml" },
+    { contentType: "text/plain", url: "https://cdn.test/notes.txt", language: "plaintext" },
+  ])("$contentType $url 以 $language 语法高亮显示", async ({ contentType, url, language }) => {
+    getResourceChunk.mockResolvedValue(chunkFor(url, "var a=1;"));
+    renderPreview({ ...textResource, key: url, url, contentType });
+
+    expect(await screen.findByTestId("resource-preview-content")).toHaveAttribute("data-language", language);
+  });
+
+  it.each([
     { encoding: "UTF-16LE BOM", littleEndian: true, bom: [0xff, 0xfe] },
     { encoding: "UTF-16BE BOM", littleEndian: false, bom: [0xfe, 0xff] },
     { encoding: "UTF-16LE null pattern", littleEndian: true, bom: [] },
@@ -124,7 +148,8 @@ describe("ResourcePreviewDialog 缓存资源预览", () => {
 
     const content = await screen.findByTestId("resource-preview-content");
     expect(content).toHaveTextContent(svg);
-    expect(content.querySelector("svg")).toBeNull();
+    expect(content).toHaveAttribute("data-language", "xml");
+    expect(screen.queryByRole("img")).toBeNull();
   });
 
   it("MIME 类型为 octet-stream 时可按 JS 扩展名预览文本", async () => {

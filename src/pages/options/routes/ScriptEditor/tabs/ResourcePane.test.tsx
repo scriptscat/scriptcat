@@ -16,6 +16,9 @@ vi.mock("@App/pages/store/features/script", () => ({
   fetchScript,
   resourceClient: { getScriptResources, getResourceChunk, deleteResource },
 }));
+vi.mock("./ResourceCodeViewer", () => ({
+  ResourceCodeViewer: ({ value }: { value: string }) => <pre>{value}</pre>,
+}));
 
 import ResourcePane, { invalidateResourcePane, usePreloadResourcePane } from "./ResourcePane";
 

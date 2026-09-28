@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@App/pages/components/ui/dialog";
+import { ResourceCodeViewer } from "./ResourceCodeViewer";
 
 export const RESOURCE_PREVIEW_LIMIT_BYTES = 1024 * 1024;
 
@@ -61,6 +62,45 @@ const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
 };
 
 const IMAGE_MIME_TYPES = new Set(Object.values(IMAGE_MIME_BY_EXTENSION));
+
+const LANGUAGE_BY_MIME_TYPE: Record<string, string> = {
+  "application/ecmascript": "javascript",
+  "application/javascript": "javascript",
+  "application/json": "json",
+  "application/x-javascript": "javascript",
+  "application/xml": "xml",
+  "application/yaml": "yaml",
+  "image/svg+xml": "xml",
+  "text/css": "css",
+  "text/ecmascript": "javascript",
+  "text/html": "html",
+  "text/javascript": "javascript",
+  "text/markdown": "markdown",
+  "text/xml": "xml",
+  "text/yaml": "yaml",
+};
+
+const LANGUAGE_BY_EXTENSION: Record<string, string> = {
+  cjs: "javascript",
+  css: "css",
+  htm: "html",
+  html: "html",
+  js: "javascript",
+  json: "json",
+  jsx: "javascript",
+  less: "less",
+  md: "markdown",
+  mjs: "javascript",
+  scss: "scss",
+  sh: "shell",
+  sql: "sql",
+  svg: "xml",
+  ts: "typescript",
+  tsx: "typescript",
+  xml: "xml",
+  yaml: "yaml",
+  yml: "yaml",
+};
 
 type ResourceFormat = "text" | "image" | "unsupported";
 
@@ -130,6 +170,16 @@ function getResourceFormat(resource: ResourceListItem): ResourceFormat {
   }
   if (TEXT_EXTENSIONS.has(extension) && (!mimeType || mimeType === "application/octet-stream")) return "text";
   return "unsupported";
+}
+
+function getResourceLanguage(resource: ResourceListItem): string {
+  const mimeType = resource.contentType.split(";")[0].trim().toLowerCase();
+  // 许多 CDN（如 GitHub raw）把脚本当 text/plain 下发，MIME 不具体时再按扩展名判断
+  const language =
+    LANGUAGE_BY_MIME_TYPE[mimeType] ??
+    (mimeType.endsWith("+json") ? "json" : mimeType.endsWith("+xml") ? "xml" : undefined) ??
+    LANGUAGE_BY_EXTENSION[resourceExtension(resource.url)];
+  return language ?? "plaintext";
 }
 
 function resourceImageMimeType(resource: ResourceListItem): string {
@@ -359,12 +409,12 @@ export default function ResourcePreviewDialog({
             </div>
           )}
           {activePreview.status === "loaded-text" && (
-            <pre
-              data-testid="resource-preview-content"
-              className="min-h-[180px] max-h-[55vh] overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-3 font-mono text-xs text-foreground"
-            >
-              {activePreview.text || t("editor:resource_preview_empty")}
-            </pre>
+            <ResourceCodeViewer
+              value={activePreview.text}
+              language={getResourceLanguage(resource)}
+              ariaLabel={displayName}
+              className="h-[55vh] min-h-[180px]"
+            />
           )}
           {activePreview.status === "loaded-image" && (
             <div className="flex max-h-[55vh] min-h-[180px] items-center justify-center overflow-auto rounded-md bg-muted p-2">

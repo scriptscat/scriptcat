@@ -781,6 +781,17 @@ export function registerEditor() {
     linterWorkerDeferred.resolve(linterWorker);
   }
 
+  // 构建只打包了 editor/json/ts worker，CSS/HTML 语言服务会向 editor.worker 请求不存在的模块而抛错；
+  // 这两类语言只用于资源只读预览，关闭语言服务后仍保留 Monarch 语法高亮
+  for (const defaults of [
+    languages.css.cssDefaults,
+    languages.css.scssDefaults,
+    languages.css.lessDefaults,
+    languages.html.htmlDefaults,
+  ]) {
+    defaults.setModeConfiguration({});
+  }
+
   // provider 注册始终执行，不受 worker 复用影响
   registerScriptcatMetadataMarkerProvider();
 
