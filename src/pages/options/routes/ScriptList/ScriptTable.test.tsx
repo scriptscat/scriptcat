@@ -125,11 +125,11 @@ describe("ScriptTable 按排序状态渲染", () => {
 
   it("排序激活时禁用手动拖拽，未排序时每行都有拖拽手柄", () => {
     renderTable(list);
-    expect(document.querySelectorAll(".cursor-grab").length).toBe(list.length);
+    expect(document.querySelectorAll(".cursor-move").length).toBe(list.length);
 
     cleanup();
     renderTable(list, { key: "name", order: "asc" });
-    expect(document.querySelectorAll(".cursor-grab").length).toBe(0);
+    expect(document.querySelectorAll(".cursor-move").length).toBe(0);
   });
 });
 

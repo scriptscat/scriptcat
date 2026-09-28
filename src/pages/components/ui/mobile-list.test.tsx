@@ -128,6 +128,16 @@ describe("左滑操作", () => {
     expect(container.querySelector('[data-slot="mobile-swipe-actions"]')).not.toHaveAttribute("inert");
   });
 
+  it("关闭态隐藏操作块但保留可测量宽度，打开时恢复显示", () => {
+    const { container } = renderSwipe();
+    const actions = container.querySelector('[data-slot="mobile-swipe-actions"]')!;
+    expect(actions).toHaveClass("invisible");
+
+    swipe(200, 120);
+
+    expect(actions).not.toHaveClass("invisible");
+  });
+
   it("内容位移取操作区实际宽度，操作块数量不同的页面不会滑出空白", () => {
     const { container } = render(<ControlledSwipe />);
     const actions = container.querySelector('[data-slot="mobile-swipe-actions"]') as HTMLElement;

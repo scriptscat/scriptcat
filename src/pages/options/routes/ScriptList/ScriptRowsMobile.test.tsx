@@ -76,6 +76,12 @@ describe("移动端脚本行", () => {
     expect(trailing.querySelector('[role="switch"]')).not.toBeNull();
   });
 
+  it("拖拽手柄阻止浏览器触摸滚动接管指针手势", () => {
+    const { container } = renderWithRouterTooltip(<ScriptRowsMobile {...baseProps} />);
+    const handle = container.querySelector('[data-slot="mobile-list-row-leading"] > span');
+    expect(handle).toHaveClass("touch-none");
+  });
+
   it("整行点击打开底部操作面板，面板含删除等动作", () => {
     renderWithRouterTooltip(<ScriptRowsMobile {...baseProps} />);
 
