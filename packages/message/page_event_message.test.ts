@@ -80,6 +80,8 @@ describe("PageEventMessage", () => {
 
     expect(localDisconnect).toHaveBeenCalledWith(true);
     expect(peerDisconnect).toHaveBeenCalledWith(false);
+    expect(() => connection.disconnect(true)).not.toThrow();
+    expect(() => connection.sendMessage({ action: "inject/message" })).toThrow();
     scripting.dispose();
     inject.dispose();
   });
