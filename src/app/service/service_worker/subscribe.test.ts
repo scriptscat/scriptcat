@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { initTestEnv } from "@Tests/utils";
 import { SubscribeService } from "./subscribe";
 import type { ScriptService } from "./script";
@@ -9,6 +9,7 @@ import type { Subscribe } from "@App/app/repo/subscribe";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { MockMessage } from "@Packages/message/mock_message";
 import { Server } from "@Packages/message/server";
+import { SubscribeClient } from "./client";
 import EventEmitter from "eventemitter3";
 
 initTestEnv();
@@ -83,5 +84,40 @@ describe("SubscribeService —— 删除脚本的来源标记", () => {
     await service.upsertScript(SUB_URL);
 
     expect(scriptService.deleteScript).toHaveBeenCalledWith("sub-script-1", "subscribe");
+  });
+});
+
+// options 页经 SubscribeClient 以 { url } 发送检查更新；SW 端若按字符串接收，
+// 会以 "[object Object]" 查订阅而查不到，手动检查永远显示「已是最新」且不发请求。
+describe("SubscribeService —— 手动检查更新", () => {
+  beforeEach(async () => {
+    await chrome.storage.local.clear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("经 SubscribeClient 检查更新时应拉取订阅并发现新版本", async () => {
+    await new SubscribeDAO().save(makeSubscribe({ scripts: {}, metadata: { usersubscribe: [], version: ["0.3.3"] } }));
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          "// ==UserSubscribe==\n// @name 测试订阅\n// @namespace ns\n// @version 0.3.4\n// ==/UserSubscribe==\n",
+          { status: 200 }
+        )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    // chrome.alarms 在 chrome-extension-mock 中没有实现，init() 会调用 clear
+    vi.stubGlobal("chrome", { ...chrome, alarms: { clear: vi.fn() } });
+    const mockMessage = new MockMessage(new EventEmitter<string, any>());
+    const server = new Server("serviceWorker", mockMessage);
+    const service = new SubscribeService(server.group("subscribe"), new MessageQueue(), {} as ScriptService);
+    service.init();
+
+    const res = await new SubscribeClient(mockMessage).checkUpdate(SUB_URL);
+
+    expect(fetchMock).toHaveBeenCalledWith(SUB_URL, expect.anything());
+    expect(res).toBe(true);
   });
 });

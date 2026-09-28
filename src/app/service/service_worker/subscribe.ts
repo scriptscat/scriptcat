@@ -321,7 +321,7 @@ export class SubscribeService {
     }
   }
 
-  requestCheckUpdate(url: string) {
+  requestCheckUpdate({ url }: { url: string }) {
     return this.checkUpdate(url, "user");
   }
 
