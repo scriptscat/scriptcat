@@ -57,8 +57,8 @@ declare const GM_info: {
     brands?: { brand: string; version: string }[];
     mobile?: boolean;
     platform?: string;
-    architecture?: string;
     bitness?: string;
+    architecture?: string;
   };
   /** 下载模式（ScriptCat 使用 `"native"`）。 */
   downloadMode: "native";
