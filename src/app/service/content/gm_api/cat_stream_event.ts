@@ -76,7 +76,7 @@ const isOptionalStringArray = (value: unknown): value is string[] | undefined =>
 // RequiredKeysOf/OptionalKeysOf 是标准的 TS 必填/可选 key 提取技巧；TypeEqual 是
 // 不做联合类型分发的类型相等判定。AssertKeys<T, R, O> 只有在 R 的成员集合恰好等于
 // T 的必填 key 集合、且 O 的成员集合恰好等于 T 的可选 key 集合时才是 `true`；
-// 下方每个 `_assert*: AssertKeys<...> = true;` 都是纯编译期检查，drift 会直接让
+// 下方每个 `_assert* = AssertTrue<...>` 都是纯编译期检查，drift 会直接让
 // `pnpm run typecheck` 失败，而不是让运行期校验静默漏掉新字段。
 // 下面两行的 {} 是标准的 "该 key 是否可选" 判定技巧（{} extends Pick<T,K>），不是
 // "any non-nullish value" 的误用，故逐行关闭 no-empty-object-type。
@@ -91,6 +91,7 @@ type AssertKeys<T, R extends readonly string[], O extends readonly string[]> =
       ? true
       : { readonly optionalKeyDrift: OptionalKeysOf<T> }
     : { readonly requiredKeyDrift: RequiredKeysOf<T> };
+type AssertTrue<T extends true> = T;
 
 // ============================================================================
 // 嵌套形状：Attachment / TokenUsage / SubAgentEventInfo / ToolCall（start 与 full 两种）
@@ -99,7 +100,7 @@ type AssertKeys<T, R extends readonly string[], O extends readonly string[]> =
 const ATTACHMENT_REQUIRED = ["id", "type", "name", "mimeType"] as const;
 const ATTACHMENT_OPTIONAL = ["size"] as const;
 type _AssertAttachment = AssertKeys<Attachment, typeof ATTACHMENT_REQUIRED, typeof ATTACHMENT_OPTIONAL>;
-const _assertAttachment: _AssertAttachment = true;
+type _assertAttachment = AssertTrue<_AssertAttachment>;
 
 const isAttachment = (value: unknown): value is Attachment => {
   if (!isRecord(value) || !hasOnlyKeys(value, ATTACHMENT_REQUIRED, ATTACHMENT_OPTIONAL)) return false;
@@ -129,7 +130,7 @@ type _AssertTokenUsage = AssertKeys<
   typeof TOKEN_USAGE_REQUIRED,
   typeof TOKEN_USAGE_OPTIONAL
 >;
-const _assertTokenUsage: _AssertTokenUsage = true;
+type _assertTokenUsage = AssertTrue<_AssertTokenUsage>;
 
 const isTokenUsage = (value: unknown): boolean => {
   if (!isRecord(value) || !hasOnlyKeys(value, TOKEN_USAGE_REQUIRED, TOKEN_USAGE_OPTIONAL)) return false;
@@ -149,7 +150,7 @@ type _AssertSubAgentEventInfo = AssertKeys<
   typeof SUB_AGENT_EVENT_INFO_REQUIRED,
   typeof SUB_AGENT_EVENT_INFO_OPTIONAL
 >;
-const _assertSubAgentEventInfo: _AssertSubAgentEventInfo = true;
+type _assertSubAgentEventInfo = AssertTrue<_AssertSubAgentEventInfo>;
 
 const isSubAgentEventInfo = (value: unknown): value is SubAgentEventInfo => {
   if (!isRecord(value) || !hasOnlyKeys(value, SUB_AGENT_EVENT_INFO_REQUIRED, SUB_AGENT_EVENT_INFO_OPTIONAL)) {
@@ -182,7 +183,7 @@ type _AssertToolCallStart = AssertKeys<
   typeof TOOL_CALL_START_REQUIRED,
   typeof TOOL_CALL_START_OPTIONAL
 >;
-const _assertToolCallStart: _AssertToolCallStart = true;
+type _assertToolCallStart = AssertTrue<_AssertToolCallStart>;
 
 const isToolCallStart = (value: unknown): value is Omit<ToolCall, "result"> => {
   if (!isRecord(value) || !hasOnlyKeys(value, TOOL_CALL_START_REQUIRED, TOOL_CALL_START_OPTIONAL)) return false;
@@ -203,7 +204,7 @@ const isToolCallStart = (value: unknown): value is Omit<ToolCall, "result"> => {
 const TOOL_CALL_FULL_REQUIRED = TOOL_CALL_START_REQUIRED;
 const TOOL_CALL_FULL_OPTIONAL = [...TOOL_CALL_START_OPTIONAL, "result"] as const;
 type _AssertToolCallFull = AssertKeys<ToolCall, typeof TOOL_CALL_FULL_REQUIRED, typeof TOOL_CALL_FULL_OPTIONAL>;
-const _assertToolCallFull: _AssertToolCallFull = true;
+type _assertToolCallFull = AssertTrue<_AssertToolCallFull>;
 
 const isToolCallFull = (value: unknown): value is ToolCall => {
   if (!isRecord(value) || !hasOnlyKeys(value, TOOL_CALL_FULL_REQUIRED, TOOL_CALL_FULL_OPTIONAL)) return false;
@@ -242,19 +243,19 @@ type _AssertContentBlockImage = AssertKeys<
   typeof CONTENT_BLOCK_IMAGE_REQUIRED,
   typeof CONTENT_BLOCK_IMAGE_OPTIONAL
 >;
-const _assertContentBlockImage: _AssertContentBlockImage = true;
+type _assertContentBlockImage = AssertTrue<_AssertContentBlockImage>;
 type _AssertContentBlockFile = AssertKeys<
   FileBlock,
   typeof CONTENT_BLOCK_FILE_REQUIRED,
   typeof CONTENT_BLOCK_FILE_OPTIONAL
 >;
-const _assertContentBlockFile: _AssertContentBlockFile = true;
+type _assertContentBlockFile = AssertTrue<_AssertContentBlockFile>;
 type _AssertContentBlockAudio = AssertKeys<
   AudioBlock,
   typeof CONTENT_BLOCK_AUDIO_REQUIRED,
   typeof CONTENT_BLOCK_AUDIO_OPTIONAL
 >;
-const _assertContentBlockAudio: _AssertContentBlockAudio = true;
+type _assertContentBlockAudio = AssertTrue<_AssertContentBlockAudio>;
 
 // content_block_complete.block 的类型是直接书写的 ImageBlock | FileBlock | AudioBlock 联合，
 // 没有经过 Pick/Omit 改写，因此三个分支各自的字段（size、durationMs 等）都完整保留，
@@ -302,7 +303,7 @@ type _AssertPendingAskUserShape = AssertKeys<
   typeof ASK_USER_SHAPE_REQUIRED,
   typeof ASK_USER_SHAPE_OPTIONAL
 >;
-const _assertPendingAskUserShape: _AssertPendingAskUserShape = true;
+type _assertPendingAskUserShape = AssertTrue<_AssertPendingAskUserShape>;
 
 const isAskUserShape = (value: Record<string, unknown>): boolean =>
   hasOnlyKeys(value, ASK_USER_SHAPE_REQUIRED, ASK_USER_SHAPE_OPTIONAL) &&
@@ -324,7 +325,7 @@ type _AssertTaskItem = AssertKeys<
   typeof TASK_ITEM_REQUIRED,
   typeof TASK_ITEM_OPTIONAL
 >;
-const _assertTaskItem: _AssertTaskItem = true;
+type _assertTaskItem = AssertTrue<_AssertTaskItem>;
 
 const TASK_STATUS = new Native.Set(["pending", "in_progress", "completed"]);
 
@@ -359,13 +360,13 @@ type _AssertContentDelta = AssertKeys<
   typeof CONTENT_DELTA_REQUIRED,
   typeof CONTENT_DELTA_OPTIONAL
 >;
-const _assertContentDelta: _AssertContentDelta = true;
+type _assertContentDelta = AssertTrue<_AssertContentDelta>;
 type _AssertThinkingDelta = AssertKeys<
   Extract<ChatStreamEvent, { type: "thinking_delta" }>,
   typeof CONTENT_DELTA_REQUIRED,
   typeof CONTENT_DELTA_OPTIONAL
 >;
-const _assertThinkingDelta: _AssertThinkingDelta = true;
+type _assertThinkingDelta = AssertTrue<_AssertThinkingDelta>;
 
 const TOOL_CALL_START_EVENT_REQUIRED = ["type", "toolCall"] as const;
 const TOOL_CALL_START_EVENT_OPTIONAL = ["subAgent"] as const;
@@ -374,7 +375,7 @@ type _AssertToolCallStartEvent = AssertKeys<
   typeof TOOL_CALL_START_EVENT_REQUIRED,
   typeof TOOL_CALL_START_EVENT_OPTIONAL
 >;
-const _assertToolCallStartEvent: _AssertToolCallStartEvent = true;
+type _assertToolCallStartEvent = AssertTrue<_AssertToolCallStartEvent>;
 
 const TOOL_CALL_DELTA_REQUIRED = ["type", "id", "delta"] as const;
 const TOOL_CALL_DELTA_OPTIONAL = ["index", "subAgent"] as const;
@@ -383,7 +384,7 @@ type _AssertToolCallDelta = AssertKeys<
   typeof TOOL_CALL_DELTA_REQUIRED,
   typeof TOOL_CALL_DELTA_OPTIONAL
 >;
-const _assertToolCallDelta: _AssertToolCallDelta = true;
+type _assertToolCallDelta = AssertTrue<_AssertToolCallDelta>;
 
 const TOOL_CALL_COMPLETE_REQUIRED = ["type", "id", "result"] as const;
 const TOOL_CALL_COMPLETE_OPTIONAL = ["status", "attachments", "ownedAttachmentIds", "subAgent"] as const;
@@ -392,7 +393,7 @@ type _AssertToolCallComplete = AssertKeys<
   typeof TOOL_CALL_COMPLETE_REQUIRED,
   typeof TOOL_CALL_COMPLETE_OPTIONAL
 >;
-const _assertToolCallComplete: _AssertToolCallComplete = true;
+type _assertToolCallComplete = AssertTrue<_AssertToolCallComplete>;
 
 const CONTENT_BLOCK_COMPLETE_REQUIRED = ["type", "block"] as const;
 const CONTENT_BLOCK_COMPLETE_OPTIONAL = ["data", "subAgent"] as const;
@@ -401,7 +402,7 @@ type _AssertContentBlockCompleteEvent = AssertKeys<
   typeof CONTENT_BLOCK_COMPLETE_REQUIRED,
   typeof CONTENT_BLOCK_COMPLETE_OPTIONAL
 >;
-const _assertContentBlockCompleteEvent: _AssertContentBlockCompleteEvent = true;
+type _assertContentBlockCompleteEvent = AssertTrue<_AssertContentBlockCompleteEvent>;
 
 const NEW_MESSAGE_REQUIRED = ["type"] as const;
 const NEW_MESSAGE_OPTIONAL = ["subAgent"] as const;
@@ -410,12 +411,12 @@ type _AssertNewMessage = AssertKeys<
   typeof NEW_MESSAGE_REQUIRED,
   typeof NEW_MESSAGE_OPTIONAL
 >;
-const _assertNewMessage: _AssertNewMessage = true;
+type _assertNewMessage = AssertTrue<_AssertNewMessage>;
 
 const DONE_REQUIRED = ["type"] as const;
 const DONE_OPTIONAL = ["usage", "durationMs", "subAgent"] as const;
 type _AssertDone = AssertKeys<Extract<ChatStreamEvent, { type: "done" }>, typeof DONE_REQUIRED, typeof DONE_OPTIONAL>;
-const _assertDone: _AssertDone = true;
+type _assertDone = AssertTrue<_AssertDone>;
 
 const ERROR_REQUIRED = ["type", "message"] as const;
 const ERROR_OPTIONAL = ["errorCode", "usage", "durationMs", "subAgent"] as const;
@@ -424,7 +425,7 @@ type _AssertError = AssertKeys<
   typeof ERROR_REQUIRED,
   typeof ERROR_OPTIONAL
 >;
-const _assertError: _AssertError = true;
+type _assertError = AssertTrue<_AssertError>;
 
 const SYSTEM_WARNING_REQUIRED = ["type", "message"] as const;
 const SYSTEM_WARNING_OPTIONAL = ["subAgent"] as const;
@@ -433,12 +434,12 @@ type _AssertSystemWarning = AssertKeys<
   typeof SYSTEM_WARNING_REQUIRED,
   typeof SYSTEM_WARNING_OPTIONAL
 >;
-const _assertSystemWarning: _AssertSystemWarning = true;
+type _assertSystemWarning = AssertTrue<_AssertSystemWarning>;
 
 const SYNC_REQUIRED = ["type", "tasks", "status"] as const;
 const SYNC_OPTIONAL = ["streamingMessage", "pendingAskUser"] as const;
 type _AssertSync = AssertKeys<Extract<ChatStreamEvent, { type: "sync" }>, typeof SYNC_REQUIRED, typeof SYNC_OPTIONAL>;
-const _assertSync: _AssertSync = true;
+type _assertSync = AssertTrue<_AssertSync>;
 
 const SYNC_STREAMING_MESSAGE_REQUIRED = ["content", "toolCalls"] as const;
 const SYNC_STREAMING_MESSAGE_OPTIONAL = ["thinking"] as const;
@@ -447,7 +448,7 @@ type _AssertSyncStreamingMessage = AssertKeys<
   typeof SYNC_STREAMING_MESSAGE_REQUIRED,
   typeof SYNC_STREAMING_MESSAGE_OPTIONAL
 >;
-const _assertSyncStreamingMessage: _AssertSyncStreamingMessage = true;
+type _assertSyncStreamingMessage = AssertTrue<_AssertSyncStreamingMessage>;
 
 const SYNC_STATUS = new Native.Set(["running", "done", "error"]);
 
