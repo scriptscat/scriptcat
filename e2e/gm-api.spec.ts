@@ -1016,9 +1016,10 @@ test.describe("GM API", () => {
       summary.failed,
       `GM Storage Compatibility reports failed storage assertions: ${failedCaseNames(summary).join(", ")}`
     ).toBe(0);
-    expect(summary.total, "The unified storage suite must register all clone, normalization, and persistence checks").toBe(
-      24
-    );
+    expect(
+      summary.total,
+      "The unified storage suite must register all clone, normalization, and persistence checks"
+    ).toBe(24);
     expect(summary.passed, "All unified storage compatibility checks must pass").toBe(24);
   });
 
