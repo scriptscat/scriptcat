@@ -15,7 +15,7 @@ const cloneTransportValue = (value: any) => {
 };
 
 // The generated wrapper keeps this build token in its closure for trusted execution and inspection.
-const lnStrIntegrity = process.env.SC_RANDOM_FNKEY;
+const lnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
 
 // Canonical MAIN-world wrapper protocol. This exact string is both what gets injected onto the
 // page (via codeFunction()) and what getCompiledScriptMetadata() diffs a page-visible candidate's

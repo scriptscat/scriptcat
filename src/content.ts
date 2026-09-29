@@ -12,8 +12,9 @@ import { type TExtensionEnv } from "./app/service/extension/extension_env";
 import { connectUserScriptChannel, requestUserScriptReconnect } from "./app/service/content/user_script_connection";
 import type { GMInfoEnv } from "./app/service/content/types";
 import type { ExtensionOrigin } from "./app/service/content/page_rpc";
+import { realmBridgeToken } from "./pkg/utils/realm_bridge_token";
 
-const messageFlag = process.env.SC_RANDOM_KEY!;
+const messageFlag = realmBridgeToken;
 
 getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | undefined) => {
   const scriptEnvTag = ScriptEnvTag.content;

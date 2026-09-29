@@ -9,8 +9,9 @@ import { getEventFlag } from "@Packages/message/common";
 import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
 import { type TExtensionEnv } from "./app/service/extension/extension_env";
+import { realmBridgeToken } from "./pkg/utils/realm_bridge_token";
 
-const messageFlag = process.env.SC_RANDOM_KEY!;
+const messageFlag = realmBridgeToken;
 
 getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | undefined) => {
   const scriptEnvTag = ScriptEnvTag.inject;
