@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { SubscribeStatusType } from "@App/app/repo/subscribe";
 import { requestCheckSubscribeUpdate } from "@App/pages/store/features/subscribe";
 import { Switch } from "@App/pages/components/ui/switch";
@@ -104,42 +104,73 @@ export const SubscribeSourceTag = React.memo(({ url }: { url: string }) => {
 SubscribeSourceTag.displayName = "SubscribeSourceTag";
 
 // ========== UpdateTimeCell ==========
-// 「最后更新」就近放置检查更新入口：idle → checking → latest（2s 恢复）/ has-update
+// 「最后更新」就近放置检查更新入口：idle → checking → latest（2s 恢复）/ has-update / idle（已静默更新）
 type CheckUpdateState = "idle" | "checking" | "latest" | "has-update";
 
 export const SubscribeUpdateTimeCell = React.memo(({ url, updatetime }: { url: string; updatetime?: number }) => {
   const { t } = useTranslation();
-  const [state, setState] = useState<CheckUpdateState>("idle");
+  const [checkState, setCheckState] = useState({ status: "idle" as CheckUpdateState, generation: 0 });
+  const requestGeneration = useRef(0);
+
+  // 更新结果属于检查时的订阅版本，URL 或更新时间变化后不能再应用旧结果
+  const [prevIdentity, setPrevIdentity] = useState({ url, updatetime });
+  if (url !== prevIdentity.url || updatetime !== prevIdentity.updatetime) {
+    setPrevIdentity({ url, updatetime });
+    setCheckState((current) => ({
+      status: "idle",
+      generation: current.generation + 1,
+    }));
+  }
+
+  useLayoutEffect(() => {
+    requestGeneration.current = checkState.generation;
+    return () => {
+      if (requestGeneration.current === checkState.generation) requestGeneration.current++;
+    };
+  }, [checkState.generation]);
 
   const handleCheck = useCallback(() => {
-    if (state === "checking") return;
-    setState("checking");
+    if (checkState.status === "checking") return;
+    const generation = checkState.generation + 1;
+    requestGeneration.current = generation;
+    setCheckState({ status: "checking", generation });
     requestCheckSubscribeUpdate(url)
-      // res 为 true 时表示发现新版本并已打开更新页；false/undefined 表示已是最新
-      .then((res) => setState(res ? "has-update" : "latest"))
+      // updated：已静默更新，新的更新时间随广播到达；confirm：已打开安装页待确认
+      .then((res) => {
+        if (requestGeneration.current !== generation) return;
+        setCheckState((current) =>
+          current.generation === generation
+            ? { status: res === "updated" ? "idle" : res === "confirm" ? "has-update" : "latest", generation }
+            : current
+        );
+      })
       .catch((e) => {
-        setState("idle");
+        if (requestGeneration.current !== generation) return;
+        setCheckState((current) => (current.generation === generation ? { status: "idle", generation } : current));
         notify.error(`${t("script:update_check_failed")}: ${e}`);
       });
-  }, [state, url, t]);
+  }, [checkState, url, t]);
 
   // 「已是最新」短暂提示后恢复默认
   useEffect(() => {
-    if (state !== "latest") return;
-    const id = setTimeout(() => setState("idle"), 2000);
+    if (checkState.status !== "latest") return;
+    const generation = checkState.generation;
+    const id = setTimeout(() => {
+      setCheckState((current) => (current.generation === generation ? { status: "idle", generation } : current));
+    }, 2000);
     return () => clearTimeout(id);
-  }, [state]);
+  }, [checkState.status, checkState.generation]);
 
   const time = updatetime ? semTime(new Date(updatetime)) : "-";
 
   return (
     <div className="flex items-center justify-center gap-1">
-      {state === "latest" ? (
+      {checkState.status === "latest" ? (
         <span className="inline-flex items-center gap-1 text-xs text-success">
           <Check className="w-3 h-3" />
           {t("script:latest_version")}
         </span>
-      ) : state === "has-update" ? (
+      ) : checkState.status === "has-update" ? (
         /* 检查到新版本：直接取代时间展示「存在新版本」入口，点击可再次触发更新 */
         <Tooltip>
           <TooltipTrigger asChild>
@@ -166,7 +197,7 @@ export const SubscribeUpdateTimeCell = React.memo(({ url, updatetime }: { url: s
                 onClick={handleCheck}
                 className="text-muted-foreground opacity-60 transition-opacity hover:text-foreground hover:opacity-100"
               >
-                <RefreshCw className={cn("w-3 h-3", state === "checking" && "animate-spin")} />
+                <RefreshCw className={cn("w-3 h-3", checkState.status === "checking" && "animate-spin")} />
               </button>
             </TooltipTrigger>
             <TooltipContent>{t("check_update")}</TooltipContent>
