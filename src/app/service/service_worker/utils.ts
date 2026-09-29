@@ -1,7 +1,7 @@
 export const BrowserNoSupport = new Error("browserNoSupport");
 import type { SCMetadata, Script, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
-import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
+import { getMetadataStr, getTab, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { ScriptMatchInfo } from "./types";
 import {
   compileInjectScript,
@@ -322,6 +322,8 @@ export const removeFavicon = (filename: string): Promise<void> => {
 
 export type NotificationOptionCache = {
   url?: string;
+  // 已为 url 打开过的标签页，点击通知时优先激活它而不是重复打开（#1769）
+  tabId?: number;
 };
 
 export async function InfoNotification(title: string, msg: string, options?: NotificationOptionCache) {
@@ -335,4 +337,17 @@ export async function InfoNotification(title: string, msg: string, options?: Not
   if (options) {
     cacheInstance.set(`notification:${notificationId}:options`, options);
   }
+}
+
+// 点击带链接的通知：tabId 对应的标签页仍停留在该页面时激活它，否则新开。
+// 只比较 hash 之前的部分，页面内跳转锚点不算离开；标签页已关闭或跳到别处则不能抢占它。
+export async function openNotificationUrl(url: string, tabId?: number) {
+  const tab = tabId === undefined ? undefined : await getTab(tabId);
+  const tabUrl = tab?.pendingUrl || tab?.url;
+  if (tab?.id !== undefined && tabUrl && tabUrl.split("#")[0] === url.split("#")[0]) {
+    await chrome.tabs.update(tab.id, { active: true });
+    await chrome.windows.update(tab.windowId, { focused: true });
+    return;
+  }
+  await chrome.tabs.create({ url });
 }
