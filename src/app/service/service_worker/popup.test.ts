@@ -293,6 +293,21 @@ describe("PopupService addScriptRunNumber 页面脚本执行计数", () => {
     await expect(service.getScriptMenu(-1)).resolves.toEqual([backgroundMenu]);
     await expect(service.getScriptMenu(tabId)).resolves.toEqual(tabId === -1 ? [backgroundMenu] : []);
   });
+
+  // 消息/事件边界的运行时数据不一定符合类型，undefined / NaN 也不能落成 tabScript:undefined / tabScript:NaN。
+  it.each([undefined, Number.NaN])("tabId 为 %s（越过类型的运行时数据）时不写入任何 tabScript 缓存", async (tabId) => {
+    const { service } = createService();
+
+    await service.addScriptRunNumber({
+      tabId: tabId as never,
+      frameId: 0,
+      url: "https://example.com/",
+      scriptmenus: [createMenu("normal-script", { runNum: 0 })],
+    });
+
+    const keys = await cacheInstance.list();
+    expect(keys.filter((key) => key.startsWith(CACHE_KEY_TAB_SCRIPT))).toEqual([]);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -321,7 +336,8 @@ describe("PopupService tabScript:-1 命名空间契约：页面事件不得触�
       script: backgroundScript,
       update: false,
     } as TInstallScript);
-    const expected = await service.getScriptMenu(-1);
+    // session 缓存的读取不拷贝，直接持有引用的话原地修改会连 expected 一起改掉，断言恒真。
+    const expected = structuredClone(await service.getScriptMenu(-1));
     expect(expected.map((menu) => menu.uuid)).toEqual([backgroundUuid]);
 
     const expectNamespaceUntouched = async () => {
