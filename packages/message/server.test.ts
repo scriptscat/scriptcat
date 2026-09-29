@@ -36,6 +36,28 @@ afterEach(() => {
 
 describe("Server", () => {
   describe("基本功能测试 1", () => {
+    it("应该要求显式替换已经注册的消息处理器", async () => {
+      const first = vi.fn().mockReturnValue("first");
+      const second = vi.fn().mockReturnValue("second");
+      server.on("handler", first);
+
+      expect(() => server.on("handler", second)).toThrow("duplicate message handler: api/handler");
+
+      server.replace("handler", second);
+
+      const response = await client.sendMessage({ action: "api/handler", data: {} });
+
+      expect(response.data).toBe("second");
+      expect(first).not.toHaveBeenCalled();
+      expect(second).toHaveBeenCalledOnce();
+    });
+
+    it("应该拒绝替换未注册的消息处理器", () => {
+      expect(() => server.replace("missing", vi.fn())).toThrow(
+        "cannot replace unregistered message handler: api/missing"
+      );
+    });
+
     it.concurrent("应该能够注册和调用 API", async () => {
       const mockHandler = vi.fn().mockResolvedValue("test response");
 
@@ -280,6 +302,34 @@ describe("Server", () => {
       expect(middleware1).toHaveBeenCalledTimes(1);
       expect(middleware2).toHaveBeenCalledTimes(1);
       expect(handler).toHaveBeenCalledTimes(1);
+    });
+
+    it("Group 替换处理器时应该保留中间件并要求显式 replace", async () => {
+      const executionOrder: string[] = [];
+      const middleware = vi.fn(async (_params: any, _con: any, next: any) => {
+        executionOrder.push("middleware");
+        return await next();
+      });
+      const group = server.group("api", middleware);
+      const first = vi.fn(() => {
+        executionOrder.push("first");
+        return "first";
+      });
+      const second = vi.fn(() => {
+        executionOrder.push("second");
+        return "second";
+      });
+
+      group.on("replace-test", first);
+      expect(() => group.on("replace-test", second)).toThrow("duplicate message handler: api/api/replace-test");
+
+      group.replace("replace-test", second);
+      const response = await client.sendMessage({ action: "api/api/replace-test", data: {} });
+
+      expect(response.data).toBe("second");
+      expect(executionOrder).toEqual(["middleware", "second"]);
+      expect(first).not.toHaveBeenCalled();
+      expect(second).toHaveBeenCalledOnce();
     });
 
     it("子 Group 应该继承父 Group 的中间件", async () => {
