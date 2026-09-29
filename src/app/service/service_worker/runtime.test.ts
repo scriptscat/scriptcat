@@ -1121,6 +1121,61 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
   });
 });
 
+// 弹窗把 tabId -1 当作「后台脚本」命名空间；不属于任何标签页的页面若也记到 -1，
+// 普通脚本就会出现在「开启和运行的后台脚本」里（#1774）。
+describe("pageLoad 页面运行计数只记到真实标签页", () => {
+  const pageUrl = "https://www.example.com/page";
+  const scriptsForTab = {
+    injectScriptList: [],
+    contentScriptList: [],
+    envInfo: {},
+    scriptmenus: [],
+  } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>;
+  const popupPageLoadEmits = (emit: ReturnType<typeof vi.fn>) =>
+    emit.mock.calls.filter(([topic]) => topic === "popupPageLoadUpdate");
+
+  it.each([
+    ["没有 tab", {}],
+    ["tab.id 为 TAB_ID_NONE(-1)", { tab: { id: -1 } }],
+  ])("%s 时照常下发脚本，但不记入任何标签页的运行计数", async (_label, senderTab) => {
+    const { runtime, mockGroup } = _createRuntimeContext();
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue(scriptsForTab);
+
+    const res = await runtime.pageLoad(
+      undefined,
+      new SenderRuntime({
+        id: "scriptcat-test",
+        url: pageUrl,
+        frameId: 0,
+        ...senderTab,
+      } as chrome.runtime.MessageSender)
+    );
+
+    expect(res.ok).toBe(true);
+    expect(popupPageLoadEmits(mockGroup.emit)).toEqual([]);
+  });
+
+  it("真实标签页照常记入该标签页", async () => {
+    const tabId = 11;
+    const { runtime, mockGroup } = _createRuntimeContext();
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue(scriptsForTab);
+
+    await runtime.pageLoad(
+      undefined,
+      new SenderRuntime({
+        id: "scriptcat-test",
+        url: pageUrl,
+        frameId: 0,
+        tab: { id: tabId, incognito: false },
+      } as chrome.runtime.MessageSender)
+    );
+
+    expect(popupPageLoadEmits(mockGroup.emit)).toEqual([
+      ["popupPageLoadUpdate", { tabId, frameId: 0, url: pageUrl, scriptmenus: [] }],
+    ]);
+  });
+});
+
 describe("sandbox verified 初始化重放", () => {
   it("忽略 fallback 通知，并且真实握手与重复握手只初始化一次脚本和语言监听", async () => {
     const { runtime, mockSystemConfig, mockScriptDAO } = _createRuntimeContext();
