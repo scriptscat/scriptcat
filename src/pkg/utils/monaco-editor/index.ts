@@ -8,6 +8,7 @@ import { deferred } from "../utils";
 import { type EslintFix, getModelEslintFixKey } from "./eslintFixCache";
 import {
   contentChangeCanAffectMetadataMarkers,
+  getDuplicateResourceNameMatches,
   getMetadataAlignmentBlocks,
   getMetadataAlignmentTargetColumn,
   getMetadataValueToken,
@@ -117,6 +118,7 @@ const scriptcatReplaceMatchTldWildcardRuleId = "scriptcat/replace-match-tld-wild
 const scriptcatReplaceIncludeWithMatchRuleId = "scriptcat/replace-include-with-match";
 const scriptcatGrantNoneConflictRuleId = "scriptcat/grant-none-conflict";
 const scriptcatUndefinedMetadataTagRuleId = "scriptcat/undefined-metadata-tag";
+const scriptcatDuplicateResourceNameRuleId = "scriptcat/duplicate-resource-name";
 const scriptcatUnsupportedGrantRuleId = "scriptcat/unsupported-grant";
 const quickfixKind = "quickfix";
 const noop = () => {};
@@ -670,6 +672,18 @@ const getUndefinedMetadataTagMarkers = (
     endColumn: match.endColumn,
   }));
 
+const getDuplicateResourceNameMarkers = (blocks: MetadataAlignmentBlock[]): editor.IMarkerData[] =>
+  getDuplicateResourceNameMatches(blocks).map((match) => ({
+    severity: MarkerSeverity.Warning,
+    message: currentEditorLang.duplicateResourceName.replace("{0}", match.name),
+    source: scriptcatMarkerOwner,
+    code: scriptcatDuplicateResourceNameRuleId,
+    startLineNumber: match.lineNumber,
+    startColumn: match.startColumn,
+    endLineNumber: match.lineNumber,
+    endColumn: match.endColumn,
+  }));
+
 const getUnsupportedGrantMarkers = (blocks: MetadataAlignmentBlock[]): editor.IMarkerData[] =>
   getUnsupportedGrantMatches(blocks).map((match) => ({
     severity: MarkerSeverity.Warning,
@@ -700,6 +714,7 @@ const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
   const markers: editor.IMarkerData[] = [];
   markers.push(...getGrantNoneConflictMarkers(metadataBlocks));
   markers.push(...getUndefinedMetadataTagMarkers(model, metadataBlocks));
+  markers.push(...getDuplicateResourceNameMarkers(metadataBlocks));
   markers.push(...getUnsupportedGrantMarkers(metadataBlocks));
 
   for (const block of metadataBlocks) {
@@ -793,6 +808,17 @@ export function registerEditor() {
     } as ScriptcatMonacoEnvironment;
 
     linterWorkerDeferred.resolve(linterWorker);
+  }
+
+  // 构建只打包了 editor/json/ts worker，CSS/HTML 语言服务会向 editor.worker 请求不存在的模块而抛错；
+  // 这两类语言只用于资源只读预览，关闭语言服务后仍保留 Monarch 语法高亮
+  for (const defaults of [
+    languages.css.cssDefaults,
+    languages.css.scssDefaults,
+    languages.css.lessDefaults,
+    languages.html.htmlDefaults,
+  ]) {
+    defaults.setModeConfiguration({});
   }
 
   // provider 注册始终执行，不受 worker 复用影响

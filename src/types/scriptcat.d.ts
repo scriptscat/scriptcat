@@ -52,8 +52,8 @@ declare const GM_info: {
     brands?: { brand: string; version: string }[];
     mobile?: boolean;
     platform?: string;
-    architecture?: string;
     bitness?: string;
+    architecture?: string;
   };
   /** Download mode (ScriptCat uses `"native"`). */
   downloadMode: "native";

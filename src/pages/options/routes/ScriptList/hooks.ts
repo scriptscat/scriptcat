@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   SCRIPT_STATUS_ENABLE,
   SCRIPT_STATUS_DISABLE,
@@ -55,41 +55,54 @@ export type TSelectFilterKeys = keyof TSelectFilter;
 export function useScriptDataManagement() {
   const [scriptList, setScriptList] = useState<ScriptLoading[]>([]);
   const [loadingList, setLoadingList] = useState<boolean>(true);
+  const [scriptListError, setScriptListError] = useState<unknown>();
+  const [loadVersion, setLoadVersion] = useState(0);
+  const reloadScriptList = useCallback(() => {
+    setScriptListError(undefined);
+    setLoadingList(true);
+    setLoadVersion((version) => version + 1);
+  }, []);
 
   // 初始化列表与 Favicon 加载
   useEffect(() => {
     let mounted = true;
-    // loadingList 初始即为 true（仅挂载时执行一次），加载完成后在异步回调里置 false
-    void fetchScriptList().then(async (list) => {
-      if (!mounted) return;
-      setScriptList(list);
-      setLoadingList(false);
-      void cacheInstance.tx("faviconOPFSControl", async () => {
+    void fetchScriptList()
+      .then(async (list) => {
         if (!mounted) return;
-        const faviconService = await systemConfig.getFaviconService();
-        for await (const { chunkResults } of loadScriptFavicons(list, faviconService)) {
+        setScriptListError(undefined);
+        setScriptList(list);
+        setLoadingList(false);
+        void cacheInstance.tx("faviconOPFSControl", async () => {
           if (!mounted) return;
-          setScriptList((prev) => {
-            const favMap = new Map(chunkResults.map((r) => [r.uuid, r]));
-            let changed = false;
-            const newList = prev.map((s) => {
-              const item = favMap.get(s.uuid);
-              if (item && s.favorite !== item.fav) {
-                changed = true;
-                return { ...s, favorite: item.fav };
-              }
-              return s;
+          const faviconService = await systemConfig.getFaviconService();
+          for await (const { chunkResults } of loadScriptFavicons(list, faviconService)) {
+            if (!mounted) return;
+            setScriptList((prev) => {
+              const favMap = new Map(chunkResults.map((r) => [r.uuid, r]));
+              let changed = false;
+              const newList = prev.map((s) => {
+                const item = favMap.get(s.uuid);
+                if (item && s.favorite !== item.fav) {
+                  changed = true;
+                  return { ...s, favorite: item.fav };
+                }
+                return s;
+              });
+              favMap.clear();
+              return changed ? newList : prev;
             });
-            favMap.clear();
-            return changed ? newList : prev;
-          });
-        }
+          }
+        });
+      })
+      .catch((error) => {
+        if (!mounted) return;
+        setScriptListError(error);
+        setLoadingList(false);
       });
-    });
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [loadVersion]);
 
   // 监听后台消息更新状态
   useEffect(() => {
@@ -173,7 +186,7 @@ export function useScriptDataManagement() {
     return hookMgr.unhook;
   }, []);
 
-  return { scriptList, setScriptList, loadingList };
+  return { scriptList, setScriptList, loadingList, scriptListError, reloadScriptList };
 }
 
 /**

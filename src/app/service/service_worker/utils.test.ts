@@ -330,27 +330,18 @@ describe.concurrent("getUserScriptRegister", () => {
     expect(registerScript.matches).toEqual(["https://*/*", "http://*/*"]);
   });
 
-  it.concurrent("应同时过滤 userScripts 不支持的 exclude match scheme", () => {
-    const mockScriptMatchInfo: ScriptMatchInfo = {
-      uuid: "test-invalid-exclude-scheme",
-      name: "Invalid Exclude Scheme",
+  it.concurrent("excludeMatches 丢弃浏览器不支持的 scheme", () => {
+    const scriptMatchInfo = {
+      uuid: "exclude-scheme",
       metadata: {},
       scriptUrlPatterns: extractUrlPatterns([
-        "@match https://*/*",
+        "@match https://example.com/*",
+        "@exclude edge://settings/*",
         "@exclude https://example.com/private/*",
-        "@exclude notsupported://*/*",
       ]),
-      originalUrlPatterns: [],
-      namespace: "test",
-      type: 1,
-      status: 1,
-      sort: 0,
-      runStatus: "running",
-      createtime: Date.now(),
-      checktime: Date.now(),
-    };
+    } as unknown as ScriptMatchInfo;
 
-    const { registerScript } = getUserScriptRegister(mockScriptMatchInfo);
+    const { registerScript } = getUserScriptRegister(scriptMatchInfo);
 
     expect(registerScript.excludeMatches).toEqual(["https://example.com/private/*"]);
   });

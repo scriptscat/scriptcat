@@ -318,6 +318,19 @@ describe("回收站桌面端列表化", () => {
 
     await waitFor(() => expect(trashOrder()).toEqual(["Apple", "Banana", "Cherry"]));
   });
+
+  it("重置排序回到页面默认的删除时间倒序，而不是接口原始顺序", async () => {
+    renderWithRouter(<TrashTable />);
+    await waitFor(() => expect(trashOrder()).toEqual(["Banana", "Cherry", "Apple"]));
+
+    sortBy("名称");
+    await waitFor(() => expect(trashOrder()).toEqual(["Apple", "Banana", "Cherry"]));
+    fireEvent.click(screen.getByRole("button", { name: "重置排序" }));
+
+    await waitFor(() => expect(trashOrder()).toEqual(["Banana", "Cherry", "Apple"]));
+    expect(screen.getByTestId("sort-menu")).not.toHaveAttribute("data-active");
+    expect(screen.getByTestId("sort-menu")).toHaveTextContent("默认");
+  });
 });
 
 describe("回收站移动端单条操作", () => {

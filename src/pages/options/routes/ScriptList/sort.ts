@@ -1,4 +1,5 @@
 import { i18nName } from "@App/locales/locales";
+import type { TFunction } from "i18next";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 
 // 可点击表头排序的列（与 release/v1.4 一致：启用状态、名称、更新时间；new-ui 无 # 序号列，未排序即自然顺序）
@@ -17,6 +18,15 @@ export function nextSortState<K extends string>(
   if (current.key !== key) return { key, order: "asc" };
   if (current.order === "asc") return { key, order: "desc" };
   return { key: null, order: "asc" };
+}
+
+/** 排序维度的显示名：工具栏下拉与排序时锁定手柄的提示共用一份，避免两处文案漂移 */
+export function scriptSortOptions(t: TFunction): { key: SortKey; label: string }[] {
+  return [
+    { key: "status", label: t("script:script_list.sidebar.status") },
+    { key: "name", label: t("name") },
+    { key: "updatetime", label: t("logs:last_updated") },
+  ];
 }
 
 const comparators: Record<SortKey, (a: ScriptLoading, b: ScriptLoading) => number> = {
