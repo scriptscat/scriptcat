@@ -1000,30 +1000,26 @@ test.describe("GM API", () => {
     extensionId,
   }) => {
     const targetUrl = `${gmApiMockServer.cspOrigin}/?GM_STORAGE_COMPATIBILITY`;
-    const { summaries, logs } = await runTestScript(context, extensionId, "gm_storage_test.js", targetUrl, 60_000, {
+    const { summary, logs } = await runTestScript(context, extensionId, "gm_storage_test.js", targetUrl, 60_000, {
       requireOrigin: gmApiMockServer.origin,
-      expectedSummaryCount: 3,
+      expectedSummaryCount: 1,
     });
 
-    const expectedSuites = [
-      { name: "GM Storage Clone Compatibility", passed: 6 },
-      { name: "GM Storage Value Normalization", passed: 12 },
-      { name: "GM Storage Persistence Compatibility", passed: 6 },
-    ];
-    expect(summaries.map(({ name }) => name)).toEqual(expectedSuites.map(({ name }) => name));
-    expect(summaries.map(({ environment }) => environment.url)).toEqual([targetUrl, targetUrl, targetUrl]);
-    for (const expected of expectedSuites) {
-      const summary = summaries.find(({ name }) => name === expected.name)!;
-      console.log(`[${expected.name}]`, summary);
-      if (summary.failed !== 0) {
-        console.log(`[${expected.name}] logs:`, logs.join("\n"));
-      }
-      expect(summary.failed, `${expected.name} reports failed storage assertions`).toBe(0);
-      expect(
-        summary.passed,
-        `${expected.name} must report all expected checks after running from the shared compatibility URL`
-      ).toBe(expected.passed);
+    console.log("[GM Storage Compatibility]", summary);
+    if (summary.failed !== 0) {
+      console.log("[GM Storage Compatibility] logs:", logs.join("\n"));
     }
+
+    expect(summary.name).toBe("GM Storage Compatibility");
+    expect(summary.environment.url).toBe(targetUrl);
+    expect(
+      summary.failed,
+      `GM Storage Compatibility reports failed storage assertions: ${failedCaseNames(summary).join(", ")}`
+    ).toBe(0);
+    expect(summary.total, "The unified storage suite must register all clone, normalization, and persistence checks").toBe(
+      24
+    );
+    expect(summary.passed, "All unified storage compatibility checks must pass").toBe(24);
   });
 
   test("GM.* async API tests (gm_api_async_test.js)", async ({ context, extensionId }) => {
