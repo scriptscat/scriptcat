@@ -1,4 +1,5 @@
 import { regexToGlob } from "./regex_to_glob";
+import { isFirefox } from "./utils";
 
 export const enum RuleType {
   MATCH_INCLUDE = 1,
@@ -437,12 +438,15 @@ export const extractSchemesOfGlobs = (globs: string[]): string[] => {
   return [...set];
 };
 
-// chrome.userScripts 与 Firefox 都接受的 match pattern scheme；其余（chrome://、edge://、about: 等）
-// 注册时会抛 Invalid scheme，而批量注册是原子的，一个脚本出错会让整批失败
-const API_SUPPORTED_MATCH_SCHEMES = new Set(["*", "http", "https", "file", "ftp"]);
+// userScripts API 接受的 match pattern scheme；其余（chrome://、edge://、about: 等）注册时会抛 Invalid scheme，
+// 而批量注册是原子的，一个脚本出错会让整批失败。Firefox 的 manifest.MatchPattern 额外接受 ws/wss，Chromium 不接受
+const CHROMIUM_API_MATCH_SCHEMES = new Set(["*", "http", "https", "file", "ftp"]);
+const FIREFOX_API_MATCH_SCHEMES = new Set(["*", "http", "https", "file", "ftp", "ws", "wss"]);
 
 export const isApiSupportedMatchPattern = (pattern: string) =>
-  API_SUPPORTED_MATCH_SCHEMES.has(pattern.substring(0, pattern.indexOf("://")));
+  (isFirefox() ? FIREFOX_API_MATCH_SCHEMES : CHROMIUM_API_MATCH_SCHEMES).has(
+    pattern.substring(0, pattern.indexOf("://"))
+  );
 
 // 用户输入的 @match 值能否产生可注册的规则：解析失败的会被静默忽略，不支持的 scheme 会在注册时被丢弃
 export const isRegistrableMatchPattern = (pattern: string) => {
