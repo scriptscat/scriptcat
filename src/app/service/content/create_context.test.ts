@@ -413,7 +413,7 @@ describe("createContext: capability and lifecycle contract", () => {
     expect(contextValues.loadScriptResolve).toBeUndefined();
   });
 
-  it("失效清理是 idempotent，且舊 value listener 不再收到更新", () => {
+  it.concurrent("setInvalidContext 会释放监听器且后续 valueStoreUpdate 不再触发", async () => {
     const script = createScriptInfo();
     const context = createContext(
       script,
@@ -426,17 +426,18 @@ describe("createContext: capability and lifecycle contract", () => {
     const listener = vi.fn();
     context.GM_addValueChangeListener("foo", listener);
 
-    const update = (id: string, value: string, tabId: number) =>
-      context.valueUpdate({
-        id,
+    context.valueStoreUpdate(script.value, [
+      {
+        id: "remote-1",
         uuid: script.uuid,
         storageName: "",
-        sender: { runFlag: "other-run-flag", tabId },
-        entries: [["foo", encodeRValue(value), encodeRValue("bar")]],
-        valueUpdated: true,
-      });
-
-    update("remote-1", "next", 7);
+        sender: { runFlag: "other-run-flag", tabId: 7 },
+        valueChanges: [["foo", encodeRValue("next"), encodeRValue("bar")]],
+      },
+    ]);
+    // 监听器回调延后到下一个 microTask 执行
+    expect(listener).not.toHaveBeenCalled();
+    await Promise.resolve();
     expect(listener).toHaveBeenCalledWith("foo", "bar", "next", true, 7);
 
     const contextValues = context as unknown as AnyRecord;
@@ -444,13 +445,21 @@ describe("createContext: capability and lifecycle contract", () => {
     context.setInvalidContext();
     context.setInvalidContext();
 
+    context.valueStoreUpdate(script.value, [
+      {
+        id: "remote-2",
+        uuid: script.uuid,
+        storageName: "",
+        sender: { runFlag: "other-run-flag", tabId: 8 },
+        valueChanges: [["foo", encodeRValue("again"), encodeRValue("next")]],
+      },
+    ]);
+    await Promise.resolve();
     expect(context.isInvalidContext()).toBe(true);
     expect(contextValues.runFlag).not.toBe(runFlag);
     expect(contextValues.runFlag).toContain("(invalid)");
     expect(contextValues.message).toBeNull();
     expect(contextValues.scriptRes).toBeNull();
-
-    update("remote-2", "again", 8);
     expect(listener).toHaveBeenCalledTimes(1);
   });
 });
