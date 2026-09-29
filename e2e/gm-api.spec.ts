@@ -653,7 +653,8 @@ async function runTestScript(
   const summaries: SCTestSummary[] = [];
   let summary: SCTestSummary | null = null;
   let summaryCount = 0;
-  const expectedSummaryCount = options?.expectedSummaryCount ?? 1;
+  const expectedStartupSummaryCount = options?.expectedSummaryCount ?? 1;
+  const expectedFinalSummaryCount = expectedStartupSummaryCount + (options?.beforeCollect ? 1 : 0);
 
   page.on("pageerror", (error) => {
     const detail = error.stack || `${error.name}: ${error.message}`;
@@ -699,13 +700,13 @@ async function runTestScript(
 
     if (options?.beforeCollect) {
       await expect
-        .poll(async () => summaryCount >= expectedSummaryCount || (await collectFatalErrors()).length > 0, {
+        .poll(async () => summaryCount >= expectedStartupSummaryCount || (await collectFatalErrors()).length > 0, {
           timeout: timeoutMs,
           intervals: [100, 250, 500, 1_000],
         })
         .toBe(true)
         .catch(() => undefined);
-      await throwIfStartupFailed(expectedSummaryCount, 0, "startup");
+      await throwIfStartupFailed(expectedStartupSummaryCount, 0, "startup");
 
       const seenBefore = summaryCount;
       const seenFatalCount = (await collectFatalErrors()).length;
@@ -720,13 +721,13 @@ async function runTestScript(
       await throwIfStartupFailed(seenBefore + 1, seenFatalCount, "post-action");
     } else {
       await expect
-        .poll(async () => summaryCount >= expectedSummaryCount || (await collectFatalErrors()).length > 0, {
+        .poll(async () => summaryCount >= expectedStartupSummaryCount || (await collectFatalErrors()).length > 0, {
           timeout: timeoutMs,
           intervals: [100, 250, 500, 1_000],
         })
         .toBe(true)
         .catch(() => undefined);
-      await throwIfStartupFailed(expectedSummaryCount, 0, "startup");
+      await throwIfStartupFailed(expectedStartupSummaryCount, 0, "startup");
     }
   } finally {
     context.off("serviceworker", handleServiceWorker);
@@ -735,13 +736,13 @@ async function runTestScript(
 
   expect(
     summary,
-    `Expected ${expectedSummaryCount} valid SCTest summary result(s) for ${scriptFile}; found ${summaryCount}:\n${[
+    `Expected ${expectedFinalSummaryCount} valid SCTest summary result(s) for ${scriptFile}; found ${summaryCount}:\n${[
       ...diagnosticLogs,
       ...logs,
     ].join("\n")}`
   ).not.toBeNull();
-  expect(summaryCount, `Expected ${expectedSummaryCount} SCTest summary result(s) for ${scriptFile}`).toBe(
-    expectedSummaryCount
+  expect(summaryCount, `Expected ${expectedFinalSummaryCount} SCTest summary result(s) for ${scriptFile}`).toBe(
+    expectedFinalSummaryCount
   );
   return { summary: summary!, summaries, logs: [...diagnosticLogs, ...logs] };
 }
