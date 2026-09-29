@@ -26,6 +26,7 @@ import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type ConfigBundle } from "@App/pkg/backup/config_bundle";
 import { type VSCodeConnectParam } from "../offscreen/vscode-connect";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
+import { type SubscribeCheckUpdateResult } from "./subscribe";
 import type {
   AgentModelConfig,
   AgentTaskApiRequest,
@@ -484,7 +485,7 @@ export class SubscribeClient extends Client {
   }
 
   checkUpdate(url: string) {
-    return this.do("checkUpdate", { url });
+    return this.do<SubscribeCheckUpdateResult>("checkUpdate", { url });
   }
 
   enable(url: string, enable: boolean) {
