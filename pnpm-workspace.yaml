@@ -3,35 +3,50 @@ minimumReleaseAge: 10080
 overrides:
   # @rspack/dev-server@1.1.5 currently pins webpack-dev-server@5.2.2.
   # Restrict the replacement to this exact Rspack dev-server release.
-  "@rspack/dev-server@1.1.5>webpack-dev-server": "5.2.5"
+  "@rspack/dev-server@1.1.5>webpack-dev-server": "5.2.6"
 
   # @rspack/dev-server also directly depends on this package.
   "@rspack/dev-server@1.1.5>http-proxy-middleware": "2.0.10"
 
   # Dependencies of the replacement webpack-dev-server version.
-  "webpack-dev-server@5.2.5>http-proxy-middleware": "2.0.10"
-  "webpack-dev-server@5.2.5>launch-editor": "2.14.1"
+  "webpack-dev-server@5.2.6>http-proxy-middleware": "2.0.10"
+  "webpack-dev-server@5.2.6>launch-editor": "2.14.1"
 
   # launch-editor@2.14.1 officially permits shell-quote ^1.8.4.
-  "launch-editor@2.14.1>shell-quote": "1.8.4"
+  "launch-editor@2.14.1>shell-quote": "1.10.0"
 
   # http-proxy dependency chain.
   "http-proxy@1.18.1>follow-redirects": "1.16.0"
 
   # schema-utils -> ajv dependency chain.
-  "ajv@8.18.0>fast-uri": "3.1.2"
+  "ajv@8.20.0>fast-uri": "3.1.7"
 
   # webpack-dev-server -> express dependency chain.
-  "express@4.22.1>qs": "6.15.2"
-  "body-parser@1.20.4>qs": "6.15.2"
+  "express@4.22.1>qs": "6.16.0"
+  "express@4.22.1>body-parser": "1.20.8"
+  "body-parser@1.20.8>qs": "6.16.0"
+
+  # @modelcontextprotocol/sdk's own express/hono dependency chain.
+  "@modelcontextprotocol/sdk@1.30.0>hono": "4.13.7"
 
   # Vitest toolchain.
-  "vitest@4.1.9>vite": "7.3.6"
+  "vitest@4.1.11>vite": "7.3.6"
   "vite@7.3.6>esbuild": "0.28.1"
 
   # ESLint and other config-loading paths.
-  "@eslint/eslintrc@3.3.1>js-yaml": "4.2.0"
-  "cosmiconfig@9.0.0>js-yaml": "4.2.0"
+  "@eslint/eslintrc@3.3.7>js-yaml": "4.3.2"
+  "cosmiconfig@9.0.0>js-yaml": "4.3.2"
+  "eslint@9.39.5>@humanfs/node": "0.16.8"
+
+  # eslint's config-array and crx's archiver/glob both share this minimatch resolution.
+  "minimatch@3.1.5>brace-expansion": "1.1.18"
+
+  # webdav's minimatch chain.
+  "minimatch@9.0.9>brace-expansion": "2.1.4"
+
+  # eslint-plugin-react-hooks -> @babel/core -> browserslist chain.
+  "@babel/helper-compilation-targets@7.29.7>browserslist": "4.28.9"
+  "browserslist@4.28.9>baseline-browser-mapping": "2.11.23"
 
   # CRX build tooling.
   "resolve-protobuf-schema@2.1.0>protocol-buffers-schema": "3.6.1"
@@ -43,7 +58,7 @@ overrides:
   # Fetch the codeload tarball over HTTPS rather than the `github:` shorthand:
   # pnpm resolves the shorthand to a git+ssh URL that fails on CI runners lacking
   # an SSH key. The commit has no build step, so the tarball is usable as-is.
-  "webpack-dev-server@5.2.5>sockjs@0.3.24": "https://codeload.github.com/sockjs/sockjs-node/tar.gz/c239289d8cd85647aff064337d81073f0e4e080a"
+  "webpack-dev-server@5.2.6>sockjs@0.3.24": "https://codeload.github.com/sockjs/sockjs-node/tar.gz/c239289d8cd85647aff064337d81073f0e4e080a"
 
 patchedDependencies:
   happy-dom: patches/happy-dom.patch
