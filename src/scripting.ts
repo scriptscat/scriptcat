@@ -10,9 +10,9 @@ import ScriptingRuntime from "./app/service/content/scripting";
 import { negotiateEventFlag } from "@Packages/message/common";
 import { extensionEnv } from "./app/service/extension/extension_env";
 import { RuntimeClient } from "./app/service/service_worker/client";
-import { realmBridgeToken } from "./pkg/utils/realm_bridge_token";
+import { realmBridgeFaceID } from "./pkg/utils/realm_bridge_token";
 
-const messageFlag = realmBridgeToken;
+const messageFlag = realmBridgeFaceID;
 
 // SW pageLoad 不依赖 MAIN/content 的 eventFlag。document_start 一进入 isolated scripting
 // world 就立即发出 authoritative bootstrap，请求与 bridge negotiation 并行进行；这样 early
