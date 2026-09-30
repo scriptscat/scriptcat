@@ -1,6 +1,8 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 
@@ -120,6 +122,8 @@ vi.mock("@App/pages/components/ui/alert-dialog", () => ({
 
 import ScriptEditor from "./index";
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
   saveScript.mockResolvedValue({ script, updated: true, updatetime: 200 });
 });
@@ -187,9 +191,9 @@ describe("ScriptEditor 未保存导航保护", () => {
     await act(async () => void router.navigate("/settings"));
 
     expect(router.state.location.pathname).toBe("/script/editor/u1");
-    expect(screen.getByText("editor:script_modified_close_confirm")).toBeInTheDocument();
+    expect(screen.getByText(t("editor:script_modified_close_confirm"))).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("editor:confirm"));
+    fireEvent.click(screen.getByText(t("editor:confirm")));
 
     expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
   });
@@ -212,7 +216,7 @@ describe("ScriptEditor 脚本列表加载", () => {
     expect(await screen.findByText("list failed")).toBeInTheDocument();
     expect(screen.queryByTestId("save")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "editor:retry" }));
+    fireEvent.click(screen.getByRole("button", { name: t("editor:retry") }));
 
     expect(scriptData.reloadScriptList).toHaveBeenCalledTimes(1);
   });

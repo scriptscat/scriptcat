@@ -41,7 +41,7 @@ const UI_TESTS = ["src/pages/**/*.test.ts", "src/pages/**/*.test.tsx"];
 
 const sharedTest = {
   environment: "happy-dom" as const,
-  setupFiles: ["./tests/vitest.setup.ts"],
+  setupFiles: ["./tests/vitest.reset-modules.ts", "./tests/vitest.setup.ts"],
   env: {
     VI_TESTING: "true",
     SC_RANDOM_KEY: "005a7deb-3a6e-4337-83ea-b9626c02ea38",

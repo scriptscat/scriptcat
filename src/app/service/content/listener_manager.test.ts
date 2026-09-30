@@ -2,6 +2,7 @@
 // ListenerManager 现在是固定为 GMTypes.ValueChangeListener 五参数签名的监听器管理器。
 import { describe, it, expect, vi } from "vitest";
 import { ListenerManager } from "./listener_manager";
+import { installArrayPrototypeIndexAccessor } from "@Tests/array_prototype_index";
 
 describe.concurrent("ListenerManager（监听器管理器）", () => {
   it.concurrent("添加并执行单个监听器", () => {
@@ -183,8 +184,7 @@ describe.concurrent("ListenerManager（监听器管理器）", () => {
     // 上预先放置继承的数字 setter 来截获新监听器；固定为 Native.Map 存储后不应再受影响。
     const lm = new ListenerManager();
     let intercepted: unknown;
-    Object.defineProperty(Array.prototype, "0", {
-      configurable: true,
+    const restoreArrayIndex = installArrayPrototypeIndexAccessor({
       set(value: unknown) {
         intercepted = value;
       },
@@ -196,7 +196,7 @@ describe.concurrent("ListenerManager（监听器管理器）", () => {
     try {
       lm.add("alpha", spy);
     } finally {
-      delete (Array.prototype as unknown as Record<string, unknown>)["0"];
+      restoreArrayIndex();
     }
 
     expect(intercepted).toBeUndefined();

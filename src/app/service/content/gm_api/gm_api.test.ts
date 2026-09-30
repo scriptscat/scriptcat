@@ -9,6 +9,7 @@ import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { ScriptRunResource } from "@App/app/repo/scripts";
 import GMApi from "./gm_api";
 import { parseSerializedDocumentResponse } from "./gm_xhr";
+import { installArrayPrototypeIndexAccessor } from "@Tests/array_prototype_index";
 const nilFn: ScriptFunc = () => {};
 
 const scriptRes = {
@@ -2000,12 +2001,9 @@ describe("GM_value hostile intrinsics", () => {
       sentParams = params;
       return Promise.resolve(undefined);
     };
-    const defineProperty = Object.defineProperty;
-    const previousIndexDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, "0");
     let setterCalls = 0;
 
-    defineProperty(Array.prototype, "0", {
-      configurable: true,
+    const restoreArrayIndex = installArrayPrototypeIndexAccessor({
       set() {
         setterCalls += 1;
       },
@@ -2013,8 +2011,7 @@ describe("GM_value hostile intrinsics", () => {
     try {
       api.GM_setValues(api, { valid: 1 });
     } finally {
-      if (previousIndexDescriptor) defineProperty(Array.prototype, "0", previousIndexDescriptor);
-      else Reflect.deleteProperty(Array.prototype, "0");
+      restoreArrayIndex();
     }
 
     expect(setterCalls).toBe(0);

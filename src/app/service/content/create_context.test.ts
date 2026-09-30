@@ -5,6 +5,7 @@ import { createContext, createProxyContext, shouldFnBind, type RealmRoots } from
 import { GMContextApiGet } from "./gm_api/gm_context";
 import { trimScriptInfo } from "./utils";
 import { Native } from "./global";
+import { installArrayPrototypeIndexAccessor } from "@Tests/array_prototype_index";
 
 type AnyRecord = Record<PropertyKey, any>;
 
@@ -479,31 +480,24 @@ describe("createContext: capability and lifecycle contract", () => {
       receiver = apiContext;
       return [first, second, third, fourth, fifth, sixth, seventh];
     };
-    const defineProperty = Object.defineProperty;
-    const previousIndexDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, "0");
     let setterCalls = 0;
     let result: unknown;
     let context: ReturnType<typeof createContext> | undefined;
     let capability: ((...args: number[]) => unknown) | undefined;
-    let setterInstalled = false;
+    let restoreArrayIndex: (() => void) | undefined;
 
     apiValues[0].api = api;
     try {
       context = createTestContext(["GM_getValue"]);
       capability = context.GM_getValue;
-      defineProperty(Array.prototype, "0", {
-        configurable: true,
+      restoreArrayIndex = installArrayPrototypeIndexAccessor({
         set() {
           setterCalls += 1;
         },
       });
-      setterInstalled = true;
       result = capability!(1, 2, 3, 4, 5, 6, 7);
     } finally {
-      if (setterInstalled) {
-        if (previousIndexDescriptor) defineProperty(Array.prototype, "0", previousIndexDescriptor);
-        else Reflect.deleteProperty(Array.prototype, "0");
-      }
+      restoreArrayIndex?.();
       apiValues[0].api = originalApi;
     }
 
@@ -1087,12 +1081,10 @@ describe("createProxyContext: deterministic realm contract", () => {
     const fixture = createSplitRealmRoots();
     const defineProperty = Object.defineProperty;
     const previousEventDescriptor = Object.getOwnPropertyDescriptor(Object.prototype, "onmessage");
-    const previousIndexDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, "0");
     let setterCalls = 0;
     let sandbox: ReturnType<typeof createProxyContext> | undefined;
 
-    defineProperty(Array.prototype, "0", {
-      configurable: true,
+    const restoreArrayIndex = installArrayPrototypeIndexAccessor({
       set() {
         setterCalls += 1;
       },
@@ -1108,8 +1100,7 @@ describe("createProxyContext: deterministic realm contract", () => {
     } finally {
       if (previousEventDescriptor) defineProperty(Object.prototype, "onmessage", previousEventDescriptor);
       else Reflect.deleteProperty(Object.prototype, "onmessage");
-      if (previousIndexDescriptor) defineProperty(Array.prototype, "0", previousIndexDescriptor);
-      else Reflect.deleteProperty(Array.prototype, "0");
+      restoreArrayIndex();
     }
 
     const handler = vi.fn();
