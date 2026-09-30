@@ -1,6 +1,5 @@
 import {
-  createMouseEvent,
-  CustomEventClone,
+  FocusEventClone,
   pageAddEventListener,
   pageDispatchEvent,
   pageRemoveEventListener,
@@ -91,7 +90,7 @@ let requestHandledLocally = false;
  *
  * 1. Each realm installs a handler for REALM_TOKEN_REQUEST_EVENT.
  * 2. It dispatches a request carrying a private response EventTarget in
- *    MouseEvent.relatedTarget.
+ *    FocusEvent.relatedTarget.
  * 3. The earliest surviving handler calls stopImmediatePropagation(), making
  *    itself the sole responder for that request.
  * 4. The responder synchronously dispatches the token to the private target.
@@ -111,44 +110,37 @@ let requestHandledLocally = false;
 const resolveRealmToken = () => {
   if (resolvedRealmToken) return resolvedRealmToken;
 
-  const handleTokenRequest = (event: MouseEvent) => {
+  const handleTokenRequest = (event: FocusEvent) => {
     // Capture before rotation so the final participant receives the same token.
     const token = activeRealmToken;
 
-    if (--remainingTokenClaims === 0) {
-      activeRealmToken = createRealmToken();
-      remainingTokenClaims = REALM_PARTICIPANT_COUNT;
+    if (--remainingTokenClaims <= 0) {
+      pageRemoveEventListener(REALM_TOKEN_REQUEST_EVENT, handleTokenRequest as EventListener);
+      activeRealmToken = 0;
     }
+    if (token) {
+      // Exactly one realm may answer a given request.
+      event.stopImmediatePropagation();
 
-    // Exactly one realm may answer a given request.
-    event.stopImmediatePropagation();
+      // Reply synchronously through the requester's private response target.
+      (event.relatedTarget as Comment).data = `${token}`;
 
-    // Reply synchronously through the requester's private response target.
-    event.relatedTarget?.dispatchEvent(
-      new CustomEventClone(REALM_TOKEN_REQUEST_EVENT, {
-        detail: token,
-      })
-    );
-
-    requestHandledLocally = true;
+      requestHandledLocally = true;
+    }
   };
 
   pageAddEventListener(REALM_TOKEN_REQUEST_EVENT, handleTokenRequest as EventListener);
 
-  const handleTokenResponse = (event: CustomEvent<number>) => {
-    resolvedRealmToken = event.detail;
-  };
-
   // Private reply channel for this individual request.
-  const responseTarget = new EventTarget();
-
-  responseTarget.addEventListener(REALM_TOKEN_REQUEST_EVENT, handleTokenResponse as EventListener, { once: true });
+  const responseTarget = new Comment();
 
   pageDispatchEvent(
-    createMouseEvent(REALM_TOKEN_REQUEST_EVENT, {
+    new FocusEventClone(REALM_TOKEN_REQUEST_EVENT, {
       relatedTarget: responseTarget,
     })
   );
+
+  resolvedRealmToken = +responseTarget.data;
 
   /*
    * If another realm answered first, this realm must stop competing for future
@@ -210,7 +202,7 @@ const realBridgeToken = resolveRealmToken();
  * should not be treated as secret, collision-free, or cryptographically
  * unpredictable.
  */
-export const realmBridgeFaceID = `REALM_BRIDGE_${((realBridgeToken % 75326071) + 120932352).toString(36)}`;
+const faceId = (D: number) => ((realBridgeToken % D) + 120_932_352).toString(36);
 
-// Independent projection using a different prime modulus:
-// export const realmBridgeNumer01 = realBridgeToken % 91961549 + 120932352;
+/* "-{d}" where d is a fixed 18-char face id */
+export const realmBridgeEventFlag = `-${faceId(92_213_041)}${faceId(73_281_721)}${faceId(81_949_321)}`;

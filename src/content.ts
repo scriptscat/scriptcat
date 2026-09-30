@@ -5,18 +5,18 @@ import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
 import { ScriptExecutor } from "./app/service/content/script_executor";
 import type { Message, MessageConnect, TMessage } from "@Packages/message/types";
-import { getEventFlag } from "@Packages/message/common";
+import { obtainSCIData } from "@Packages/message/common";
 import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
 import { type TExtensionEnv } from "./app/service/extension/extension_env";
 import { connectUserScriptChannel, requestUserScriptReconnect } from "./app/service/content/user_script_connection";
 import type { GMInfoEnv } from "./app/service/content/types";
 import type { ExtensionOrigin } from "./app/service/content/page_rpc";
-import { realmBridgeFaceID } from "./pkg/utils/realm_bridge_token";
+import { realmBridgeEventFlag } from "./pkg/utils/realm_bridge_token";
 
-const messageFlag = realmBridgeFaceID;
+const eventFlag = realmBridgeEventFlag;
 
-getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | undefined) => {
+obtainSCIData(`${eventFlag}Env`, (extensionEnv: TExtensionEnv) => {
   const scriptEnvTag = ScriptEnvTag.content;
 
   // USER_SCRIPT 使用浏览器原生扩展通道；DOM 通道只保留同步元素辅助 API，

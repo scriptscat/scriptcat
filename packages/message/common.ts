@@ -1,9 +1,7 @@
-import { type TExtensionEnv } from "@App/app/service/extension/extension_env";
-import { randomMessageFlag } from "@App/pkg/utils/utils";
-
 // 避免页面载入后改动全域物件导致消息传递失败
 export const MouseEventClone = MouseEvent;
 export const CustomEventClone = CustomEvent;
+export const FocusEventClone = FocusEvent; // for relatedTarget Setting without cloneInto
 
 const performanceClone = (process.env.VI_TESTING === "true" ? new EventTarget() : performance) as Performance;
 
@@ -26,67 +24,52 @@ export const pageDispatchCustomEvent = <T = any>(eventType: string, detail: T) =
   return pageDispatchEvent(ev);
 };
 
-// flag协商
-export function negotiateEventFlag(
-  messageFlag: string,
-  extensionEnv: TExtensionEnv,
-  readyCount: number,
-  onInit: (eventFlag: string) => void
-): void {
-  const eventFlag = randomMessageFlag();
-  onInit(eventFlag);
-  // 监听 inject/content 发来的请求 eventFlag 的消息
-  let ready = 0;
-  const fnEventFlagRequestHandler: EventListener = (ev: Event) => {
-    if (!(ev instanceof CustomEvent)) return;
-
-    switch (ev.detail?.action) {
-      case "receivedEventFlag":
-        // 对方已收到 eventFlag
-        ready += 1;
-        if (ready >= readyCount) {
-          // 已收到两个环境的请求，移除监听
-          pageRemoveEventListener(messageFlag, fnEventFlagRequestHandler);
-        }
-        break;
-      case "requestEventFlag":
-        // 广播通信 flag 给 inject/content
-        pageDispatchCustomEvent(messageFlag, { action: "broadcastEventFlag", eventFlag: eventFlag, extensionEnv });
-        break;
+// data协商
+export function broadcastSCIData<T>(messageFlag: string, eData: T, readyCount: number): void {
+  // 监听 inject/content 发来的请求 data 的消息
+  let remaining = readyCount;
+  let broadcastPayload: any = { action: "broadcastData", eData };
+  const listener: EventListener = (ev: Event) => {
+    if (!(ev instanceof CustomEventClone)) return;
+    const action = ev.detail?.action;
+    if (action === "requestData") {
+      // 广播通信 data 给 inject/content
+      pageDispatchCustomEvent(messageFlag, broadcastPayload);
+    } else if (action === "dataReceived" && --remaining <= 0) {
+      // 已收到两个环境的请求，移除监听
+      pageRemoveEventListener(messageFlag, listener);
+      broadcastPayload = null;
     }
   };
 
-  // 设置事件，然后广播通信 flag 给 inject/content
-  pageAddEventListener(messageFlag, fnEventFlagRequestHandler);
-  pageDispatchCustomEvent(messageFlag, { action: "broadcastEventFlag", eventFlag: eventFlag, extensionEnv });
+  // 设置事件，然后广播通信 data 给 inject/content
+  pageAddEventListener(messageFlag, listener);
+  pageDispatchCustomEvent(messageFlag, broadcastPayload);
 }
 
-// 获取协商后的 eventFlag
-export function getEventFlag(
-  messageFlag: string,
-  onReady: (eventFlag: string, extensionEnv: TExtensionEnv | undefined) => void
-) {
-  let eventFlag = "";
-  let extensionEnv: TExtensionEnv | undefined = undefined;
-  const fnEventFlagListener: EventListener = (ev: Event) => {
-    if (!(ev instanceof CustomEvent)) return;
-    if (ev.detail?.action != "broadcastEventFlag") return;
-    eventFlag = ev.detail.eventFlag;
-    extensionEnv = ev.detail.extensionEnv;
-    pageRemoveEventListener(messageFlag, fnEventFlagListener);
-    // 告知对方已收到 eventFlag
-    pageDispatchCustomEvent(messageFlag, { action: "receivedEventFlag" });
-    onReady(eventFlag, extensionEnv);
+// 获取协商后的 data
+export function obtainSCIData<T>(messageFlag: string, onReady: (eData: T) => void) {
+  const listener: EventListener = (ev: Event) => {
+    if (!(ev instanceof CustomEventClone)) return;
+    const detail = ev.detail;
+    const action = detail?.action;
+    if (action === "broadcastData") {
+      const eData: T = detail.eData;
+      pageRemoveEventListener(messageFlag, listener);
+      // 告知对方已收到 data
+      pageDispatchCustomEvent(messageFlag, { action: "dataReceived" });
+      onReady(eData);
+    }
   };
 
-  // 设置事件，然后对 scripting 请求 flag
-  pageAddEventListener(messageFlag, fnEventFlagListener);
-  pageDispatchCustomEvent(messageFlag, { action: "requestEventFlag" });
+  // 设置事件，然后对 scripting 请求 data
+  pageAddEventListener(messageFlag, listener);
+  pageDispatchCustomEvent(messageFlag, { action: "requestData" });
 }
 
 export const createMouseEvent =
   process.env.VI_TESTING === "true"
-    ? (type: string, eventInitDict?: MouseEventInit | undefined): MouseEvent => {
+    ? (type: string, eventInitDict?: MouseEventInit): MouseEvent => {
         const ev = new MouseEventClone(type, eventInitDict);
         eventInitDict = eventInitDict || {};
         for (const [key, value] of Object.entries(eventInitDict)) {
@@ -95,6 +78,6 @@ export const createMouseEvent =
         }
         return ev;
       }
-    : (type: string, eventInitDict?: MouseEventInit | undefined): MouseEvent => {
+    : (type: string, eventInitDict?: MouseEventInit): MouseEvent => {
         return new MouseEventClone(type, eventInitDict);
       };

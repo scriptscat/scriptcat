@@ -5,15 +5,15 @@ import { PageEventMessage } from "@Packages/message/page_event_message";
 import { Server } from "@Packages/message/server";
 import { ScriptExecutor } from "./app/service/content/script_executor";
 import type { Message } from "@Packages/message/types";
-import { getEventFlag } from "@Packages/message/common";
+import { obtainSCIData } from "@Packages/message/common";
 import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
 import { type TExtensionEnv } from "./app/service/extension/extension_env";
-import { realmBridgeFaceID } from "./pkg/utils/realm_bridge_token";
+import { realmBridgeEventFlag } from "./pkg/utils/realm_bridge_token";
 
-const messageFlag = realmBridgeFaceID;
+const eventFlag = realmBridgeEventFlag;
 
-getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | undefined) => {
+obtainSCIData(`${eventFlag}Env`, (extensionEnv: TExtensionEnv) => {
   const scriptEnvTag = ScriptEnvTag.inject;
 
   // MAIN world 使用唯一的 keyed performance-event bridge。
