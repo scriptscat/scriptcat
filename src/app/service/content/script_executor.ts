@@ -122,7 +122,7 @@ export class ScriptExecutor {
   }
 
   checkEarlyStartScript(scriptEnvTag: ScriptEnvTag, envInfo: GMInfoEnv) {
-    const eventNamePrefix = `evt${process.env.SC_RANDOM_KEY}.${scriptEnvTag}`; // 仅用于early-start初始化
+    const eventNamePrefix = `evt${process.env.SC_RANDOM_ESKEY}.${scriptEnvTag}`; // 仅用于early-start初始化
     const scriptLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
     const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
     // 监听 脚本加载

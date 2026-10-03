@@ -333,7 +333,7 @@ export function compilePreInjectScript(
   autoDeleteMountFunction: boolean = false
 ): string {
   const scriptEnvTag = isInjectIntoContent(script.metadata) ? ScriptEnvTag.content : ScriptEnvTag.inject;
-  const eventNamePrefix = `evt${process.env.SC_RANDOM_KEY}.${scriptEnvTag}`; // 仅用于early-start初始化
+  const eventNamePrefix = `evt${process.env.SC_RANDOM_ESKEY}.${scriptEnvTag}`; // 仅用于early-start初始化
   const flag = `${script.flag}`;
   const scriptInfo = trimPreInjectScriptInfo(script);
   const scriptInfoJSON = `${JSON.stringify(scriptInfo)}`;
