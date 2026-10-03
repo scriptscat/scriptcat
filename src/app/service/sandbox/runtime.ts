@@ -8,7 +8,7 @@ import {
   SCRIPT_TYPE_BACKGROUND,
 } from "@App/app/repo/scripts";
 import type { Server } from "@Packages/message/server";
-import type { WindowMessage } from "@Packages/message/window_message";
+import type { Message } from "@Packages/message/types";
 import { createCronJob, type CronJob } from "@App/pkg/utils/cron";
 import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
@@ -41,7 +41,7 @@ export class Runtime {
   }[] = [];
 
   constructor(
-    private windowMessage: WindowMessage,
+    private windowMessage: Message,
     private api: Server,
     private readonly extensionEnvAsync: Promise<TExtensionEnv | undefined>
   ) {

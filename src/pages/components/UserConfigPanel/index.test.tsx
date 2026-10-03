@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
+import { act, render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 
@@ -90,9 +90,10 @@ describe("UserConfigPanel 用户配置面板（对齐设计稿）", () => {
     expect(setScriptValues).not.toHaveBeenCalled();
   });
 
-  it("保存写入当前分组的值并关闭", () => {
+  it("保存写入当前分组的值并在后台 freshness barrier 完成后关闭", async () => {
+    setScriptValues.mockResolvedValue(undefined);
     const onOpenChange = renderPanel();
-    fireEvent.click(screen.getByText(t("save"), { selector: "button" }));
+    await act(async () => fireEvent.click(screen.getByText(t("save"), { selector: "button" })));
     expect(setScriptValues).toHaveBeenCalledTimes(1);
     expect(setScriptValues.mock.calls[0][0]).toMatchObject({ uuid: "u1", isReplace: false });
     expect(onOpenChange).toHaveBeenCalledWith(false);

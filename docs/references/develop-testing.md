@@ -312,6 +312,13 @@ before/after in one environment with the JSON-report method below.
 - Co-locate `*.test.ts`/`*.test.tsx` next to source (or place in `tests`).
 - Use `describe.concurrent()` / `it.concurrent()` where independent.
 - Single file: `pnpm test -- --run path/to/file.test.ts`.
+- Without `CI`, `fast` and `ui` run every file in one shared worker (`isolate: false`, `maxWorkers: 1`); with `CI`
+  they spread across workers. `tests/vitest.reset-modules.ts` resets the module registry before each file's setup so
+  `vi.mock` binds the same way in both modes, but globals stay shared. Restore whatever a test mutates on
+  `Array.prototype`, `Object.prototype`, `navigator`, `window`, or an externalized singleton such as i18next — and
+  note that some mutations survive cleanup (defining `Array.prototype[0]` raises its `length`; use
+  `installArrayPrototypeIndexAccessor` from `tests/array_prototype_index.ts`). Before pushing, run both
+  `pnpm test -- --run` and `pnpm run test:ci`; either can fail alone.
 - Playwright tests are `*.spec.ts` files in `e2e`; worker count, retries, and artifact settings come from
   [`playwright.config.ts`](../../playwright.config.ts) and the CI matrix. Run targeted tests while iterating, then
   run `pnpm run lint` plus the relevant full suite before a PR.

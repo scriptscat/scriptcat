@@ -104,7 +104,7 @@ of sanitization patterns can otherwise look like matches — so don't rely on a 
 | [`design.md`](./design.md) | The design system; tokens, component palette, and layout/motion/state/a11y patterns → the three `references/design-*.md`. |
 | [`verification.md`](./verification.md) | *When* to drive the real built extension, where its evidence goes, how to report honestly. Not the harness — link to `e2e/README.md`, don't restate fixtures/isolation/env vars. |
 | [`../e2e/README.md`](../e2e/README.md) | The harness itself: the two tracks and their configs, isolation, fixture/helper inventory, protocol mocks, `E2E_*` variables, artifact paths. |
-| [`architecture.md`](./architecture.md) | Deep internals; subsystem deep-dives → the six `references/architecture-*.md`. |
+| [`architecture.md`](./architecture.md) | Deep internals; subsystem deep-dives → `references/architecture-*.md` and [`references/main-world-message-privacy.md`](./references/main-world-message-privacy.md). |
 | [`cloud-sync.md`](./cloud-sync.md) | Cloud sync internals: sync files, digest/status semantics, provider differences, error classification, retry policy. |
 | [`translation.md`](./translation.md) | Translation / localization single source of truth. |
 | [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | This guide: organization rules, fact-check / anti-drift discipline, policy-consistency checks — across every tracked contributor Markdown, not just `AGENTS.md` + `docs/*`. |

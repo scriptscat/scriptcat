@@ -1,13 +1,16 @@
 import LoggerCore from "@App/app/logger/core";
 import type Logger from "@App/app/logger/logger";
-import { createContext, createProxyContext } from "./create_context";
+import { createContext, createProxyContext, isInternalContextKey, type ScriptContext } from "./create_context";
 import type { GMInfoEnv, ScriptFunc } from "./types";
-import { compileScript, isContextMenuScript } from "./utils";
+import { compileScript, getEffectiveScriptGrants, isContextMenuScript } from "./utils";
 import type { Message } from "@Packages/message/types";
 import type { ValueUpdateDataEncoded } from "./types";
 import { evaluateGMInfo } from "./gm_api/gm_info";
-import type { IGM_Base } from "./gm_api/gm_api";
 import type { TScriptInfo } from "@App/app/repo/scripts";
+import { installTrustedDataPropertiesStrict, Native, nativeCall, refreshExposedDataProperties } from "./global";
+
+// 编译函数只在收到本次构建的密钥时执行，避免页面直接复用包装器。
+const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
 
 // 执行脚本,控制脚本执行与停止
 export default class ExecScript {
@@ -19,7 +22,7 @@ export default class ExecScript {
 
   // proxyContext: typeof globalThis;
 
-  sandboxContext?: IGM_Base & { [key: string]: any };
+  sandboxContext?: ScriptContext;
 
   named?: { [key: string]: any };
 
@@ -44,27 +47,39 @@ export default class ExecScript {
     const GM_info = evaluateGMInfo(envInfo, scriptRes);
     // 构建脚本资源
     if (typeof code === "string") {
-      this.scriptFunc = compileScript(code);
+      this.scriptFunc = compileScript(code, true);
     } else {
       this.scriptFunc = code;
     }
-    const grantSet = new Set(scriptRes.metadata.grant || []);
-    if (isContextMenuScript(scriptRes.metadata)) {
-      grantSet.add("GM_registerMenuCommand");
-      grantSet.delete("none");
-    }
+    const grantSet = new Native.Set(getEffectiveScriptGrants(scriptRes.metadata));
     if (grantSet.has("none")) {
       // 不注入任何GM api
       // ScriptCat行为：GM.info 和 GM_info 同时注入
       // 在不改变 Context 的情况下，以 named 传入多个全域变量
-      const GM = Object.create(null);
+      const GM = Native.objectCreate(null);
       GM.info = GM_info;
       this.named = { GM, GM_info };
     } else {
       // 构建脚本GM上下文
-      this.sandboxContext = createContext(scriptRes, GM_info, envPrefix, message, contentMsg, grantSet);
+      const sandboxContext = (this.sandboxContext = createContext(
+        scriptRes,
+        GM_info,
+        envPrefix,
+        message,
+        contentMsg,
+        grantSet
+      ));
       if (globalInjection) {
-        Object.assign(this.sandboxContext, globalInjection);
+        // 可信扩展代码提供的 key 一般不会撞上内部生命周期键；一旦撞上说明调用方有 bug，
+        // 应立即失败而不是静默跳过——因此只在真正冲突时才拒绝，其余按原行为直接写入。
+        const keys = Native.objectKeys(globalInjection);
+        for (let i = 0; i < keys.length; i += 1) {
+          const key = keys[i];
+          if (isInternalContextKey(key) && Native.objectHasOwn(sandboxContext, key)) {
+            throw new TypeError(`globalInjection cannot overwrite internal context key: ${key}`);
+          }
+          sandboxContext[key] = globalInjection[key];
+        }
       }
     }
   }
@@ -88,22 +103,84 @@ export default class ExecScript {
     this.logger.debug("script start");
     const sandboxContext = this.sandboxContext;
     this.execContext = sandboxContext ? createProxyContext(sandboxContext) : global; // this.$ 只能执行一次
-    return this.scriptFunc.call(this.execContext, this.named, this.scriptRes.name);
+    return this.scriptFunc(fnStrIntegrity, this.execContext, this.named, this.scriptRes.name, nativeCall);
   };
 
-  // 早期启动的脚本，处理GM API
-  updateEarlyScriptGMInfo(envInfo: GMInfoEnv) {
-    let GM_info;
-    if (this.sandboxContext) {
-      // 触发loadScriptResolve
-      this.sandboxContext["loadScriptResolve"]?.();
-      GM_info = this.execContext["GM_info"];
-    } else {
-      GM_info = this.named?.GM_info;
+  reconcileEarlyScript(envInfo: GMInfoEnv, scriptInfo?: TScriptInfo): boolean {
+    const current = this.scriptRes;
+    const grants = current.metadata.grant || [];
+    const incomingGrants = scriptInfo?.metadata.grant || [];
+    const needsBinding =
+      isContextMenuScript(current.metadata) ||
+      isContextMenuScript(scriptInfo?.metadata || {}) ||
+      grants.some((grant) => grant !== "none") ||
+      incomingGrants.some((grant) => grant !== "none");
+    const hasBindingData =
+      scriptInfo?.executionHandle !== undefined ||
+      scriptInfo?.executionEnvTag !== undefined ||
+      scriptInfo?.executionRunFlag !== undefined;
+    const hasValidBinding =
+      typeof scriptInfo?.executionHandle === "string" &&
+      scriptInfo.executionHandle.length > 0 &&
+      (scriptInfo.executionEnvTag === "it" || scriptInfo.executionEnvTag === "ct") &&
+      typeof scriptInfo.executionRunFlag === "string" &&
+      scriptInfo.executionRunFlag.length > 0;
+
+    if (
+      !scriptInfo ||
+      scriptInfo.uuid !== current.uuid ||
+      scriptInfo.flag !== current.flag ||
+      typeof current.scriptRevision !== "string" ||
+      scriptInfo.scriptRevision !== current.scriptRevision ||
+      (hasBindingData && !hasValidBinding) ||
+      (needsBinding && !hasValidBinding)
+    ) {
+      this.sandboxContext?.setInvalidContext();
+      return false;
     }
-    GM_info.isIncognito = envInfo.isIncognito;
-    GM_info.sandboxMode = envInfo.sandboxMode;
-    GM_info.userAgentData = envInfo.userAgentData;
+
+    // Snapshot keys the userscript synchronously changed while privileged transport was still
+    // waiting for the authoritative page binding. Untouched keys should refresh from pageLoad,
+    // but explicit local read/modify/write operations must not be rolled back in between.
+    const pendingValueKeys = this.sandboxContext?.takePendingEarlyValueKeys();
+    const pendingValueOverrides = new Native.Map<string, [boolean, unknown]>();
+    if (pendingValueKeys) {
+      pendingValueKeys.forEach((key) => {
+        const valueStore = current.value;
+        const hasValue = Native.objectHasOwn(valueStore, key);
+        pendingValueOverrides.set(key, [hasValue, hasValue ? valueStore[key] : undefined]);
+      });
+    }
+
+    // current 是内部可信状态（this.scriptRes）：任何无法安全重定义的既有属性都说明契约被破坏，
+    // 直接失败，绝不调用继承的 setter 或触发 "__proto__" 的原型变更语义。
+    installTrustedDataPropertiesStrict(current, scriptInfo);
+
+    pendingValueOverrides.forEach((entry, key) => {
+      if (!entry[0]) {
+        if (Native.objectHasOwn(current.value, key)) delete current.value[key];
+        return;
+      }
+      const descriptor = Native.objectCreate(null) as PropertyDescriptor;
+      descriptor.configurable = true;
+      descriptor.enumerable = true;
+      descriptor.writable = true;
+      descriptor.value = entry[1];
+      Native.objectDefineProperty(current.value, key, descriptor);
+    });
+
+    const updatedGMInfo = evaluateGMInfo(envInfo, current);
+    const gmInfo = this.sandboxContext ? this.execContext["GM_info"] : this.named?.GM_info;
+    // gmInfo 是暴露给脚本的信息面：脚本可能已经在某个字段上安装了 non-configurable setter 来
+    // "锁死"它，这是脚本对自己信息面的合法操作，不能因此阻断内部权威状态的刷新——遇到这种字段
+    // 时跳过它，继续刷新其余字段，绝不调用该 setter。
+    if (gmInfo) refreshExposedDataProperties(gmInfo, updatedGMInfo);
+
+    if (this.sandboxContext) {
+      if (hasValidBinding) this.sandboxContext.setExecutionRunFlag(scriptInfo.executionRunFlag!);
+      this.sandboxContext.resolveLoadScript();
+    }
+    return true;
   }
 
   stop() {

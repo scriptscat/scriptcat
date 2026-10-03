@@ -128,6 +128,7 @@ describe("AgentTaskService 任务生命周期", () => {
   function createMutationService() {
     const current = {
       id: "task-cas",
+      ownerScriptUuid: "script-a",
       generation: "generation-current",
       revision: 3,
       name: "current",
@@ -142,6 +143,7 @@ describe("AgentTaskService 任务生命周期", () => {
     } as const;
     const taskRepo = {
       getTask: vi.fn().mockResolvedValue(current),
+      listTasks: vi.fn().mockResolvedValue([current]),
       createTask: vi.fn(async (candidate: any) => candidate),
       saveTask: vi.fn(async (candidate: any) => {
         if (candidate.generation !== current.generation || candidate.revision !== current.revision) {
@@ -193,6 +195,55 @@ describe("AgentTaskService 任务生命周期", () => {
     ).rejects.toThrow("revision conflict");
 
     expect(taskRepo.saveTask).toHaveBeenCalledWith(expect.objectContaining({ revision: 2 }));
+  });
+
+  it("脚本创建的任务只允许同一脚本读取和修改", async () => {
+    const { service, taskRepo, scheduler, current } = createMutationService();
+    const other = { ...current, id: "task-other", ownerScriptUuid: "script-b" };
+    taskRepo.listTasks.mockResolvedValue([current, other]);
+
+    await expect(service.handleAgentTask({ action: "list" }, "script-a")).resolves.toEqual([current]);
+    await expect(service.handleAgentTask({ action: "get", id: current.id }, "script-b")).rejects.toThrow(
+      "Task not found"
+    );
+    await expect(
+      service.handleAgentTask(
+        {
+          action: "update",
+          id: current.id,
+          generation: current.generation,
+          revision: current.revision,
+          task: { name: "forged edit" },
+        },
+        "script-b"
+      )
+    ).rejects.toThrow("Task not found");
+    await expect(service.handleAgentTask({ action: "runNow", id: current.id }, "script-b")).rejects.toThrow(
+      "Task not found"
+    );
+    expect(scheduler.executeTask).not.toHaveBeenCalled();
+  });
+
+  it("脚本创建的任务绑定创建者身份而不是请求体伪造的身份", async () => {
+    const { service, taskRepo } = createMutationService();
+
+    await service.handleAgentTask(
+      {
+        action: "create",
+        task: {
+          name: "owned task",
+          mode: "internal",
+          crontab: "0 9 * * *",
+          prompt: "hello",
+          enabled: true,
+          notify: false,
+          ownerScriptUuid: "script-b",
+        },
+      } as any,
+      "script-a"
+    );
+
+    expect(taskRepo.createTask).toHaveBeenCalledWith(expect.objectContaining({ ownerScriptUuid: "script-a" }));
   });
 
   it("delete 应先取消活动执行并使用客户端版本删除", async () => {

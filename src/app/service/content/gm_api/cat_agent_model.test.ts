@@ -31,7 +31,7 @@ describe.concurrent("CATAgentModelApi", () => {
 
     const apis = GMContextApiGet("CAT.agent.model")!;
     const listApi = apis.find((a) => a.fnKey === "CAT.agent.model.list")!;
-    const result = await listApi.api.call(ctx);
+    const result = await listApi.api(ctx);
 
     expect(mockSendMessage).toHaveBeenCalledWith("CAT_agentModel", [
       { action: "list", scriptUuid: "test-uuid" } as ModelApiRequest,
@@ -57,7 +57,7 @@ describe.concurrent("CATAgentModelApi", () => {
 
     const apis = GMContextApiGet("CAT.agent.model")!;
     const getApi = apis.find((a) => a.fnKey === "CAT.agent.model.get")!;
-    const result = await getApi.api.call(ctx, "m1");
+    const result = await getApi.api(ctx, "m1");
 
     expect(mockSendMessage).toHaveBeenCalledWith("CAT_agentModel", [
       { action: "get", id: "m1", scriptUuid: "test-uuid" } as ModelApiRequest,
@@ -75,7 +75,7 @@ describe.concurrent("CATAgentModelApi", () => {
 
     const apis = GMContextApiGet("CAT.agent.model")!;
     const getDefaultApi = apis.find((a) => a.fnKey === "CAT.agent.model.getDefault")!;
-    const result = await getDefaultApi.api.call(ctx);
+    const result = await getDefaultApi.api(ctx);
 
     expect(mockSendMessage).toHaveBeenCalledWith("CAT_agentModel", [
       { action: "getDefault", scriptUuid: "test-uuid" } as ModelApiRequest,
@@ -93,7 +93,7 @@ describe.concurrent("CATAgentModelApi", () => {
 
     const apis = GMContextApiGet("CAT.agent.model")!;
     const listApi = apis.find((a) => a.fnKey === "CAT.agent.model.list")!;
-    await listApi.api.call(ctx);
+    await listApi.api(ctx);
 
     expect(mockSendMessage).toHaveBeenCalledWith("CAT_agentModel", [
       { action: "list", scriptUuid: "" } as ModelApiRequest,

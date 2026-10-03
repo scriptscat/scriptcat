@@ -1,4 +1,5 @@
 import { Native } from "../global";
+import { createDeferToNextTaskKernel } from "@App/pkg/utils/mesasge-channel";
 
 export class UrlChangeEvent extends Event {
   readonly url: string;
@@ -8,18 +9,27 @@ export class UrlChangeEvent extends Event {
   }
 }
 
+interface IDeferToNextTaskKernel {
+  release(): void;
+  nextMarcoTask(): Promise<void>;
+}
+
+let m: IDeferToNextTaskKernel | undefined;
+
 let attached = false;
 
-// 仅供测试使用，重置 attached 标记
+// 仅供测试使用，重置 attached 标记并释放复用的 MessageChannel
 export const resetAttachedForTest = () => {
   attached = false;
+  m?.release();
+  m = undefined;
 };
 
 const getPropGetter = <T>(obj: T, key: keyof T) => {
   // 避免直接 obj[key] 读取。或会被 hack
   for (let t = obj; t; t = Native.objectGetPrototypeOf(t)) {
     const pd = Native.objectGetOwnPropertyDescriptor(t, key);
-    if (pd) return pd.get?.bind(obj);
+    if (pd) return pd.get ? Native.bind(pd.get, obj) : undefined;
   }
 };
 
@@ -33,21 +43,20 @@ export const attachNavigateHandler = (win: Window & { navigation: EventTarget })
   // 以 location.href 判断避免 replaceState/pushState 重复执行重复触发
   const loc = win.location;
   const getUrl = getPropGetter(loc, "href");
-  const dispatch = win.dispatchEvent.bind(win);
+  const dispatch = Native.bind(win.dispatchEvent, win);
   let lastUrl = getUrl?.();
   let callSeq = 0;
+  const deferToNextTask = createDeferToNextTaskKernel();
+  m = deferToNextTask;
   const handler = async (ev: Event): Promise<void> => {
     callSeq = callSeq > 512 ? 1 : callSeq + 1;
     const seq = callSeq;
     let newUrl = getUrl?.(); // 取得当前 location.href
     const destUrl = (ev as any).destination?.url;
     if (destUrl !== newUrl && newUrl === lastUrl) {
-      // 某些情况，location.href 未更新就触发了
-      // 用 postMessage 推迟到下一个 macrotask 阶段
-      await new Promise((resolve) => {
-        self.addEventListener("message", resolve, { once: true });
-        self.postMessage({ [`${Math.random()}`]: {} }, "*"); // 传一个 dummy message
-      });
+      // 某些情况，location.href 未更新就触发了。复用一个私有 MessageChannel
+      // 让出一个 task；同一轮内的重叠导航共享这次等待，再由 callSeq 丢弃旧 continuation。
+      await deferToNextTask.nextMarcoTask();
       if (seq !== callSeq) return; // 等待时，或许已经触发了其他 navigate
       newUrl = getUrl?.(); // 再次取得当前 location.href
     }

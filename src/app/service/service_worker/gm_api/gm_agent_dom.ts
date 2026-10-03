@@ -36,7 +36,7 @@ class GMAgentDomApi {
     if (!this.agentService) {
       throw new Error("AgentService is not available");
     }
-    return this.agentService.handleDomApi(request.params[0]);
+    return this.agentService.handleDomApi({ ...request.params[0], scriptUuid: request.script.uuid });
   }
 }
 

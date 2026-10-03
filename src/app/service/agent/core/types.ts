@@ -22,6 +22,8 @@ export type MessageContent = string | ContentBlock[];
 
 export type Conversation = {
   id: string;
+  /** ScriptCat API owner; absent on conversations created by the extension UI or older records. */
+  ownerScriptUuid?: string;
   /** Immutable identity for this incarnation of an ID. Filled when legacy records are loaded. */
   generation?: string;
   /** Optimistic-concurrency version. Filled when legacy records are loaded. */
@@ -640,6 +642,8 @@ export type MCPApiRequest =
 /** 定时任务基础字段（两种模式共用） */
 type AgentTaskBase = {
   id: string;
+  /** ScriptCat API owner; absent on tasks created by the extension UI or older records. */
+  ownerScriptUuid?: string;
   /** Immutable identity for this incarnation of the task ID. */
   generation?: string;
   /** Optimistic-concurrency version. */
@@ -733,5 +737,6 @@ export type ConversationApiRequest =
       generation?: string;
       messageIds: string[];
       preserveAttachmentIds?: string[];
+      scriptUuid?: string;
     }
-  | { action: "delete"; conversationId: string; generation: string; revision?: number };
+  | { action: "delete"; conversationId: string; generation: string; revision?: number; scriptUuid?: string };

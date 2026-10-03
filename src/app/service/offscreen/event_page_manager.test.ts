@@ -94,21 +94,17 @@ describe("EventPageOffscreenManager <-> serviceWorker 进程内桥接", () => {
     expect(result).toEqual({ inIncognitoContext: false });
   });
 
-  it("offscreen 发起的 preparationOffscreen 通知也通过进程内桥接真正到达 serviceWorker 端处理器", async () => {
+  it("构造时不挂载 sandbox；init 时才挂载，确保 parent bootstrap listener 已先建立", () => {
     const bridge = new InProcessMessage();
-    const serviceWorkerHandler = vi.fn().mockResolvedValue(undefined);
-    const serviceWorkerServer = new Server("serviceWorker", bridge);
-    serviceWorkerServer.on("preparationOffscreen", serviceWorkerHandler);
-
     const manager = new EventPageOffscreenManager(bridge, new MessageQueue());
+    const sandboxFrame = (manager as unknown as { sandboxFrame: HTMLIFrameElement }).sandboxFrame;
 
-    // 触发 sandbox 就绪通知：会走 notifyOffscreenReady -> this.serviceWorker.preparationOffscreen()
-    manager.preparationSandbox();
+    expect(sandboxFrame.isConnected).toBe(false);
 
-    // preparationOffscreen() 内部走 sendMessage，是异步的；等待其对应的微任务/宏任务跑完
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    void manager.init();
 
-    expect(serviceWorkerHandler).toHaveBeenCalledTimes(1);
+    expect(sandboxFrame.isConnected).toBe(true);
+    expect(sandboxFrame.src).toContain("/src/sandbox.html");
   });
 });
 

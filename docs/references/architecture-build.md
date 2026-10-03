@@ -9,7 +9,7 @@
 ```
 context bundles : service_worker · offscreen · sandbox · content · inject · scripting
 shared          : common (pre-React bootstrap, e.g. early theme init — see src/pages/common.ts)
-UI pages (React): popup · options · install · batchupdate · confirm · import
+UI pages (React): popup · options · install · batchupdate · confirm · external_access_confirm · import
 workers         : editor.worker · ts.worker · json.worker (Monaco) · linter.worker
 ```
 
@@ -19,8 +19,8 @@ Output goes to `dist/ext/src/[name].js` (cleaned each build). Notable behavior:
 
 - **Path aliases** mirror `tsconfig.json`: `@App → src`, `@Packages → packages` (the `@Tests → tests` alias is
   test-only — defined in `vitest.config.ts` / `tsconfig.json`, not in the Rspack build).
-- **Dev vs prod** via `NODE_ENV`: dev enables watch + inline source maps (skipped when `NO_MAP=true`, needed
-  for incognito); prod minifies with SWC + Lightning CSS and drops debug.
+- **Dev vs prod** via `NODE_ENV`: dev enables watch + inline source maps (skipped when `NO_MAP=true`); prod minifies
+  with SWC + Lightning CSS and drops debug.
 - **Code splitting** pulls big libs into named `lib_*` chunks (react, monaco, radix-ui, dnd-kit, eslint, message),
   but **never splits** `service_worker`, `content`, `inject`, `scripting`, or the workers — MV3 requires those
   to be single self-contained files.
@@ -78,7 +78,7 @@ MV3 officially supports Firefox, so `PACK_FIREFOX` is `true` by default and the 
 | Package | Purpose |
 |---|---|
 | [`message`](../../packages/message) | The cross-context RPC + pub/sub layer (see [Message Passing](../architecture.md#message-passing)). Ships its own mocks. |
-| [`filesystem`](../../packages/filesystem) | Pluggable FS adapters for sync/backup — WebDAV, cloud drives (OneDrive, Google Drive, Dropbox, Baidu, S3), and zip archives. |
+| [`filesystem`](../../packages/filesystem) | Pluggable FS adapters for sync/backup; see the [package README](../../packages/filesystem/README.md) for providers and Zip behavior. |
 | [`cloudscript`](../../packages/cloudscript) | Cloud-script integration. |
 | [`eslint`](../../packages/eslint) | The ESLint config + globals shipped to the in-editor linter for userscripts (`CAT_*`, `GM_*`, `CATRetryError`, …). |
 | [`chrome-extension-mock`](../../packages/chrome-extension-mock) | A mock `chrome.*` + message bus for Vitest. |

@@ -1,4 +1,3 @@
-import { type WindowMessage } from "@Packages/message/window_message";
 import type { SCRIPT_RUN_STATUS, ScriptRunResource } from "@App/app/repo/scripts";
 import { Client, sendMessage } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
@@ -6,38 +5,26 @@ import { type VSCodeConnectParam } from "./vscode-connect";
 import { type ExternalAccessConnectParam } from "./external-access-connect";
 import type { WSEnvelope } from "../service_worker/external_access/types";
 
-export function preparationSandbox(windowMessage: WindowMessage) {
-  return sendMessage(windowMessage, "offscreen/preparationSandbox");
-}
-
-// sandbox 自身对通道做的一次连通性自检结果（只有 sandbox 自己知道它何时就绪、何时做完这次自检，
-// 因此由 sandbox 主动上报，而不是由父层去 ping sandbox）
-export type SandboxChannelHealth = { ok: true; roundTripMs: number } | { ok: false; error: string };
-
-export function reportSandboxChannelHealth(windowMessage: WindowMessage, health: SandboxChannelHealth) {
-  return sendMessage(windowMessage, "offscreen/reportSandboxChannelHealth", health);
-}
-
-export function getExtensionEnv(windowMessage: WindowMessage) {
+export function getExtensionEnv(windowMessage: MessageSend) {
   return sendMessage(windowMessage, "offscreen/getExtensionEnv", { requireUAD: true });
 }
 
-export function keepAlive(windowMessage: WindowMessage, val: boolean) {
+export function keepAlive(windowMessage: MessageSend, val: boolean) {
   return sendMessage(windowMessage, "offscreen/keepAlive", val);
 }
 
 // 代理发送消息到ServiceWorker
-export function sendMessageToServiceWorker(windowMessage: WindowMessage, action: string, data?: any) {
+export function sendMessageToServiceWorker(windowMessage: MessageSend, action: string, data?: any) {
   return sendMessage(windowMessage, "offscreen/sendMessageToServiceWorker", { action, data });
 }
 
 // 代理连接ServiceWorker
-export function connectServiceWorker(windowMessage: WindowMessage) {
+export function connectServiceWorker(windowMessage: MessageSend) {
   return sendMessage(windowMessage, "offscreen/connectServiceWorker");
 }
 
 export function proxyUpdateRunStatus(
-  windowMessage: WindowMessage,
+  windowMessage: MessageSend,
   data: { uuid: string; runStatus: SCRIPT_RUN_STATUS; error?: any; nextruntime?: number }
 ) {
   return sendMessageToServiceWorker(windowMessage, "script/updateRunStatus", data);

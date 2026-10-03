@@ -226,7 +226,7 @@ Service Worker (src/service_worker.ts)
   ├── ExtensionMessage ──────────────→ Content Script (src/content.ts)
   │                                        └── CustomEventMessage ──→ Inject Script (src/inject.ts)
   └── ServiceWorkerMessageSend ──────→ Offscreen (src/offscreen.ts)   (Chrome; Firefox uses EventPageOffscreenManager)
-                                           └── WindowMessage ──→ Sandbox (src/sandbox.ts)
+                                           └── private MessagePort ──→ Sandbox (src/sandbox.ts)
 ```
 
 > SW → Offscreen uses `ServiceWorkerMessageSend` (`clients.matchAll()` + `postMessage`) on Chrome and
@@ -244,8 +244,9 @@ Sandbox.
 
 ### Message Passing (`packages/message/`)
 
-`ExtensionMessage` (chrome.runtime — SW ↔ Content / Inject / Offscreen), `WindowMessage` (postMessage — Offscreen ↔
-Sandbox), `ServiceWorkerMessageSend` (`clients.matchAll()` + `postMessage` — SW → Offscreen on Chrome),
+`ExtensionMessage` (chrome.runtime — SW ↔ Content / Inject / Offscreen), `MessagePortMessage` +
+`SandboxChannelHost` (one-shot Window bootstrap, then private MessagePort — Offscreen/EventPage ↔ Sandbox),
+`ServiceWorkerMessageSend` (`clients.matchAll()` + `postMessage` — SW → Offscreen on Chrome),
 `CustomEventMessage` (CustomEvent — Content ↔ Inject), and `MessageQueue` (cross-context broadcast).
 
 ### Service & Data Layers
