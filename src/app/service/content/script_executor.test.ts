@@ -769,7 +769,7 @@ describe("ScriptExecutor", () => {
       const flagGetter = vi.fn(() => script.flag);
       Object.defineProperty(hostileDetail, "scriptFlag", { get: flagGetter });
       pageDispatchEvent(
-        new CustomEvent(`evt${process.env.SC_RANDOM_KEY}.it${DefinedFlags.scriptLoadComplete}`, {
+        new CustomEvent(`evt${process.env.SC_RANDOM_ESKEY}.it${DefinedFlags.scriptLoadComplete}`, {
           detail: hostileDetail,
           cancelable: true,
         })
@@ -777,7 +777,7 @@ describe("ScriptExecutor", () => {
       expect(flagGetter).not.toHaveBeenCalled();
 
       pageDispatchEvent(
-        new CustomEvent(`evt${process.env.SC_RANDOM_KEY}.it${DefinedFlags.scriptLoadComplete}`, {
+        new CustomEvent(`evt${process.env.SC_RANDOM_ESKEY}.it${DefinedFlags.scriptLoadComplete}`, {
           detail: { scriptFlag: script.flag, scriptInfo: forged },
           cancelable: true,
         })
