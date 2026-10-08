@@ -453,6 +453,230 @@ describe("ValueService - setValue 方法测试", () => {
   });
 });
 
+describe("ValueService - updatetime 与 waitForFreshValueState", () => {
+  let valueService: ValueService;
+  let mockScriptDAO: ScriptDAO;
+  let mockValueDAO: ValueDAO;
+
+  const createMockScript = (overrides: Partial<Script> = {}): Script => ({
+    uuid: randomUUID(),
+    name: "test-script",
+    namespace: "test-namespace",
+    type: SCRIPT_TYPE_NORMAL,
+    status: SCRIPT_STATUS_ENABLE,
+    sort: 0,
+    runStatus: "running" as const,
+    createtime: Date.now(),
+    checktime: Date.now(),
+    metadata: {
+      storageName: [`test_storage_${randomUUID()}`],
+    },
+    ...overrides,
+  });
+
+  const createMockValueSender = (): ValueUpdateSender => ({
+    runFlag: "user",
+    tabId: -2,
+  });
+
+  beforeEach(() => {
+    const eventEmitter = new EventEmitter<string, any>();
+    const mockMessage = new MockMessage(eventEmitter);
+    const server = new Server("test", mockMessage);
+    const mq = new MessageQueue();
+    valueService = new ValueService(server.group("value"), mq);
+    mockScriptDAO = {
+      get: vi.fn(),
+    } as any;
+    valueService.scriptDAO = mockScriptDAO;
+    mockValueDAO = {
+      get: vi.fn(),
+      save: vi.fn(),
+    } as any;
+    valueService.valueDAO = mockValueDAO;
+    valueService.pushValueUpdate = vi.fn();
+    mq.emit = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("设置值时应更新 valueModel.updatetime 并在推送数据中携带 updatetime", async () => {
+    const mockScript = createMockScript();
+    const oldUpdatetime = Date.now() - 10000;
+    const existingValueModel: Value = {
+      uuid: mockScript.uuid,
+      storageName: getStorageName(mockScript),
+      data: { testKey: "oldValue" },
+      createtime: oldUpdatetime,
+      updatetime: oldUpdatetime,
+    };
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue(existingValueModel);
+    vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
+
+    await valueService.setValues({
+      uuid: mockScript.uuid,
+      id: "testId-5001",
+      keyValuePairs: [["testKey", encodeRValue("newValue")]],
+      valueSender: createMockValueSender(),
+      isReplace: false,
+    });
+
+    const savedValue = vi.mocked(mockValueDAO.save).mock.calls[0][1];
+    expect(savedValue.updatetime).toBeGreaterThan(oldUpdatetime);
+    expect(valueService.pushValueUpdate).toHaveBeenNthCalledWith(
+      1,
+      mockScript,
+      expect.objectContaining({
+        id: "testId-5001",
+        valueUpdated: true,
+        updatetime: savedValue.updatetime,
+      })
+    );
+  });
+
+  it("值未改变时推送数据仍携带当前 updatetime", async () => {
+    const mockScript = createMockScript();
+    const oldUpdatetime = Date.now() - 10000;
+    const existingValueModel: Value = {
+      uuid: mockScript.uuid,
+      storageName: getStorageName(mockScript),
+      data: { testKey: "sameValue" },
+      createtime: oldUpdatetime,
+      updatetime: oldUpdatetime,
+    };
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue(existingValueModel);
+
+    await valueService.setValues({
+      uuid: mockScript.uuid,
+      id: "testId-5002",
+      keyValuePairs: [["testKey", encodeRValue("sameValue")]],
+      valueSender: createMockValueSender(),
+      isReplace: false,
+    });
+
+    expect(mockValueDAO.save).not.toHaveBeenCalled();
+    expect(valueService.pushValueUpdate).toHaveBeenNthCalledWith(
+      1,
+      mockScript,
+      expect.objectContaining({
+        id: "testId-5002",
+        valueUpdated: false,
+        updatetime: oldUpdatetime,
+      })
+    );
+  });
+
+  it("valueUpdate 投递失败时 setValues 应报告失败", async () => {
+    const mockScript = createMockScript();
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue(undefined);
+    vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
+    valueService.pushValueUpdate = vi.fn().mockRejectedValue(new Error("delivery failed"));
+
+    await expect(
+      valueService.setValues({
+        uuid: mockScript.uuid,
+        id: "testId-5003",
+        keyValuePairs: [["testKey", encodeRValue("value")]],
+        valueSender: createMockValueSender(),
+        isReplace: false,
+      })
+    ).rejects.toThrow("delivery failed");
+  });
+
+  it("同一 storageName 的写入和 valueUpdate 投递应串行", async () => {
+    const mockScript = createMockScript();
+    const existingValueModel: Value = {
+      uuid: mockScript.uuid,
+      storageName: getStorageName(mockScript),
+      data: {},
+      createtime: 1,
+      updatetime: 1,
+    };
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue(existingValueModel);
+    vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
+    let releaseFirst!: (value: boolean) => void;
+    const firstPush = new Promise<boolean>((resolve) => {
+      releaseFirst = resolve;
+    });
+    valueService.pushValueUpdate = vi
+      .fn()
+      .mockImplementationOnce(() => firstPush)
+      .mockResolvedValue(true);
+
+    const first = valueService.setValues({
+      uuid: mockScript.uuid,
+      keyValuePairs: [["first", encodeRValue("value")]],
+      valueSender: createMockValueSender(),
+      isReplace: false,
+    });
+    await vi.waitFor(() => expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1));
+    const second = valueService.setValues({
+      uuid: mockScript.uuid,
+      keyValuePairs: [["second", encodeRValue("value")]],
+      valueSender: createMockValueSender(),
+      isReplace: false,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1);
+
+    releaseFirst(true);
+    await Promise.all([first, second]);
+    expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it("waitForFreshValueState 不带 id 时应直接返回 valueDAO 的 updatetime", async () => {
+    const mockScript = createMockScript();
+    const updatetime = Date.now() - 5000;
+    const existingValueModel: Value = {
+      uuid: mockScript.uuid,
+      storageName: getStorageName(mockScript),
+      data: {},
+      createtime: updatetime,
+      updatetime,
+    };
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue(existingValueModel);
+
+    const ret = await valueService.waitForFreshValueState(mockScript.uuid, "", createMockValueSender());
+    expect(ret).toBe(updatetime);
+    expect(valueService.pushValueUpdate).not.toHaveBeenCalled();
+  });
+
+  it("waitForFreshValueState 带 id 时应先执行一次空 setValues 触发带 id 的推送", async () => {
+    const mockScript = createMockScript();
+    const updatetime = Date.now() - 5000;
+    const existingValueModel: Value = {
+      uuid: mockScript.uuid,
+      storageName: getStorageName(mockScript),
+      data: {},
+      createtime: updatetime,
+      updatetime,
+    };
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue(existingValueModel);
+
+    const ret = await valueService.waitForFreshValueState(mockScript.uuid, "freshId-5004", createMockValueSender());
+    expect(ret).toBe(updatetime);
+    expect(mockValueDAO.save).not.toHaveBeenCalled();
+    expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1);
+    expect(valueService.pushValueUpdate).toHaveBeenNthCalledWith(
+      1,
+      mockScript,
+      expect.objectContaining({
+        id: "freshId-5004",
+        valueUpdated: false,
+        updatetime,
+      })
+    );
+  });
+});
+
 describe("ValueService —— 共享 storagename 的回收站感知", () => {
   beforeEach(async () => {
     await chrome.storage.local.clear();

@@ -434,6 +434,7 @@ describe("createContext: capability and lifecycle contract", () => {
         sender: { runFlag: "other-run-flag", tabId },
         entries: [["foo", encodeRValue(value), encodeRValue("bar")]],
         valueUpdated: true,
+        updatetime: Date.now(),
       });
 
     update("remote-1", "next", 7);
