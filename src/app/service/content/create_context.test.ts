@@ -375,6 +375,22 @@ describe("createContext: capability and lifecycle contract", () => {
     expect(context.grantSet.has("GM_cookie")).toBe(true);
   });
 
+  it.concurrent("按 @grant 注入 GM_audio 与 GM.audio 的完整方法", () => {
+    const legacyContext = createTestContext(["GM_audio"]);
+    const promiseContext = createTestContext(["GM.audio"]);
+
+    for (const context of [legacyContext, promiseContext]) {
+      expect(context.GM_audio.setMute.name).toBe("bound GM_audio.setMute");
+      expect(context.GM_audio.getState.name).toBe("bound GM_audio.getState");
+      expect(context.GM_audio.addStateChangeListener.name).toBe("bound GM_audio.addStateChangeListener");
+      expect(context.GM_audio.removeStateChangeListener.name).toBe("bound GM_audio.removeStateChangeListener");
+      expect(context.GM.audio.setMute.name).toBe("bound GM.audio.setMute");
+      expect(context.GM.audio.getState.name).toBe("bound GM.audio.getState");
+      expect(context.GM.audio.addStateChangeListener.name).toBe("bound GM.audio.addStateChangeListener");
+      expect(context.GM.audio.removeStateChangeListener.name).toBe("bound GM.audio.removeStateChangeListener");
+    }
+  });
+
   it("將 window grant 留在 context.window，投影時才暴露到 sandbox", () => {
     const context = createTestContext(["window.close", "window.focus"]);
     const sandbox = createProxyContext(context, createSplitRealmRoots().roots);
@@ -452,6 +468,33 @@ describe("createContext: capability and lifecycle contract", () => {
 
     update("remote-2", "again", 8);
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it.concurrent("音频注册尚未返回连接时上下文失效也应立即结算注册", async () => {
+    let resolveConnection!: (connection: unknown) => void;
+    const message = {
+      connect: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveConnection = resolve;
+          })
+      ),
+    } as any;
+    const context = createContext(createScriptInfo(), {}, "vitest", message, message, new Set(["GM.audio"]));
+    const registration = context.GM.audio.addStateChangeListener(vi.fn());
+
+    context.setInvalidContext();
+    await expect(
+      Promise.race([
+        registration.then(
+          () => "resolved",
+          (error: unknown) => `rejected:${String(error)}`
+        ),
+        new Promise<string>((resolve) => setTimeout(() => resolve("timeout"), 0)),
+      ])
+    ).resolves.toBe("resolved");
+
+    resolveConnection({ disconnect: vi.fn() });
   });
 });
 

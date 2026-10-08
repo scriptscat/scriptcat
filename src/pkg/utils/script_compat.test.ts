@@ -65,7 +65,15 @@ describe("元数据指令支持判定", () => {
 
 describe("GM 能力支持判定", () => {
   it("注册表中的 GM API 视为支持", () => {
-    for (const grant of ["GM_setValue", "GM.setValue", "CAT_fileStorage", "CAT.agent.dom", "window.close"]) {
+    for (const grant of [
+      "GM_setValue",
+      "GM.setValue",
+      "GM_audio",
+      "GM.audio",
+      "CAT_fileStorage",
+      "CAT.agent.dom",
+      "window.close",
+    ]) {
       expect(isSupportedGrant(grant), grant).toBe(true);
     }
   });
@@ -83,7 +91,7 @@ describe("GM 能力支持判定", () => {
   });
 
   it("脚本猫未实现的 GM API 视为不支持", () => {
-    for (const grant of ["GM_audio", "GM_webRequest", "GM_addScript", "GM_createObjectURL"]) {
+    for (const grant of ["GM_webRequest", "GM_addScript", "GM_createObjectURL"]) {
       expect(isSupportedGrant(grant), grant).toBe(false);
     }
   });
