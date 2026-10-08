@@ -369,9 +369,10 @@ export function useInstallData(): UseInstallData {
           });
           const metadata = parseMetadata(code);
           if (!metadata) throw new Error(t("install:script_info_load_failed"));
-          // 直接 URL 入口保持普通脚本准备参数；网页来源身份匹配只由 UUID 暂存选项传递，
-          // 安装页离开方式统一由 history.length 决定，不要为此重新添加 query 标记。
-          await loadFromInfo(buildScriptInfo(uuidv4(), code, parsed.href, metadata), false, {});
+          // ?url= 只由 DNR 拦截网页上的脚本链接产生，属于网页来源：需要按下载地址认出上游已改名的旧脚本，
+          // 否则会被当成新脚本重复安装(#1785)。该标记只参与身份匹配；安装页离开方式统一由
+          // history.length 决定，不要为此重新添加 query 标记。
+          await loadFromInfo(buildScriptInfo(uuidv4(), code, parsed.href, metadata), false, { byWebRequest: true });
         } else if (fid) {
           const handle = await loadHandle(fid);
           if (!handle) throw new Error(t("install:script_info_load_failed"));
