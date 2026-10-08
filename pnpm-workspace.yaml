@@ -13,13 +13,18 @@ overrides:
   "webpack-dev-server@5.2.6>launch-editor": "2.14.1"
 
   # launch-editor@2.14.1 officially permits shell-quote ^1.8.4.
-  "launch-editor@2.14.1>shell-quote": "1.10.0"
+  "launch-editor@2.14.1>shell-quote": "1.11.0"
+
+  # concurrently@10.0.5 pins shell-quote@1.9.0 exactly; no concurrently release
+  # carries a patched one yet. 1.11.0 is a same-major minor bump, and concurrently
+  # only calls quote() on plain argv strings.
+  "concurrently@10.0.5>shell-quote": "1.11.0"
 
   # http-proxy dependency chain.
   "http-proxy@1.18.1>follow-redirects": "1.16.0"
 
   # schema-utils -> ajv dependency chain.
-  "ajv@8.20.0>fast-uri": "3.1.7"
+  "ajv@8.20.0>fast-uri": "3.1.8"
 
   # webpack-dev-server -> express dependency chain.
   "express@4.22.1>qs": "6.16.0"
@@ -27,7 +32,7 @@ overrides:
   "body-parser@1.20.8>qs": "6.16.0"
 
   # @modelcontextprotocol/sdk's own express/hono dependency chain.
-  "@modelcontextprotocol/sdk@1.30.0>hono": "4.13.7"
+  "@modelcontextprotocol/sdk@1.31.0>hono": "4.13.7"
 
   # Vitest toolchain.
   "vitest@4.1.11>vite": "7.3.6"
@@ -39,10 +44,10 @@ overrides:
   "eslint@9.39.5>@humanfs/node": "0.16.8"
 
   # eslint's config-array and crx's archiver/glob both share this minimatch resolution.
-  "minimatch@3.1.5>brace-expansion": "1.1.18"
+  "minimatch@3.1.5>brace-expansion": "1.1.21"
 
   # webdav's minimatch chain.
-  "minimatch@9.0.9>brace-expansion": "2.1.4"
+  "minimatch@9.0.9>brace-expansion": "2.1.7"
 
   # eslint-plugin-react-hooks -> @babel/core -> browserslist chain.
   "@babel/helper-compilation-targets@7.29.7>browserslist": "4.28.9"
