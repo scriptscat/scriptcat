@@ -31,6 +31,7 @@ declare const GM_info: {
   scriptMetaStr?: string;
   userConfig?: UserConfig;
   userConfigStr?: string;
+  uuid: string;
   isIncognito: boolean;
   sandboxMode: "raw"; // "js" | "raw" | "none";
   userAgentData: {

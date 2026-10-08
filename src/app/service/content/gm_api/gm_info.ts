@@ -29,6 +29,8 @@ export function evaluateGMInfo(envInfo: GMInfoEnv, script: TScriptInfo) {
     scriptMetaStr: script.metadataStr,
     userConfig: script.userConfig,
     userConfigStr: script.userConfigStr,
+    // 与 Violentmonkey 一致，在顶层暴露当前脚本 UUID
+    uuid: script.uuid,
     version: ExtVersion,
     script: {
       // TODO: 更多完整的信息(为了兼容Tampermonkey,后续待定)
