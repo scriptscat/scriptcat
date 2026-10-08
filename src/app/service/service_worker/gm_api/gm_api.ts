@@ -36,7 +36,7 @@ import type {
 } from "../types";
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../../queue";
 import type { NotificationOptionCache } from "../utils";
-import { BrowserNoSupport, getCombinedMeta, notificationsUpdate } from "../utils";
+import { BrowserNoSupport, getCombinedMeta, notificationsUpdate, openNotificationUrl } from "../utils";
 import {
   getSkillScriptGrantsByUuid,
   getSkillScriptNameByUuid,
@@ -1568,10 +1568,9 @@ export default class GMApi {
         if (options) {
           if (event === "click") {
             if (options.url) {
-              // 打开链接
-              chrome.tabs.create({
-                url: options.url,
-              });
+              openNotificationUrl(options.url, options.tabId).catch((e) =>
+                this.logger.error("open notification url failed", { url: options.url }, Logger.E(e))
+              );
               // 关闭通知
               chrome.notifications.clear(notificationId);
               cacheInstance.del(`notification:${notificationId}:options`);

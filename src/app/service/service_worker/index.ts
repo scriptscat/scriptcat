@@ -58,6 +58,34 @@ export function notifyExternalAccessWrite(notice: ExternalAccessWriteNotice): vo
   void InfoNotification(t("external_access:allow_notify_title"), body);
 }
 
+// 扩展更新后按需打开更新日志页面，并发出点击可查看更新日志的通知。
+// 先开页面再发通知：通知要记下自动打开的标签页，点击时才能激活它而不是再开一个同样的页面（#1769）。
+export async function openChangelogAndNotify(url: string, autoOpen: boolean, logger: RuntimeLogger): Promise<void> {
+  const tab = autoOpen
+    ? await getCurrentTab()
+        .then((currentTab) => {
+          // 检查是否正在播放视频，或者窗口未激活
+          const openInBackground = !currentTab || currentTab.audible === true || !currentTab.active;
+          return chrome.tabs.create({
+            url,
+            active: !openInBackground,
+            index: !currentTab ? undefined : currentTab.index + 1,
+            windowId: !currentTab ? undefined : currentTab.windowId,
+          });
+        })
+        .catch((e) => {
+          // 打不开页面也照常发通知，点击通知时再新开
+          logger.error("open extension changelog failed", { url }, RuntimeLogger.E(e));
+          return undefined;
+        })
+    : undefined;
+  await InfoNotification(
+    t("popup:ext_update_notification"),
+    t("popup:ext_update_notification_desc", { version: ExtVersion }),
+    { url, tabId: tab?.id }
+  );
+}
+
 // service worker的管理器
 export default class ServiceWorkerManager {
   private serviceLogger = LoggerCore.logger().with({ service: "service_worker" });
@@ -390,28 +418,7 @@ export default class ServiceWorkerManager {
             const url = `${DocumentationSite}${localePath}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
             // 如果只是修复版本，只弹出通知不打开页面
             // beta版本还是每次都打开更新页面
-            InfoNotification(
-              t("popup:ext_update_notification"),
-              t("popup:ext_update_notification_desc", { version: ExtVersion }),
-              {
-                url,
-              }
-            );
-            if (shouldAutoOpenChangelog(ExtVersion)) {
-              getCurrentTab()
-                .then((tab) => {
-                  // 检查是否正在播放视频，或者窗口未激活
-                  const openInBackground = !tab || tab.audible === true || !tab.active;
-                  // chrome.tabs.create 传回 Promise<chrome.tabs.Tab>
-                  return chrome.tabs.create({
-                    url,
-                    active: !openInBackground,
-                    index: !tab ? undefined : tab.index + 1,
-                    windowId: !tab ? undefined : tab.windowId,
-                  });
-                })
-                .catch((e) => this.serviceLogger.error("open extension changelog failed", { url }, RuntimeLogger.E(e)));
-            }
+            void openChangelogAndNotify(url, shouldAutoOpenChangelog(ExtVersion), this.serviceLogger);
           }
         });
 

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   isBase64,
   parseUrlSRI,
@@ -8,6 +8,7 @@ import {
   compileInjectionCode,
   shouldAutoOpenChangelog,
   scriptURLPatternResults,
+  openNotificationUrl,
 } from "./utils";
 import type { SCMetadata, Script, ScriptRunResource } from "@App/app/repo/scripts";
 import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
@@ -119,6 +120,88 @@ describe.concurrent("shouldAutoOpenChangelog", () => {
   it.concurrent("正式版仅在次版本发布时自动打开更新页面", () => {
     expect(shouldAutoOpenChangelog("1.5.0")).toBe(true);
     expect(shouldAutoOpenChangelog("1.5.1")).toBe(false);
+  });
+});
+
+describe("openNotificationUrl", () => {
+  const changelogUrl = "https://docs.scriptcat.org/docs/change/#1.5.0";
+  const originalChrome = globalThis.chrome;
+
+  const stubTabs = (existing: Partial<chrome.tabs.Tab> | undefined) => {
+    const api = {
+      get: vi.fn((tabId: number) =>
+        existing?.id === tabId ? Promise.resolve(existing as chrome.tabs.Tab) : Promise.reject(new Error("No tab"))
+      ),
+      update: vi.fn().mockResolvedValue(undefined),
+      create: vi.fn().mockResolvedValue({ id: 99 }),
+      windowsUpdate: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.stubGlobal("chrome", {
+      ...originalChrome,
+      tabs: { ...originalChrome.tabs, get: api.get, update: api.update, create: api.create },
+      windows: { update: api.windowsUpdate },
+    });
+    return api;
+  };
+
+  afterEach(() => {
+    vi.stubGlobal("chrome", originalChrome);
+  });
+
+  // #1769：扩展更新时已自动打开过更新日志，点击更新通知不应再开一个同样的页面
+  it("记录的标签页仍停留在该页面时，应激活它并聚焦其窗口而不是新开", async () => {
+    const api = stubTabs({ id: 5, windowId: 7, url: "https://docs.scriptcat.org/docs/change/#1.5.0" });
+
+    await openNotificationUrl(changelogUrl, 5);
+
+    expect(api.update).toHaveBeenCalledWith(5, { active: true });
+    expect(api.windowsUpdate).toHaveBeenCalledWith(7, { focused: true });
+    expect(api.create).not.toHaveBeenCalled();
+  });
+
+  it("页面内跳转锚点只改变 hash，仍视为同一页面", async () => {
+    const api = stubTabs({ id: 5, windowId: 7, url: "https://docs.scriptcat.org/docs/change/#v1-5-0" });
+
+    await openNotificationUrl(changelogUrl, 5);
+
+    expect(api.update).toHaveBeenCalledWith(5, { active: true });
+    expect(api.create).not.toHaveBeenCalled();
+  });
+
+  it("标签页仍在加载时以 pendingUrl 判断", async () => {
+    const api = stubTabs({ id: 5, windowId: 7, url: "", pendingUrl: changelogUrl });
+
+    await openNotificationUrl(changelogUrl, 5);
+
+    expect(api.update).toHaveBeenCalledWith(5, { active: true });
+    expect(api.create).not.toHaveBeenCalled();
+  });
+
+  it("记录的标签页已被关闭时，应新开页面", async () => {
+    const api = stubTabs(undefined);
+
+    await openNotificationUrl(changelogUrl, 5);
+
+    expect(api.create).toHaveBeenCalledWith({ url: changelogUrl });
+    expect(api.update).not.toHaveBeenCalled();
+  });
+
+  it("记录的标签页已跳转到其他页面时，不应抢占它而是新开页面", async () => {
+    const api = stubTabs({ id: 5, windowId: 7, url: "https://example.com/" });
+
+    await openNotificationUrl(changelogUrl, 5);
+
+    expect(api.create).toHaveBeenCalledWith({ url: changelogUrl });
+    expect(api.update).not.toHaveBeenCalled();
+  });
+
+  it("没有记录标签页时，应直接新开页面", async () => {
+    const api = stubTabs({ id: 5, windowId: 7, url: changelogUrl });
+
+    await openNotificationUrl(changelogUrl);
+
+    expect(api.get).not.toHaveBeenCalled();
+    expect(api.create).toHaveBeenCalledWith({ url: changelogUrl });
   });
 });
 
