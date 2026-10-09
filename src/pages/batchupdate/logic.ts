@@ -146,6 +146,35 @@ export function categorize(
   return { updates, ignored };
 }
 
+/**
+ * 把待更新项拆成「命中当前站点」与「其它」两段（各自保持 categorize 给出的顺序）。
+ * 没有任何命中（包括没有 site 参数）时返回 null，页面保持不分段的单一列表。
+ */
+export function splitBySite(updates: UpdateItem[]): { site: UpdateItem[]; other: UpdateItem[] } | null {
+  const site = updates.filter((u) => u.siteMatch);
+  if (site.length === 0) return null;
+  return { site, other: updates.filter((u) => !u.siteMatch) };
+}
+
+/** 切换一组的选择：组内已全选则只取消本组，否则补选整组；组外的已选项始终保留 */
+export function toggleGroup(selected: Set<string>, uuids: string[]): Set<string> {
+  if (uuids.length === 0) return selected;
+  const next = new Set(selected);
+  if (uuids.every((uuid) => selected.has(uuid))) {
+    for (const uuid of uuids) next.delete(uuid);
+  } else {
+    for (const uuid of uuids) next.add(uuid);
+  }
+  return next;
+}
+
+/** 一组复选框的勾选态：全选 true、部分选 indeterminate、未选（含空组）false */
+export function groupCheckState(uuids: string[], selected: Set<string>): boolean | "indeterminate" {
+  const count = uuids.filter((uuid) => selected.has(uuid)).length;
+  if (count === 0) return false;
+  return count === uuids.length ? true : "indeterminate";
+}
+
 export async function assembleRecord(
   fetchChunk: (index: number) => Promise<{ chunk: string; ended: boolean }>
 ): Promise<TBatchUpdateRecordObject | null> {

@@ -7,9 +7,10 @@ import { Button } from "@App/pages/components/ui/button";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@App/pages/components/ui/collapsible";
 import { Surface } from "@App/pages/components/ui/surface";
-import type { RowState, UpdateItem } from "./logic";
+import { splitBySite, type RowState, type UpdateItem } from "./logic";
 import {
   BatchSummary,
+  CHECKBOX_HIT,
   ConnectBadge,
   EmptyState,
   LoadErrorScreen,
@@ -19,6 +20,8 @@ import {
   RowStatus,
   RowWorkingBar,
   rowPhaseClass,
+  SelectAllCheckbox,
+  SelectAllLabel,
   ScriptAvatar,
   ScriptName,
   showSkeleton,
@@ -26,6 +29,7 @@ import {
   SourceCell,
   StatusBadge,
   TopProgressBar,
+  UpdateGroupHeader,
   VersionDiff,
   type BatchUpdateViewProps,
 } from "./components";
@@ -88,12 +92,19 @@ function SkeletonActionBar() {
   );
 }
 
+/**
+ * 卡片内文字按钮的触控区：撑到 44px 高、左右各 12px，再用负外边距抵消纵向占位，
+ * 外观和卡片高度都不变；两个按钮的触控区以分隔线为界，不会互相覆盖。
+ */
+const TAP = "-my-3 flex h-11 items-center px-3";
+
 /** 移动端单卡（待更新或已忽略） */
 function MobileCard({
   item,
   state,
   selected,
   opening,
+  batchBusy,
   onToggle,
   onOpen,
   onUpdate,
@@ -105,6 +116,7 @@ function MobileCard({
   state?: RowState;
   selected?: boolean;
   opening?: boolean;
+  batchBusy?: boolean;
   onToggle?: (uuid: string) => void;
   onOpen: (uuid: string) => void;
   onUpdate?: (item: UpdateItem) => void;
@@ -125,7 +137,12 @@ function MobileCard({
         {ignoredCard ? (
           <BellOff className="size-[18px] shrink-0 text-muted-foreground" />
         ) : (
-          <Checkbox checked={!!selected} onCheckedChange={() => onToggle?.(item.uuid)} />
+          <Checkbox
+            checked={!!selected}
+            disabled={batchBusy}
+            onCheckedChange={() => onToggle?.(item.uuid)}
+            className={CHECKBOX_HIT}
+          />
         )}
         <span className={cn("flex min-w-0 flex-1 items-center gap-2.5", dim)}>
           <ScriptAvatar name={item.name} iconUrl={item.iconUrl} />
@@ -133,16 +150,15 @@ function MobileCard({
         </span>
         <StatusBadge enabled={item.enabled} />
       </div>
-      <div className={cn("flex items-center gap-2", dim)}>
-        <VersionDiff oldVersion={item.oldVersion} newVersion={item.newVersion} />
-        <div className="flex-1" />
-        <div className="flex items-center gap-1.5">
+      <div className={cn("flex flex-col gap-1.5", dim)}>
+        <VersionDiff oldVersion={item.oldVersion} newVersion={item.newVersion} wrap />
+        <div className="flex flex-wrap items-center gap-1.5">
           <RiskBadge risk={item.risk} similarity={item.similarity} />
           {item.withNewConnect && <ConnectBadge newConnects={item.newConnects} />}
         </div>
       </div>
       <div className="flex items-center">
-        <span className={dim}>
+        <span className={cn("min-w-0", dim)}>
           <SourceCell source={item.source} />
         </span>
         <div className="flex-1" />
@@ -151,7 +167,11 @@ function MobileCard({
             <button
               type="button"
               onClick={() => onRestore?.(item)}
-              className="flex items-center gap-1 text-[13px] font-medium text-primary hover:underline"
+              className={cn(
+                "flex items-center gap-1 text-[13px] font-medium text-primary hover:underline",
+                TAP,
+                "-mr-3"
+              )}
             >
               <RotateCcw className="size-3.5" />
               {t("install:updatepage.restore")}
@@ -161,7 +181,7 @@ function MobileCard({
               <button
                 type="button"
                 onClick={() => onUpdate?.(item)}
-                className="text-[13px] font-medium text-primary hover:underline"
+                className={cn("text-[13px] font-medium text-primary hover:underline", TAP)}
               >
                 {t("install:updatepage.update")}
               </button>
@@ -169,7 +189,7 @@ function MobileCard({
               <button
                 type="button"
                 onClick={() => onIgnore?.(item)}
-                className="text-[13px] text-muted-foreground hover:underline"
+                className={cn("text-[13px] text-muted-foreground hover:underline", TAP, "-mr-3")}
               >
                 {t("install:updatepage.ignore")}
               </button>
@@ -224,7 +244,22 @@ function MobileIgnored({ view }: { view: BatchUpdateViewProps }) {
 export function MobileView({ view }: { view: BatchUpdateViewProps }) {
   const { t } = useTranslation();
   const selectedCount = view.updates.filter((u) => view.selected.has(u.uuid)).length;
-  const allSelected = view.updates.length > 0 && selectedCount === view.updates.length;
+  const groups = splitBySite(view.updates);
+  const cards = (items: UpdateItem[]) =>
+    items.map((item) => (
+      <MobileCard
+        key={item.uuid}
+        item={item}
+        state={view.rowStates[item.uuid]}
+        selected={view.selected.has(item.uuid)}
+        opening={view.opening.has(item.uuid)}
+        batchBusy={view.batchBusy}
+        onToggle={view.onToggle}
+        onOpen={view.onOpen}
+        onUpdate={view.onUpdate}
+        onIgnore={view.onIgnore}
+      />
+    ));
   const empty = view.updates.length === 0 && view.ignored.length === 0;
   const skeleton = view.loadError === null && showSkeleton(view, empty);
 
@@ -241,26 +276,27 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
 
   return (
     <div className="flex h-dvh flex-col bg-background text-foreground">
-      <header className="flex h-[62px] shrink-0 items-center gap-3 border-b border-border bg-card px-4">
-        <PackageCheck className="size-[22px] shrink-0 text-primary" />
+      <header className="flex h-[62px] shrink-0 items-center gap-1 border-b border-border bg-card pr-1.5 pl-4">
+        <PackageCheck className="mr-2 size-[22px] shrink-0 text-primary" />
         <div className="flex min-w-0 flex-col">
           <span className="text-base font-semibold leading-tight text-foreground">{t("install:updatepage.title")}</span>
           {subtitle && <span className="truncate text-xs text-muted-foreground">{subtitle}</span>}
         </div>
         <div className="flex-1" />
         <Button
-          variant={view.recordExpired ? "default" : "outline"}
-          size="icon-sm"
+          variant={view.recordExpired ? "default" : "ghost"}
+          size="icon"
           disabled={view.checking}
           aria-label={t("install:updatepage.main_header")}
           onClick={view.onCheckNow}
+          className={cn("size-11", !view.recordExpired && "text-fg-secondary")}
         >
           <RefreshCw className={cn(view.checking && "animate-spin")} />
         </Button>
         <Button
           variant="ghost"
-          size="icon-sm"
-          className="text-fg-secondary"
+          size="icon"
+          className="size-11 text-fg-secondary"
           aria-label={t("common:close")}
           onClick={() => window.close()}
         >
@@ -279,9 +315,9 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
       {!skeleton && !empty && view.updates.length > 0 && (
         <div className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-card px-4">
           <div className="flex items-center gap-2.5">
-            <Checkbox checked={allSelected} disabled={view.batchBusy} onCheckedChange={view.onToggleAll} />
+            <SelectAllCheckbox view={view} className={CHECKBOX_HIT} />
             <span className="text-[13px] font-medium text-foreground">
-              {t("install:updatepage.selected_count", { selected: selectedCount, total: view.updates.length })}
+              <SelectAllLabel view={view} />
             </span>
           </div>
           {view.ignored.length > 0 && (
@@ -301,19 +337,20 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
           <EmptyState totalChecked={view.totalChecked} checking={view.checking} onCheckNow={view.onCheckNow} />
         ) : (
           <div className="flex flex-col gap-2.5 p-4">
-            {view.updates.map((item) => (
-              <MobileCard
-                key={item.uuid}
-                item={item}
-                state={view.rowStates[item.uuid]}
-                selected={view.selected.has(item.uuid)}
-                opening={view.opening.has(item.uuid)}
-                onToggle={view.onToggle}
-                onOpen={view.onOpen}
-                onUpdate={view.onUpdate}
-                onIgnore={view.onIgnore}
-              />
-            ))}
+            {groups ? (
+              <>
+                <UpdateGroupHeader kind="site" items={groups.site} view={view} className="pt-1" />
+                {cards(groups.site)}
+                {groups.other.length > 0 && (
+                  <>
+                    <UpdateGroupHeader kind="other" items={groups.other} view={view} className="pt-1" />
+                    {cards(groups.other)}
+                  </>
+                )}
+              </>
+            ) : (
+              cards(view.updates)
+            )}
             {view.ignored.length > 0 && <MobileIgnored view={view} />}
           </div>
         )}

@@ -29,6 +29,7 @@ function mkItem(p: Partial<UpdateItem> = {}): UpdateItem {
 
 function mkView(p: Partial<BatchUpdateViewProps> = {}): BatchUpdateViewProps {
   return {
+    site: "",
     updates: [],
     ignored: [],
     totalChecked: 0,
@@ -44,6 +45,7 @@ function mkView(p: Partial<BatchUpdateViewProps> = {}): BatchUpdateViewProps {
     recordExpired: false,
     onToggle: () => {},
     onToggleAll: () => {},
+    onToggleGroup: () => {},
     onUpdate: () => {},
     onIgnore: () => {},
     onRestore: () => {},
@@ -494,5 +496,102 @@ describe("批量更新 批量中断汇总", () => {
       t("install:updatepage.batch_interrupted", { count: 1 })
     );
     expect(screen.getByTestId("batch-open-scripts")).toBeTruthy();
+  });
+});
+
+describe("批量更新 当前站点分段", () => {
+  const siteUpdates = () => [
+    mkItem({ uuid: "s1", name: "本站脚本一", siteMatch: true }),
+    mkItem({ uuid: "s2", name: "本站脚本二", siteMatch: true }),
+    mkItem({ uuid: "o1", name: "其它脚本", siteMatch: false }),
+  ];
+
+  it("桌面带 site 且有命中时分成「本站相关」与「其它更新」两段", () => {
+    renderDesktop({ site: "example.com", updates: siteUpdates() });
+
+    const siteGroup = screen.getByTestId("update-group-site");
+    expect(siteGroup).toHaveTextContent(t("install:updatepage.group_site", { site: "example.com" }));
+    expect(siteGroup).toHaveTextContent(t("install:updatepage.group_site_desc"));
+    expect(screen.getByTestId("update-group-other")).toHaveTextContent(t("install:updatepage.group_other"));
+  });
+
+  it("桌面组头复选框只切换本段，并以半选反映本段的部分选择", () => {
+    const onToggleGroup = vi.fn();
+    renderDesktop({ site: "example.com", updates: siteUpdates(), selected: new Set(["s1"]), onToggleGroup });
+
+    const siteToggle = within(screen.getByTestId("update-group-site")).getByRole("checkbox");
+    expect(siteToggle).toHaveAttribute("data-state", "indeterminate");
+    expect(within(screen.getByTestId("update-group-other")).getByRole("checkbox")).toHaveAttribute(
+      "data-state",
+      "unchecked"
+    );
+
+    fireEvent.click(siteToggle);
+    expect(onToggleGroup).toHaveBeenCalledWith(["s1", "s2"]);
+  });
+
+  it("桌面顶部复选框标明「全选」，部分选择时为半选", () => {
+    renderDesktop({ site: "example.com", updates: siteUpdates(), selected: new Set(["s1"]) });
+
+    const selectAll = screen.getByRole("checkbox", { name: t("script:select_all") });
+    expect(selectAll).toHaveAttribute("data-state", "indeterminate");
+  });
+
+  it("没有命中项或没有 site 时不分段", () => {
+    renderDesktop({ site: "example.com", updates: [mkItem({ uuid: "o1" })] });
+    expect(screen.queryByTestId("update-group-site")).toBeNull();
+    expect(screen.queryByTestId("update-group-other")).toBeNull();
+    cleanup();
+
+    renderDesktop({ site: "", updates: [mkItem({ uuid: "o1" })] });
+    expect(screen.queryByTestId("update-group-site")).toBeNull();
+  });
+
+  it("全部命中时只出现「本站相关」一段", () => {
+    renderDesktop({ site: "example.com", updates: [mkItem({ uuid: "s1", siteMatch: true })] });
+    expect(screen.getByTestId("update-group-site")).toBeInTheDocument();
+    expect(screen.queryByTestId("update-group-other")).toBeNull();
+  });
+
+  it("移动端同样分段，组头复选框只切换本段", () => {
+    const onToggleGroup = vi.fn();
+    renderMobile({ site: "example.com", updates: siteUpdates(), onToggleGroup });
+
+    expect(screen.getByTestId("update-group-site")).toHaveTextContent(
+      t("install:updatepage.group_site", { site: "example.com" })
+    );
+    fireEvent.click(within(screen.getByTestId("update-group-other")).getByRole("checkbox"));
+    expect(onToggleGroup).toHaveBeenCalledWith(["o1"]);
+  });
+});
+
+describe("批量更新 风险标签配色", () => {
+  it("重大改动用警示色而不是危险红，显著改动用中性色", () => {
+    renderDesktop({
+      updates: [
+        mkItem({ uuid: "m", risk: "major", similarity: 0.5 }),
+        mkItem({ uuid: "n", risk: "noticeable", similarity: 0.9 }),
+      ],
+    });
+
+    const major = screen.getByText(t("install:updatepage.codechange_major"));
+    expect(major).toHaveClass("bg-warning-bg", "text-warning-fg");
+    expect(major.className).not.toMatch(/destructive/);
+    const noticeable = screen.getByText(t("install:updatepage.codechange_noticeable"));
+    expect(noticeable).toHaveClass("bg-muted", "text-fg-secondary");
+    expect(noticeable.className).not.toMatch(/primary/);
+  });
+});
+
+describe("批量更新 移动端批量进行中", () => {
+  it("批量进行中卡片复选框与组头复选框一并禁用，和桌面一致", () => {
+    renderMobile({
+      site: "example.com",
+      updates: [mkItem({ uuid: "s1", siteMatch: true }), mkItem({ uuid: "o1" })],
+      batchBusy: true,
+      batchProgress: { done: 0, total: 1, failed: 0, finished: false },
+    });
+
+    for (const box of screen.getAllByRole("checkbox")) expect(box).toBeDisabled();
   });
 });

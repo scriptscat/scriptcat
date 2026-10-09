@@ -11,7 +11,15 @@ import {
   scriptClient,
 } from "@App/pages/store/features/script";
 import { subscribeMessage } from "@App/pages/store/global";
-import { assembleRecord, categorize, isRowInFlight, type BatchProgress, type RowState, type UpdateItem } from "./logic";
+import {
+  assembleRecord,
+  categorize,
+  isRowInFlight,
+  toggleGroup,
+  type BatchProgress,
+  type RowState,
+  type UpdateItem,
+} from "./logic";
 import type { BatchUpdateViewProps } from "./components";
 
 /** 服务端 onScriptUpdateCheck 广播的消息体 */
@@ -447,12 +455,11 @@ export function useBatchUpdate(): BatchUpdateViewProps {
     });
   }, []);
 
-  const onToggleAll = useCallback(() => {
-    setSelected((prev) => {
-      if (updates.length > 0 && updates.every((u) => prev.has(u.uuid))) return new Set();
-      return new Set(updates.map((u) => u.uuid));
-    });
-  }, [updates]);
+  const onToggleGroup = useCallback((uuids: string[]) => {
+    setSelected((prev) => toggleGroup(prev, uuids));
+  }, []);
+
+  const onToggleAll = useCallback(() => onToggleGroup(updates.map((u) => u.uuid)), [updates, onToggleGroup]);
 
   /**
    * 打开更新详情：服务端要先备好待安装代码才会开出安装页，这段等待期间必须挡住重复点击，
@@ -494,6 +501,7 @@ export function useBatchUpdate(): BatchUpdateViewProps {
   }, []);
 
   return {
+    site,
     updates,
     ignored,
     totalChecked: records.length,
@@ -510,6 +518,7 @@ export function useBatchUpdate(): BatchUpdateViewProps {
     recordExpired,
     onToggle,
     onToggleAll,
+    onToggleGroup,
     onUpdate,
     onIgnore,
     onRestore: onUpdate,

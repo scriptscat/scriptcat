@@ -2,7 +2,17 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { Script } from "@App/app/repo/scripts";
 import type { TBatchUpdateRecord, TBatchUpdateRecordObject } from "@App/app/service/service_worker/types";
-import { riskLevel, getSource, toUpdateItem, categorize, assembleRecord, formatSimilarity } from "./logic";
+import {
+  riskLevel,
+  getSource,
+  toUpdateItem,
+  categorize,
+  assembleRecord,
+  formatSimilarity,
+  splitBySite,
+  toggleGroup,
+  groupCheckState,
+} from "./logic";
 
 beforeAll(() => initTestLanguage("zh-CN"));
 
@@ -225,6 +235,58 @@ describe("formatSimilarity 相似度展示", () => {
   });
   it("0 显示为 0%", () => {
     expect(formatSimilarity(0)).toBe("0%");
+  });
+});
+
+describe("splitBySite 按当前站点拆成两段", () => {
+  it("有命中项时拆成「本站」与「其它」两段，各自保持原有顺序", () => {
+    const { updates } = categorize(
+      [
+        mkRecord({ uuid: "a", sites: ["other.com"] }),
+        mkRecord({ uuid: "b", sites: ["example.com"] }),
+        mkRecord({ uuid: "c", sites: [] }),
+        mkRecord({ uuid: "d", sites: ["example.com"] }),
+      ],
+      "example.com"
+    );
+    const groups = splitBySite(updates);
+    expect(groups?.site.map((u) => u.uuid)).toEqual(["b", "d"]);
+    expect(groups?.other.map((u) => u.uuid)).toEqual(["a", "c"]);
+  });
+  it("全部命中时「其它」为空", () => {
+    const { updates } = categorize([mkRecord({ uuid: "a", sites: ["example.com"] })], "example.com");
+    expect(splitBySite(updates)).toEqual({ site: updates, other: [] });
+  });
+  it("没有任何命中（含未传 site）时不分段", () => {
+    const records = [mkRecord({ uuid: "a", sites: ["other.com"] })];
+    expect(splitBySite(categorize(records, "example.com").updates)).toBeNull();
+    expect(splitBySite(categorize(records).updates)).toBeNull();
+  });
+});
+
+describe("toggleGroup 分组选择切换", () => {
+  it("组内未全选时补选整组，保留组外已选项", () => {
+    const next = toggleGroup(new Set(["x", "a"]), ["a", "b"]);
+    expect([...next].sort()).toEqual(["a", "b", "x"]);
+  });
+  it("组内已全选时只取消本组，组外已选项不受影响", () => {
+    const next = toggleGroup(new Set(["x", "a", "b"]), ["a", "b"]);
+    expect([...next]).toEqual(["x"]);
+  });
+  it("空组不改变选择", () => {
+    const prev = new Set(["x"]);
+    expect(toggleGroup(prev, [])).toBe(prev);
+  });
+});
+
+describe("groupCheckState 分组复选框状态", () => {
+  it("组内全选为 true、部分选为 indeterminate、一个没选为 false", () => {
+    expect(groupCheckState(["a", "b"], new Set(["a", "b", "x"]))).toBe(true);
+    expect(groupCheckState(["a", "b"], new Set(["a"]))).toBe("indeterminate");
+    expect(groupCheckState(["a", "b"], new Set(["x"]))).toBe(false);
+  });
+  it("空组视为未选", () => {
+    expect(groupCheckState([], new Set(["x"]))).toBe(false);
   });
 });
 
