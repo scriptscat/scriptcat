@@ -169,11 +169,75 @@ jobs:
       - name: Upload coverage reports to Codecov with GitHub Action
         uses: codecov/codecov-action@v5
 
+  # 运行时启动链路一旦断掉，所有 E2E 都会等到超时才失败；先用单个用例在几秒内暴露，失败时不再启动 E2E 分片。
+  runtime-smoke:
+    runs-on: ubuntu-latest
+    name: Runtime smoke
+    steps:
+      - uses: actions/checkout@v6
+      - name: Use Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
+        run: |
+          corepack enable
+          corepack install
+          pnpm --version
+
+      - name: Get pnpm store path
+        id: pnpm-store
+        shell: bash
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('package.json', 'pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-
+
+      - name: Install dependencies
+        run: pnpm i --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-
+
+      - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm test:e2e:install
+
+      - name: Build extension
+        run: pnpm build
+
+      - name: Run runtime smoke
+        run: pnpm run test:runtime-smoke
+
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: runtime-smoke-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 14
+
   e2e:
     runs-on: ubuntu-latest
     name: Run E2E tests (${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
-    needs: [lint, test-shards]
-    if: ${{ needs.lint.result == 'success' && needs.test-shards.result == 'success' }}
+    needs: [lint, test-shards, runtime-smoke]
+    if: ${{ needs.lint.result == 'success' && needs.test-shards.result == 'success' && needs.runtime-smoke.result == 'success' }}
     strategy:
       fail-fast: false
       matrix:
