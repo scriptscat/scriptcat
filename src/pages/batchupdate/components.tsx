@@ -26,6 +26,7 @@ import { StateScreen } from "@App/pages/components/ui/state-screen";
 import { DataPanel } from "@App/pages/components/ui/data-panel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
+import { formatSimilarity } from "./logic";
 import type { BatchProgress, RowState, UpdateItem, UpdateRisk } from "./logic";
 
 /** 批量更新视图（桌面/移动共用）所需的数据与回调 */
@@ -117,7 +118,7 @@ const RISK_KEY: Record<UpdateRisk, string> = {
 export function RiskBadge({ risk, similarity }: { risk: UpdateRisk; similarity: number }) {
   const { t } = useTranslation();
   return (
-    <HoverTip content={`${t("install:updatepage.similarity")} ${Math.round(similarity * 100)}%`}>
+    <HoverTip content={`${t("install:updatepage.similarity")} ${formatSimilarity(similarity)}`}>
       <span className={cn(PILL, RISK_CLASS[risk], "cursor-default")}>{t(`install:updatepage.${RISK_KEY[risk]}`)}</span>
     </HoverTip>
   );

@@ -71,6 +71,14 @@ export function riskLevel(similarity: number): UpdateRisk {
   return "tiny";
 }
 
+/**
+ * 相似度展示为向下取整的百分比：只有真正等于 1 才显示 100%，避免 0.999 被四舍五入成 100% 却标着「轻微改动」。
+ * 加一个极小量是为了抵消浮点误差（0.29 * 100 = 28.999…），否则会少算一档。
+ */
+export function formatSimilarity(similarity: number): string {
+  return `${Math.floor(similarity * 100 + 1e-9)}%`;
+}
+
 export function getSource(record: TBatchUpdateRecord): string {
   if (!record.checkUpdate) return "";
   if (record.script.originDomain) return record.script.originDomain;

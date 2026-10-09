@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { Script } from "@App/app/repo/scripts";
 import type { TBatchUpdateRecord, TBatchUpdateRecordObject } from "@App/app/service/service_worker/types";
-import { riskLevel, getSource, toUpdateItem, categorize, assembleRecord } from "./logic";
+import { riskLevel, getSource, toUpdateItem, categorize, assembleRecord, formatSimilarity } from "./logic";
 
 beforeAll(() => initTestLanguage("zh-CN"));
 
@@ -207,6 +207,24 @@ describe("categorize 记录分组为更新/已忽略", () => {
     const { updates, ignored } = categorize(records, "example.com");
     expect(updates.map((u) => u.uuid)).toEqual(["a"]);
     expect(ignored.map((u) => u.uuid)).toEqual(["b"]);
+  });
+});
+
+describe("formatSimilarity 相似度展示", () => {
+  it("向下取整为百分比，不足 1 的分数永远不显示 100%", () => {
+    expect(formatSimilarity(0.999)).toBe("99%");
+    expect(formatSimilarity(0.995)).toBe("99%");
+    expect(formatSimilarity(0.95)).toBe("95%");
+  });
+  it("恰好为 1 时显示 100%", () => {
+    expect(formatSimilarity(1)).toBe("100%");
+  });
+  it("不被浮点误差少算一档（0.29 × 100 = 28.999…）", () => {
+    expect(formatSimilarity(0.29)).toBe("29%");
+    expect(formatSimilarity(0.57)).toBe("57%");
+  });
+  it("0 显示为 0%", () => {
+    expect(formatSimilarity(0)).toBe("0%");
   });
 });
 
