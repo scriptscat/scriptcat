@@ -178,6 +178,30 @@ describe("批量更新 Hook useBatchUpdate 站点优先级(?site=)", () => {
     await waitFor(() => expect(result.current.updates).toHaveLength(2));
     expect(result.current.updates.map((u) => u.uuid)).toEqual(["a", "b"]);
     expect(result.current.updates.every((u) => u.siteMatch === false)).toBe(true);
+    expect(result.current.site).toBe("");
+  });
+
+  it("把 site 交给视图，组头切换只增删本组的选择", async () => {
+    window.history.replaceState({}, "", "/?site=example.com");
+
+    const { result } = renderHook(() => useBatchUpdate());
+    await act(async () => {});
+    await runCheck([
+      mkRecord("a", "1.1.0", ["example.com"]),
+      mkRecord("b", "1.1.0", ["example.com"]),
+      mkRecord("c", "1.1.0", ["other.com"]),
+    ]);
+    await waitFor(() => expect(result.current.updates).toHaveLength(3));
+    expect(result.current.site).toBe("example.com");
+
+    act(() => result.current.onToggle("c"));
+    act(() => result.current.onToggleGroup(["a", "b"]));
+    expect([...result.current.selected].sort()).toEqual(["a", "b", "c"]);
+
+    act(() => result.current.onToggleGroup(["a", "b"]));
+    expect([...result.current.selected]).toEqual(["c"]);
+
+    window.history.replaceState({}, "", "/");
   });
 });
 
