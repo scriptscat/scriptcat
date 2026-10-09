@@ -173,13 +173,6 @@ export class Server {
     this.apiFunctionMap.set(name, func);
   }
 
-  replace(name: string, func: ApiFunction) {
-    if (!this.apiFunctionMap.has(name)) {
-      throw new Error(`cannot replace unregistered message handler: ${this.prefix}/${name}`);
-    }
-    this.apiFunctionMap.set(name, func);
-  }
-
   private connectHandle(msg: string, params: any, con: MessageConnect) {
     const func = this.apiFunctionMap.get(msg);
     if (func) {
@@ -270,29 +263,30 @@ export class Group {
     return newGroup;
   }
 
-  private wrap(func: ApiFunction): ApiFunction {
-    if (this.middlewares.length === 0) return func;
-    return async (params: any, con: IGetSender) => {
-      let index = 0;
-
-      const next = async (): Promise<any> => {
-        if (index < this.middlewares.length) {
-          const middleware = this.middlewares[index++];
-          return await middleware(params, con, next);
-        }
-        return await func(params, con);
-      };
-
-      return await next();
-    };
-  }
-
   on(name: string, func: ApiFunction) {
-    this.server.on(`${this.name}${name}`, this.wrap(func));
-  }
+    const fullName = `${this.name}${name}`;
 
-  replace(name: string, func: ApiFunction) {
-    this.server.replace(`${this.name}${name}`, this.wrap(func));
+    if (this.middlewares.length === 0) {
+      // 没有中间件，直接注册
+      this.server.on(fullName, func);
+    } else {
+      // 有中间件，需要包装处理函数
+      this.server.on(fullName, async (params: any, con: IGetSender) => {
+        let index = 0;
+
+        const next = async (): Promise<any> => {
+          if (index < this.middlewares.length) {
+            const middleware = this.middlewares[index++];
+            return await middleware(params, con, next);
+          } else {
+            // 所有中间件都执行完毕，执行最终的处理函数
+            return await func(params, con);
+          }
+        };
+
+        return await next();
+      });
+    }
   }
 }
 

@@ -36,26 +36,17 @@ afterEach(() => {
 
 describe("Server", () => {
   describe("基本功能测试 1", () => {
-    it("应该要求显式替换已经注册的消息处理器", async () => {
+    it("重复注册同一消息处理器时应该抛错并保留原处理器", async () => {
       const first = vi.fn().mockReturnValue("first");
       const second = vi.fn().mockReturnValue("second");
       server.on("handler", first);
 
       expect(() => server.on("handler", second)).toThrow("duplicate message handler: api/handler");
 
-      server.replace("handler", second);
-
       const response = await client.sendMessage({ action: "api/handler", data: {} });
 
-      expect(response.data).toBe("second");
-      expect(first).not.toHaveBeenCalled();
-      expect(second).toHaveBeenCalledOnce();
-    });
-
-    it("应该拒绝替换未注册的消息处理器", () => {
-      expect(() => server.replace("missing", vi.fn())).toThrow(
-        "cannot replace unregistered message handler: api/missing"
-      );
+      expect(response.data).toBe("first");
+      expect(second).not.toHaveBeenCalled();
     });
 
     it.concurrent("应该能够注册和调用 API", async () => {
@@ -304,32 +295,14 @@ describe("Server", () => {
       expect(handler).toHaveBeenCalledTimes(1);
     });
 
-    it("Group 替换处理器时应该保留中间件并要求显式 replace", async () => {
-      const executionOrder: string[] = [];
-      const middleware = vi.fn(async (_params: any, _con: any, next: any) => {
-        executionOrder.push("middleware");
-        return await next();
-      });
-      const group = server.group("api", middleware);
-      const first = vi.fn(() => {
-        executionOrder.push("first");
-        return "first";
-      });
-      const second = vi.fn(() => {
-        executionOrder.push("second");
-        return "second";
-      });
+    it("Group 重复注册同一消息处理器时应该抛错", () => {
+      const group = server.group(
+        "api",
+        vi.fn(async (_params: any, _con: any, next: any) => await next())
+      );
+      group.on("duplicate-test", vi.fn());
 
-      group.on("replace-test", first);
-      expect(() => group.on("replace-test", second)).toThrow("duplicate message handler: api/api/replace-test");
-
-      group.replace("replace-test", second);
-      const response = await client.sendMessage({ action: "api/api/replace-test", data: {} });
-
-      expect(response.data).toBe("second");
-      expect(executionOrder).toEqual(["middleware", "second"]);
-      expect(first).not.toHaveBeenCalled();
-      expect(second).toHaveBeenCalledOnce();
+      expect(() => group.on("duplicate-test", vi.fn())).toThrow("duplicate message handler: api/api/duplicate-test");
     });
 
     it("子 Group 应该继承父 Group 的中间件", async () => {
