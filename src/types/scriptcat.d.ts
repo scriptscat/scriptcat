@@ -44,6 +44,8 @@ declare const GM_info: {
   scriptMetaStr?: string;
   userConfig?: UserConfig;
   userConfigStr?: string;
+  /** UUID of the current script, stable across updates (same as Violentmonkey). */
+  uuid: string;
   /** Whether running in an incognito/private window. */
   isIncognito: boolean;
   /** Sandbox mode (ScriptCat always uses `"raw"`). */
