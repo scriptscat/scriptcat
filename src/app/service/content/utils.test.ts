@@ -551,6 +551,15 @@ describe("utils", () => {
 
       expect(trimScriptInfo(script).scriptRevision).toBe("compiled-revision");
     });
+
+    it("does not expose service-worker URL-pattern bookkeeping to the page bridge", () => {
+      const script = createScript({}, []) as ScriptLoadInfo & { originalUrlPatterns?: unknown };
+      script.originalUrlPatterns = [];
+
+      const trimmed = trimScriptInfo(script);
+
+      expect(Object.hasOwn(trimmed, "originalUrlPatterns")).toBe(false);
+    });
   });
 
   describe("compileScript", () => {

@@ -618,6 +618,10 @@ export class PopupService {
 
   async addScriptRunNumber(o: TPopupPageLoadInfo) {
     const { tabId, frameId, scriptmenus } = o;
+    // tabScript:-1 是后台脚本的命名空间，只允许后台脚本的 install/enable/runStatus 事件写入。
+    // 页面执行计数若落到 tabId <= 0，frameId 为 0 时还会先清空整个列表（#1774）；生产者（RuntimeService.pageLoad）已过滤，这里是第二道防线。
+    // 写成 !(tabId > 0) 而非 tabId <= 0：undefined / NaN 这类越过类型的运行时数据同样要拒绝。
+    if (!(tabId > 0)) return;
     // 设置数据
     await cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${tabId}`, (data: ScriptMenu[] | undefined, tx) => {
       const isPrevDataEmpty = !data?.length;

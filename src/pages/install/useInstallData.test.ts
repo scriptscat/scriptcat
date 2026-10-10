@@ -539,6 +539,29 @@ describe("useInstallData 数据流编排", () => {
     expect(result.current.localFile).toBe(false);
   });
 
+  // #1785：DNR 把网页上的 .user.js 链接重定向到 ?url= 入口，上游改名后按名称找不到旧脚本，
+  // 只有网页来源的身份匹配(按下载地址 + 拉 meta 校验)能认出它，否则会被当成新脚本重复安装。
+  it("?url= 入口启用网页来源身份匹配，上游改名的脚本显示为更新", async () => {
+    window.history.replaceState({}, "", "/install.html?url=https://e.com/x.user.js");
+    const metadata = { name: ["新名"], version: ["2.0.0"] };
+    (fetchScriptBody as Mock).mockResolvedValue("// url code");
+    (parseMetadata as Mock).mockReturnValue(metadata);
+    const oldScript = { uuid: "old-uuid", name: "旧名", metadata: { name: ["旧名"], version: ["1.0.0"] } };
+    (prepareScriptByCode as Mock).mockImplementation(
+      async (_code: string, _url: string, _uuid?: string, _override?: boolean, _dao?: unknown, options?: object) =>
+        options && "byWebRequest" in options && options.byWebRequest
+          ? { script: { ...makeAction(metadata), uuid: "old-uuid" }, oldScript, oldScriptCode: "// old" }
+          : { script: { ...makeAction(metadata), uuid: "new-uuid" } }
+    );
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+    const state = result.current.state;
+    if (state.status !== "ready") throw new Error("not ready");
+    expect(state.view.isUpdate).toBe(true);
+    expect(state.view.version).toEqual({ kind: "update", oldVersion: "1.0.0", newVersion: "2.0.0", changed: true });
+  });
+
   it("?url= 下载过程中在 loading 状态展示已接收字节与百分比", async () => {
     window.history.replaceState({}, "", "/install.html?url=https://e.com/x.user.js");
     const metadata = { name: ["URL脚本"], version: ["1.0.0"] };

@@ -117,6 +117,19 @@ describe("Server", () => {
   });
 
   describe("基本功能测试 1", () => {
+    it("重复注册同一消息处理器时应该抛错并保留原处理器", async () => {
+      const first = vi.fn().mockReturnValue("first");
+      const second = vi.fn().mockReturnValue("second");
+      server.on("handler", first);
+
+      expect(() => server.on("handler", second)).toThrow("duplicate message handler: api/handler");
+
+      const response = await client.sendMessage({ action: "api/handler", data: {} });
+
+      expect(response.data).toBe("first");
+      expect(second).not.toHaveBeenCalled();
+    });
+
     it.concurrent("应该能够注册和调用 API", async () => {
       const mockHandler = vi.fn().mockResolvedValue("test response");
 
@@ -361,6 +374,16 @@ describe("Server", () => {
       expect(middleware1).toHaveBeenCalledTimes(1);
       expect(middleware2).toHaveBeenCalledTimes(1);
       expect(handler).toHaveBeenCalledTimes(1);
+    });
+
+    it("Group 重复注册同一消息处理器时应该抛错", () => {
+      const group = server.group(
+        "api",
+        vi.fn(async (_params: any, _con: any, next: any) => await next())
+      );
+      group.on("duplicate-test", vi.fn());
+
+      expect(() => group.on("duplicate-test", vi.fn())).toThrow("duplicate message handler: api/api/duplicate-test");
     });
 
     it("子 Group 应该继承父 Group 的中间件", async () => {

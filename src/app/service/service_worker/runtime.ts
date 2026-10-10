@@ -2142,12 +2142,16 @@ export class RuntimeService {
     // 即使新 URL 没有匹配脚本也要退休旧绑定，关闭不提供 documentId 的浏览器复用窗口。
     this.revokePageBindings(sender, data?.envTag);
 
-    this.mq.emit<TPopupPageLoadInfo>("popupPageLoadUpdate", {
-      tabId: tabId,
-      frameId: frameId,
-      url: url,
-      scriptmenus: res?.scriptmenus || [], // 对于 popup, resources那些不需要
-    });
+    // 页面可能不属于任何标签页（sender.tab 缺失或为 TAB_ID_NONE），脚本照常下发，但不能记运行计数：
+    // 弹窗把 tabId -1 当作后台脚本的命名空间，记进去普通脚本就会混进后台脚本列表（#1774）。
+    if (tabId > 0) {
+      this.mq.emit<TPopupPageLoadInfo>("popupPageLoadUpdate", {
+        tabId: tabId,
+        frameId: frameId,
+        url: url,
+        scriptmenus: res?.scriptmenus || [], // 对于 popup, resources那些不需要
+      });
+    }
 
     if (res) {
       const prepareScripts = (scripts: TScriptInfo[], envTag: "it" | "ct") =>

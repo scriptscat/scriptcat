@@ -2,7 +2,7 @@ import { initTestEnv } from "@Tests/utils";
 import { RuntimeService } from "./runtime";
 import { vi, describe, it, expect, beforeEach, afterEach, type MockedFunction } from "vitest";
 import { randomUUID } from "crypto";
-import type { Script, ScriptRunResource } from "@App/app/repo/scripts";
+import type { Script, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import {
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
@@ -23,6 +23,7 @@ import type { MessageConnect, TMessage } from "@Packages/message/types";
 import { getStorageName, obtainBlackList } from "@App/pkg/utils/utils";
 import { CompiledResourceNamespace, type CompiledResource, type Resource } from "@App/app/repo/resource";
 import { encodeRValue } from "@App/pkg/utils/message_value";
+import { trimScriptInfo } from "@App/app/service/content/utils";
 
 initTestEnv();
 
@@ -946,6 +947,19 @@ const _createRuntimeContext = () => {
   return { runtime, mockSystemConfig, mockScriptService, mockScriptDAO, mockGroup };
 };
 
+const _createPageLoadScriptInfo = (
+  runtime: RuntimeService,
+  scriptRes: ScriptRunResource,
+  cache: Record<string, unknown>
+) => {
+  const createPageLoadScriptInfo = (
+    runtime as unknown as {
+      createPageLoadScriptInfo: (scriptRes: ScriptRunResource, cache: Record<string, unknown>) => ScriptLoadInfo;
+    }
+  ).createPageLoadScriptInfo.bind(runtime);
+  return createPageLoadScriptInfo(scriptRes, cache);
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("shouldSkipPageLoadScript 页面脚本加载过滤规则", () => {
@@ -1093,13 +1107,53 @@ describe("page-load resource cache", () => {
       localResources: [],
     };
 
-    const pageInfo = (runtime as any).createPageLoadScriptInfo(scriptRes, cache);
+    const pageInfo = _createPageLoadScriptInfo(runtime, scriptRes, cache);
 
-    expect(pageInfo.resourceByType.require[sharedKey].content).toBe("require content");
-    expect(pageInfo.resourceByType["require-css"][sharedKey].content).toBe("css content");
-    expect(pageInfo.resourceByType.resource[sharedKey].content).toBe("resource content");
+    expect(pageInfo.resourceByType!.require[sharedKey].content).toBe("require content");
+    expect(pageInfo.resourceByType!["require-css"][sharedKey].content).toBe("css content");
+    expect(pageInfo.resourceByType!.resource[sharedKey].content).toBe("resource content");
     expect(pageInfo.resource[sharedKey].content).toBe("resource content");
     expect(pageInfo.scriptRevision).toBe("compiled-revision");
+  });
+
+  it("keeps the service-worker page-load producer within the page bridge DTO", () => {
+    const { runtime } = _createRuntimeContext();
+    const scriptRes = _createScriptRunResource(_createMockScript());
+    const cache = {
+      scriptCacheKey: "cache-key",
+      code: "console.log(1)",
+      scriptUrlPatterns: [],
+      originalUrlPatterns: [],
+      metadataStr: "",
+      userConfigStr: "",
+      userConfig: undefined,
+      resourceByType: { require: {}, "require-css": {}, resource: {} },
+      localResources: [],
+    };
+
+    const pageInfo = _createPageLoadScriptInfo(runtime, scriptRes, cache);
+    const trimmed = trimScriptInfo(pageInfo as ScriptLoadInfo);
+
+    expect(Object.keys(trimmed).sort()).toEqual(
+      [
+        "checktime",
+        "code",
+        "createtime",
+        "flag",
+        "metadata",
+        "metadataStr",
+        "name",
+        "namespace",
+        "resource",
+        "requireCssResource",
+        "scriptRevision",
+        "scriptUrlPatterns",
+        "userConfig",
+        "userConfigStr",
+        "uuid",
+        "value",
+      ].sort()
+    );
   });
 });
 
@@ -1951,6 +2005,61 @@ describe("USER_SCRIPT native callbacks", () => {
     (runtime as any).revokePageBindingsForScript("content-script");
     expect(connection.disconnect).toHaveBeenCalledWith(true);
     expect((runtime as any).userScriptConnections.size).toBe(0);
+  });
+});
+
+// 弹窗把 tabId -1 当作「后台脚本」命名空间；不属于任何标签页的页面若也记到 -1，
+// 普通脚本就会出现在「开启和运行的后台脚本」里（#1774）。
+describe("pageLoad 页面运行计数只记到真实标签页", () => {
+  const pageUrl = "https://www.example.com/page";
+  const scriptsForTab = {
+    injectScriptList: [],
+    contentScriptList: [],
+    envInfo: {},
+    scriptmenus: [],
+  } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>;
+  const popupPageLoadEmits = (emit: ReturnType<typeof vi.fn>) =>
+    emit.mock.calls.filter(([topic]) => topic === "popupPageLoadUpdate");
+
+  it.each([
+    ["没有 tab", {}],
+    ["tab.id 为 TAB_ID_NONE(-1)", { tab: { id: -1 } }],
+  ])("%s 时照常下发脚本，但不记入任何标签页的运行计数", async (_label, senderTab) => {
+    const { runtime, mockGroup } = _createRuntimeContext();
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue(scriptsForTab);
+
+    const res = await runtime.pageLoad(
+      undefined,
+      new SenderRuntime({
+        id: "scriptcat-test",
+        url: pageUrl,
+        frameId: 0,
+        ...senderTab,
+      } as chrome.runtime.MessageSender)
+    );
+
+    expect(res.ok).toBe(true);
+    expect(popupPageLoadEmits(mockGroup.emit)).toEqual([]);
+  });
+
+  it("真实标签页照常记入该标签页", async () => {
+    const tabId = 11;
+    const { runtime, mockGroup } = _createRuntimeContext();
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue(scriptsForTab);
+
+    await runtime.pageLoad(
+      undefined,
+      new SenderRuntime({
+        id: "scriptcat-test",
+        url: pageUrl,
+        frameId: 0,
+        tab: { id: tabId, incognito: false },
+      } as chrome.runtime.MessageSender)
+    );
+
+    expect(popupPageLoadEmits(mockGroup.emit)).toEqual([
+      ["popupPageLoadUpdate", { tabId, frameId: 0, url: pageUrl, scriptmenus: [] }],
+    ]);
   });
 });
 

@@ -273,6 +273,110 @@ describe("PopupService addScriptRunNumber 页面脚本执行计数", () => {
     expect(mA?.runNum).toBe(2);
     expect(mB?.runNum).toBe(4);
   });
+
+  // tabScript:-1 是后台脚本的命名空间。旧实现在 frameId 为 0 时会先清空列表，所以不止「多出一个普通脚本」，
+  // 还会把真正的后台脚本整批挤掉（#1774）。
+  it.each([-1, 0])("tabId 为 %i（非真实标签页）时不得改动 tabScript:-1 缓存", async (tabId) => {
+    const backgroundMenu = createMenu("bg-script", { runNum: 1, runStatus: SCRIPT_RUN_STATUS_RUNNING });
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${-1}`, [backgroundMenu]);
+    const { service } = createService();
+
+    for (const frameId of [0, undefined, 3]) {
+      await service.addScriptRunNumber({
+        tabId,
+        frameId,
+        url: "https://example.com/",
+        scriptmenus: [createMenu("normal-script", { runNum: 0 })],
+      });
+    }
+
+    await expect(service.getScriptMenu(-1)).resolves.toEqual([backgroundMenu]);
+    await expect(service.getScriptMenu(tabId)).resolves.toEqual(tabId === -1 ? [backgroundMenu] : []);
+  });
+
+  // 消息/事件边界的运行时数据不一定符合类型，undefined / NaN 也不能落成 tabScript:undefined / tabScript:NaN。
+  it.each([undefined, Number.NaN])("tabId 为 %s（越过类型的运行时数据）时不写入任何 tabScript 缓存", async (tabId) => {
+    const { service } = createService();
+
+    await service.addScriptRunNumber({
+      tabId: tabId as never,
+      frameId: 0,
+      url: "https://example.com/",
+      scriptmenus: [createMenu("normal-script", { runNum: 0 })],
+    });
+
+    const keys = await cacheInstance.list();
+    expect(keys.filter((key) => key.startsWith(CACHE_KEY_TAB_SCRIPT))).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("PopupService tabScript:-1 命名空间契约：页面事件不得触碰后台脚本列表", () => {
+  const backgroundUuid = "bg-script";
+  const normalUuid = "normal-script";
+  const backgroundScript = createScript(backgroundUuid, { type: SCRIPT_TYPE_BACKGROUND });
+  const normalScript = createScript(normalUuid, { type: SCRIPT_TYPE_NORMAL });
+  const byUuid = (uuid: string) => [backgroundScript, normalScript].find((script) => script.uuid === uuid);
+
+  beforeEach(async () => {
+    await cacheInstance.clear();
+  });
+
+  it("无标签页的页面加载、iframe、菜单注册/注销、启停与运行状态事件之后，tabScript:-1 仍只含后台脚本", async () => {
+    const { service, subscriptions } = createService({
+      scriptDAO: {
+        get: vi.fn(async (uuid: string) => byUuid(uuid)),
+        gets: vi.fn(async (uuids: string[]) => uuids.map(byUuid)),
+      },
+    });
+    service.dealBackgroundScriptInstall();
+    const [installHandler] = subscriptions.get("installScript") || [];
+    await installHandler!({
+      script: backgroundScript,
+      update: false,
+    } as TInstallScript);
+    // session 缓存的读取不拷贝，直接持有引用的话原地修改会连 expected 一起改掉，断言恒真。
+    const expected = structuredClone(await service.getScriptMenu(-1));
+    expect(expected.map((menu) => menu.uuid)).toEqual([backgroundUuid]);
+
+    const expectNamespaceUntouched = async () => {
+      await flushAsync();
+      await expect(service.getScriptMenu(-1)).resolves.toEqual(expected);
+    };
+
+    // 无标签页的主 frame / iframe / tabId 0 页面加载
+    for (const tabId of [-1, 0]) {
+      for (const frameId of [0, 2]) {
+        await service.addScriptRunNumber({
+          tabId,
+          frameId,
+          url: "https://example.com/",
+          scriptmenus: [createMenu(normalUuid, { runNum: 0 })],
+        });
+        await expectNamespaceUntouched();
+      }
+    }
+
+    // 普通脚本在无标签页页面里的 GM_registerMenuCommand / GM_unregisterMenuCommand（tabId 会落成 -1）
+    const menuMessage = { uuid: normalUuid, key: "menu", name: "Menu", options: {}, tabId: -1 };
+    await (service as any).updateRegisterMenuCommand(menuMessage, 1 /* REGISTER */);
+    await expectNamespaceUntouched();
+    await (service as any).updateRegisterMenuCommand(menuMessage, 2 /* UNREGISTER */);
+    await expectNamespaceUntouched();
+
+    // 普通脚本的启用 / 禁用 / 运行状态事件
+    const [enableHandler] = subscriptions.get("enableScripts") || [];
+    await enableHandler!([{ uuid: normalUuid, enable: true }] satisfies TEnableScript[]);
+    await expectNamespaceUntouched();
+    await enableHandler!([{ uuid: normalUuid, enable: false }] satisfies TEnableScript[]);
+    await expectNamespaceUntouched();
+    const [runStatusHandler] = subscriptions.get("scriptRunStatus") || [];
+    runStatusHandler!({ uuid: normalUuid, runStatus: SCRIPT_RUN_STATUS_RUNNING } satisfies TScriptRunStatus);
+    await expectNamespaceUntouched();
+    runStatusHandler!({ uuid: normalUuid, runStatus: SCRIPT_RUN_STATUS_COMPLETE } satisfies TScriptRunStatus);
+    await expectNamespaceUntouched();
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ import { ScriptEnvTag } from "@Packages/message/consts";
 import { embeddedPatternCheckerString, type EmbeddedURLRuleEntry, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseResourceDeclaration } from "@App/pkg/utils/resource";
 import { getGrantCandidates } from "./gm_api/grant";
+import { pickPageLoadScriptFields } from "./page_load_contract";
 import { customClone, Native, nativeCall } from "./global";
 
 const cloneTransportValue = (value: any) => {
@@ -277,12 +278,12 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
     }
   }
   // --- 处理 resource ---
-  // --- 处理 scriptInfo ---
   const metadata = Object.fromEntries(
     Object.entries(script.metadata).map(([key, values]) => [key, Array.isArray(values) ? [...values] : values])
   );
-  const scriptInfo = {
-    ...script,
+  // pageLoad 跨上下文只允许显式列出的字段，新增内部字段不会自动进入页面桥。
+  // 绑定令牌（executionHandle 等）不在白名单内，只由 pageLoad 认证后附加，这里不会带出。
+  return pickPageLoadScriptFields(script, {
     scriptRevision: script.scriptRevision ?? `${script.uuid}:${script.createtime}:${script.updatetime || 0}`,
     metadata,
     value: cloneTransportValue(script.value) ?? {},
@@ -290,28 +291,7 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
     resource,
     requireCssResource,
     code: "",
-  } as TScriptInfo;
-  // 删除其他不需要注入的 script 信息
-  delete scriptInfo.originalMetadata;
-  delete scriptInfo.selfMetadata;
-  delete scriptInfo.lastruntime;
-  delete scriptInfo.nextruntime;
-  delete scriptInfo.ignoreVersion; // UserScript 里面不需要知道用户有没有在更新时忽略
-  delete scriptInfo.sort; // UserScript 里面不需要知道用户如何 sort
-  delete scriptInfo.error;
-  delete scriptInfo.resourceByType;
-  delete scriptInfo.subscribeUrl; // UserScript 里面不需要知道用户从何处订阅
-  delete scriptInfo.originDomain; // 脚本来源域名
-  delete scriptInfo.origin; // 脚本来源
-  delete scriptInfo.runStatus; // 前台脚本不用
-  delete scriptInfo.type; // 脚本类型总是普通脚本
-  delete scriptInfo.status; // 脚本状态总是启用
-  delete scriptInfo.executionHandle;
-  delete scriptInfo.executionEnvTag;
-  // 这些绑定令牌只在隔离 broker 内有效，不能随脚本资料暴露给页面或 USER_SCRIPT。
-  delete scriptInfo.executionRunFlag;
-  // --- 处理 scriptInfo ---
-  return scriptInfo;
+  });
 };
 
 /**

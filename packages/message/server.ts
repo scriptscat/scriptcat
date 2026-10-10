@@ -219,6 +219,9 @@ export class Server {
   }
 
   on(name: string, func: ApiFunction) {
+    if (this.apiFunctionMap.has(name)) {
+      throw new Error(`duplicate message handler: ${this.prefix}/${name}`);
+    }
     this.apiFunctionMap.set(name, func);
   }
 
