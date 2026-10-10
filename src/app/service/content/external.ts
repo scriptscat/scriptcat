@@ -14,10 +14,12 @@ const isExternalWhitelisted = (hostname: string) => {
 };
 
 // 生成暴露给页面的 Scriptcat 外部接口
-const createScriptcatExpose = (msg: Message) => {
+const createScriptcatExpose = (msg: Message, messagePrefix: string) => {
   const scriptExpose: App.ExternalScriptCat = {
     isInstalled(name: string, namespace: string, callback: (res: App.IsInstalledResponse | undefined) => unknown) {
-      sendMessage<App.IsInstalledResponse>(msg, "scripting/script/isInstalled", { name, namespace }).then(callback);
+      sendMessage<App.IsInstalledResponse>(msg, `${messagePrefix}/script/isInstalled`, { name, namespace }).then(
+        callback
+      );
     },
   };
   return scriptExpose;
@@ -63,7 +65,7 @@ const patchTampermonkeyIsInstalled = (external: any, scriptExpose: App.ExternalS
 };
 
 // inject 环境 pageLoad 后执行：按白名单对页面注入 external 接口
-export const onInjectPageLoaded = (msg: Message) => {
+export const onInjectPageLoaded = (msg: Message, messagePrefix = "scripting") => {
   const hostname = window.location.hostname;
 
   // 不在白名单则不对外暴露接口
@@ -73,7 +75,7 @@ export const onInjectPageLoaded = (msg: Message) => {
   const external: External = (window.external || (window.external = {} as External)) as External;
 
   // 创建 Scriptcat 暴露对象
-  const scriptExpose = createScriptcatExpose(msg);
+  const scriptExpose = createScriptcatExpose(msg, messagePrefix);
 
   // 尝试设置 external.Scriptcat
   safeSetExternal(external, "Scriptcat", scriptExpose);

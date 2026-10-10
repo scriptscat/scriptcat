@@ -352,8 +352,8 @@ export class AgentService {
   }
 
   // 处理定时任务 API 请求，供 GMApi 调用
-  async handleAgentTaskApi(params: AgentTaskApiRequest) {
-    return this.agentTaskService.handleAgentTask(params);
+  async handleAgentTaskApi(params: AgentTaskApiRequest, ownerScriptUuid?: string) {
+    return this.agentTaskService.handleAgentTask(params, ownerScriptUuid);
   }
 
   // 处理 CAT.agent.model API 请求，委托给 AgentModelService
@@ -386,7 +386,7 @@ export class AgentService {
 
   // 附加到后台运行会话，供 GMApi 调用
   async handleAttachToConversationFromGmApi(
-    params: { conversationId: string; generation?: string },
+    params: { conversationId: string; generation?: string; scriptUuid: string },
     sender: IGetSender
   ) {
     return this.handleAttachToConversation(params, sender);
@@ -399,7 +399,7 @@ export class AgentService {
 
   // 附加到后台运行中的会话（委托给 BackgroundSessionManager）
   private async handleAttachToConversation(
-    params: { conversationId: string; generation?: string },
+    params: { conversationId: string; generation?: string; scriptUuid?: string },
     sender: IGetSender
   ) {
     return this.bgSessionManager.handleAttach(params, sender);

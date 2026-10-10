@@ -265,17 +265,38 @@ export class AgentTaskService {
     };
   }
 
+  private taskBelongsTo(task: AgentTask, ownerScriptUuid: string): boolean {
+    return (
+      task.ownerScriptUuid === ownerScriptUuid ||
+      (task.ownerScriptUuid === undefined && task.mode === "event" && task.sourceScriptUuid === ownerScriptUuid)
+    );
+  }
+
+  private assertTaskAccess(task: AgentTask | undefined, ownerScriptUuid: string | undefined): AgentTask {
+    if (!task || (ownerScriptUuid !== undefined && !this.taskBelongsTo(task, ownerScriptUuid))) {
+      throw new Error("Task not found");
+    }
+    return task;
+  }
+
   // 处理定时任务 CRUD 及 run 操作
-  async handleAgentTask(params: AgentTaskApiRequest): Promise<unknown> {
+  async handleAgentTask(params: AgentTaskApiRequest, ownerScriptUuid?: string): Promise<unknown> {
     switch (params.action) {
-      case "list":
-        return this.taskRepo.listTasks();
-      case "get":
-        return this.taskRepo.getTask(params.id);
+      case "list": {
+        const tasks = await this.taskRepo.listTasks();
+        return ownerScriptUuid === undefined
+          ? tasks
+          : tasks.filter((task) => this.taskBelongsTo(task, ownerScriptUuid));
+      }
+      case "get": {
+        const task = await this.taskRepo.getTask(params.id);
+        return this.assertTaskAccess(task, ownerScriptUuid);
+      }
       case "create": {
         const now = Date.now();
         const task = {
           ...params.task,
+          ownerScriptUuid,
           id: uuidv4(),
           createtime: now,
           updatetime: now,
@@ -300,11 +321,11 @@ export class AgentTaskService {
         return this.taskRepo.createTask(task);
       }
       case "update": {
-        const existing = await this.taskRepo.getTask(params.id);
-        if (!existing) throw new Error("Task not found");
+        const existing = this.assertTaskAccess(await this.taskRepo.getTask(params.id), ownerScriptUuid);
         const updated = {
           ...existing,
           ...params.task,
+          ownerScriptUuid: existing.ownerScriptUuid ?? ownerScriptUuid,
           id: params.id,
           generation: params.generation,
           revision: params.revision,
@@ -332,17 +353,17 @@ export class AgentTaskService {
         return this.taskRepo.saveTask(updated);
       }
       case "delete": {
+        const task = this.assertTaskAccess(await this.taskRepo.getTask(params.id), ownerScriptUuid);
         // 先中止正在运行的执行，再清理元数据/运行记录：cancelTask 是同步的 abort()，必须最先
         // 发生，否则被删除的任务会在 removeTask（含 run-history 清理）完成前继续调用 LLM/工具/
         // 产生外部副作用；若 removeTask 之后才 cancel，一旦 removeTask 因清理失败而抛出，
         // cancelTask 根本不会被调用，执行也就永远不会被中止
-        this.taskScheduler?.cancelTask(params.id);
+        this.taskScheduler?.cancelTask(task.id);
         await this.taskRepo.removeTask(params.id, params.generation, params.revision);
         return true;
       }
       case "enable": {
-        const task = await this.taskRepo.getTask(params.id);
-        if (!task) throw new Error("Task not found");
+        const task = this.assertTaskAccess(await this.taskRepo.getTask(params.id), ownerScriptUuid);
         const updated = {
           ...task,
           enabled: params.enabled,
@@ -361,19 +382,22 @@ export class AgentTaskService {
         return this.taskRepo.saveTask(updated);
       }
       case "runNow": {
-        const task = await this.taskRepo.getTask(params.id);
-        if (!task) throw new Error("Task not found");
+        const task = this.assertTaskAccess(await this.taskRepo.getTask(params.id), ownerScriptUuid);
         // 不 await，立即返回
         const now = Date.now();
         const claimScheduled = Boolean(task.enabled && task.nextruntime && task.nextruntime <= now);
         this.taskScheduler?.executeTask(task, claimScheduled, now).catch(() => {});
         return true;
       }
-      case "listRuns":
+      case "listRuns": {
+        this.assertTaskAccess(await this.taskRepo.getTask(params.taskId), ownerScriptUuid);
         return this.taskRunRepo.listRuns(params.taskId, params.limit);
-      case "clearRuns":
+      }
+      case "clearRuns": {
+        this.assertTaskAccess(await this.taskRepo.getTask(params.taskId), ownerScriptUuid);
         await this.taskRunRepo.clearRuns(params.taskId);
         return true;
+      }
       default:
         throw new Error(`Unknown agentTask action: ${(params as any).action}`);
     }

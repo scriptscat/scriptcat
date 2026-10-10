@@ -491,6 +491,7 @@ export default class ServiceWorkerManager {
         // 无视错误
       }
       onTabRemoved(tabId);
+      runtime.revokePageBindingsForTab(tabId);
     });
   }
 }

@@ -38,7 +38,7 @@ class GMAgentModelApi {
     if (!this.agentService) {
       throw new Error("AgentService is not available");
     }
-    return this.agentService.handleModelApi(request.params[0]);
+    return this.agentService.handleModelApi({ ...request.params[0], scriptUuid: request.script.uuid });
   }
 }
 

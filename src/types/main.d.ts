@@ -12,8 +12,6 @@ type RequireField<T, K extends keyof T> = T & Required<Pick<T, K>>;
 type ValueOf<T> = T[keyof T];
 type ReactStateSetter<T> = (value: T | ((prev: T) => T)) => void;
 
-declare const sandbox: Window;
-
 declare const self: ServiceWorkerGlobalScope;
 
 type FileSystemEventCallback = (records: any[], observer: FileSystemObserverInstance) => void;

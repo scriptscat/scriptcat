@@ -1,23 +1,23 @@
 import { type ScriptRunResource } from "@App/app/repo/scripts";
 import { sendMessage } from "@Packages/message/client";
-import { type WindowMessage } from "@Packages/message/window_message";
+import type { MessageSend } from "@Packages/message/types";
 
-export function setSandboxLanguage(msg: WindowMessage, lang: string) {
+export function setSandboxLanguage(msg: MessageSend, lang: string) {
   return sendMessage(msg, "sandbox/setSandboxLanguage", lang);
 }
 
-export function enableScript(msg: WindowMessage, data: ScriptRunResource) {
+export function enableScript(msg: MessageSend, data: ScriptRunResource) {
   return sendMessage(msg, "sandbox/enableScript", data);
 }
 
-export function disableScript(msg: WindowMessage, uuid: string) {
+export function disableScript(msg: MessageSend, uuid: string) {
   return sendMessage(msg, "sandbox/disableScript", uuid);
 }
 
-export function runScript(msg: WindowMessage, data: ScriptRunResource) {
+export function runScript(msg: MessageSend, data: ScriptRunResource) {
   return sendMessage(msg, "sandbox/runScript", data);
 }
 
-export function stopScript(msg: WindowMessage, uuid: string) {
+export function stopScript(msg: MessageSend, uuid: string) {
   return sendMessage(msg, "sandbox/stopScript", uuid);
 }

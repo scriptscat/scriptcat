@@ -3,11 +3,17 @@
  * - STANDARD: 标准类型（包含真实值）
  * - UNDEFINED: 表示 undefined
  * - NULL: 表示 null
+ * - NAN: 表示 NaN
+ * - POSITIVE_INFINITY: 表示 Infinity
+ * - NEGATIVE_INFINITY: 表示 -Infinity
  */
 export const enum RType {
   STANDARD = 0,
   UNDEFINED = 1,
   NULL = 2,
+  NAN = 3,
+  POSITIVE_INFINITY = 4,
+  NEGATIVE_INFINITY = 5,
 }
 
 /**
@@ -32,7 +38,13 @@ export const R_NULL = [RType.NULL] as REncoded<unknown>;
  *
  * @template T 原始值类型
  */
-export type REncoded<T = unknown> = [RType.UNDEFINED] | [RType.NULL] | [RType.STANDARD, T];
+export type REncoded<T = unknown> =
+  | [RType.UNDEFINED]
+  | [RType.NULL]
+  | [RType.NAN]
+  | [RType.POSITIVE_INFINITY]
+  | [RType.NEGATIVE_INFINITY]
+  | [RType.STANDARD, T];
 
 /**
  * 表示一个 key-value 的键值对，其中 value 为已编码形式
@@ -58,6 +70,12 @@ export const decodeRValue = <T = unknown>(rTyped: REncoded<T>) => {
       return undefined;
     case RType.NULL:
       return null;
+    case RType.NAN:
+      return Number.NaN;
+    case RType.POSITIVE_INFINITY:
+      return Infinity;
+    case RType.NEGATIVE_INFINITY:
+      return -Infinity;
     default:
       return rTyped[1] as T;
   }
@@ -81,7 +99,14 @@ export const encodeRValue = <T = unknown>(value: T): REncoded<T> => {
       return R_UNDEFINED as [RType.UNDEFINED];
     case null:
       return R_NULL as [RType.NULL];
+    case Infinity:
+      return [RType.POSITIVE_INFINITY];
+    case -Infinity:
+      return [RType.NEGATIVE_INFINITY];
     default:
+      if (typeof value === "number" && Number.isNaN(value)) {
+        return [RType.NAN];
+      }
       return [RType.STANDARD, value] as [RType.STANDARD, T];
   }
 };
