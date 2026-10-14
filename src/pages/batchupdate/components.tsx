@@ -26,10 +26,13 @@ import { StateScreen } from "@App/pages/components/ui/state-screen";
 import { DataPanel } from "@App/pages/components/ui/data-panel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
+import { formatSimilarity, groupCheckState, splitBySite } from "./logic";
 import type { BatchProgress, RowState, UpdateItem, UpdateRisk } from "./logic";
 
 /** 批量更新视图（桌面/移动共用）所需的数据与回调 */
 export interface BatchUpdateViewProps {
+  /** 触发本页的当前网址（?site=），为空表示不是从某个网站打开的 */
+  site: string;
   updates: UpdateItem[];
   ignored: UpdateItem[];
   /** 本次检查覆盖的脚本总数（用于空状态文案） */
@@ -52,6 +55,8 @@ export interface BatchUpdateViewProps {
   recordExpired: boolean;
   onToggle: (uuid: string) => void;
   onToggleAll: () => void;
+  /** 切换一组（如「本站相关」）的选择，不影响组外已选项 */
+  onToggleGroup: (uuids: string[]) => void;
   onUpdate: (item: UpdateItem) => void;
   onIgnore: (item: UpdateItem) => void;
   onRestore: (item: UpdateItem) => void;
@@ -103,9 +108,10 @@ export function ScriptAvatar({ name, iconUrl, size = 28 }: { name: string; iconU
 
 const PILL = "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap";
 
+// 重大改动是「需要留意」而不是「危险」，用警示色而非危险红；显著改动用中性色，不和主色的「更新」抢视线
 const RISK_CLASS: Record<UpdateRisk, string> = {
-  major: "bg-destructive/10 text-destructive",
-  noticeable: "bg-primary/10 text-primary",
+  major: "bg-warning-bg text-warning-fg",
+  noticeable: "bg-muted text-fg-secondary",
   tiny: "bg-success-bg text-success-fg",
 };
 const RISK_KEY: Record<UpdateRisk, string> = {
@@ -117,7 +123,7 @@ const RISK_KEY: Record<UpdateRisk, string> = {
 export function RiskBadge({ risk, similarity }: { risk: UpdateRisk; similarity: number }) {
   const { t } = useTranslation();
   return (
-    <HoverTip content={`${t("install:updatepage.similarity")} ${Math.round(similarity * 100)}%`}>
+    <HoverTip content={`${t("install:updatepage.similarity")} ${formatSimilarity(similarity)}`}>
       <span className={cn(PILL, RISK_CLASS[risk], "cursor-default")}>{t(`install:updatepage.${RISK_KEY[risk]}`)}</span>
     </HoverTip>
   );
@@ -148,14 +154,38 @@ export function StatusBadge({ enabled }: { enabled: boolean }) {
   );
 }
 
-export function VersionDiff({ oldVersion, newVersion }: { oldVersion: string; newVersion: string }) {
-  return (
-    <div className="flex items-center gap-1.5 font-mono text-[13px]">
-      <span className="text-muted-foreground">{`v${oldVersion}`}</span>
-      <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" />
-      <span className="font-semibold text-primary">{`v${newVersion}`}</span>
+/**
+ * 新旧版本对比。桌面放在脚本名下的次要行里，过长时各自截断、悬停看全文；
+ * 移动端触屏没有悬停，wrap 时折行展示完整版本号。
+ */
+export function VersionDiff({
+  oldVersion,
+  newVersion,
+  wrap,
+  className,
+}: {
+  oldVersion: string;
+  newVersion: string;
+  wrap?: boolean;
+  className?: string;
+}) {
+  const diff = (
+    <div
+      className={cn(
+        "flex min-w-0 items-center gap-x-1.5 font-mono text-[13px]",
+        wrap ? "flex-wrap break-all" : "cursor-default",
+        className
+      )}
+    >
+      <span className={cn("text-muted-foreground", !wrap && "truncate")}>{`v${oldVersion}`}</span>
+      <span className="flex min-w-0 items-center gap-1.5">
+        <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className={cn("font-semibold text-primary", !wrap && "truncate")}>{`v${newVersion}`}</span>
+      </span>
     </div>
   );
+  if (wrap) return diff;
+  return <HoverTip content={`v${oldVersion} → v${newVersion}`}>{diff}</HoverTip>;
 }
 
 export function SourceCell({ source }: { source: string }) {
@@ -198,7 +228,7 @@ export function ScriptName({
         aria-busy={loading}
         data-testid={`script-name-${uuid}`}
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-medium text-foreground hover:text-primary hover:underline",
+          "flex min-w-0 items-center gap-1.5 text-left text-sm font-medium text-foreground hover:text-primary hover:underline",
           loading && "cursor-progress"
         )}
       >
@@ -208,6 +238,50 @@ export function ScriptName({
         </span>
       </button>
     </HoverTip>
+  );
+}
+
+/** 复选框的扩展点击区：方框不变，伪元素向外撑到约 44px */
+export const CHECKBOX_HIT = "relative after:absolute after:-inset-3.5 after:content-['']";
+
+/** 分段组头（「{site} 相关」/「其他更新」）：复选框只切换本段，桌面与移动共用 */
+export function UpdateGroupHeader({
+  kind,
+  items,
+  view,
+  className,
+}: {
+  kind: "site" | "other";
+  items: UpdateItem[];
+  view: BatchUpdateViewProps;
+  className?: string;
+}) {
+  const { t } = useTranslation();
+  const uuids = items.map((item) => item.uuid);
+  const title =
+    kind === "site" ? t("install:updatepage.group_site", { site: view.site }) : t("install:updatepage.group_other");
+  return (
+    <div data-testid={`update-group-${kind}`} className={cn("flex min-w-0 items-center", className)}>
+      <div className="flex w-9 shrink-0 items-center">
+        <Checkbox
+          aria-label={title}
+          checked={groupCheckState(uuids, view.selected)}
+          disabled={view.batchBusy}
+          onCheckedChange={() => view.onToggleGroup(uuids)}
+          className={CHECKBOX_HIT}
+        />
+      </div>
+      <span className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold text-foreground">
+        {kind === "site" && <Globe className="size-3.5 shrink-0 text-fg-secondary" />}
+        <span className="truncate">{title}</span>
+      </span>
+      <span className="ml-2 shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+        {items.length}
+      </span>
+      {kind === "site" && (
+        <span className="ml-2.5 truncate text-xs text-muted-foreground">{t("install:updatepage.group_site_desc")}</span>
+      )}
+    </div>
   );
 }
 
@@ -460,10 +534,12 @@ export function showSkeleton(view: BatchUpdateViewProps, empty: boolean): boolea
   return view.loading || (view.checking && empty && view.checktime === 0);
 }
 
+/**
+ * 桌面只保留「脚本 / 变更 / 操作」三列，版本与来源放进脚本名下的次要行：
+ * 固定列只剩约 440px，768px（桌面最窄）时脚本名仍有可读宽度，不必再加断点。
+ */
 const COL = {
-  version: "w-[170px] shrink-0",
-  change: "w-[230px] shrink-0",
-  source: "w-[160px] shrink-0",
+  change: "w-[220px] shrink-0 pl-2",
   // 需容纳最宽的行内状态（「更新失败 · 重试」/ 各语言的「已更新 vX.Y.Z」），不能按初始态的两个按钮取宽
   action: "w-[180px] shrink-0",
 };
@@ -502,7 +578,7 @@ function DesktopRow({
   return (
     <div
       className={cn(
-        "relative flex h-14 items-center px-4 border-b border-border last:border-b-0 hover:bg-accent/40 transition-colors",
+        "relative flex min-h-14 items-center px-4 py-2 border-b border-border last:border-b-0 hover:bg-accent/40 transition-colors",
         rowPhaseClass(state)
       )}
     >
@@ -515,18 +591,22 @@ function DesktopRow({
       </div>
       <div className={cn("flex flex-1 items-center gap-2.5 min-w-0", dim)}>
         <ScriptAvatar name={item.name} iconUrl={item.iconUrl} />
-        <ScriptName name={item.name} uuid={item.uuid} loading={opening} onClick={() => onOpen(item.uuid)} />
-        <StatusBadge enabled={item.enabled} />
-      </div>
-      <div className={cn(COL.version, dim)}>
-        <VersionDiff oldVersion={item.oldVersion} newVersion={item.newVersion} />
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <ScriptName name={item.name} uuid={item.uuid} loading={opening} onClick={() => onOpen(item.uuid)} />
+            <StatusBadge enabled={item.enabled} />
+          </div>
+          <div className="flex min-w-0 items-center gap-2">
+            {/* 版本优先保留，来源先被截断 */}
+            <VersionDiff oldVersion={item.oldVersion} newVersion={item.newVersion} className="max-w-[65%] shrink-0" />
+            <span className="text-muted-foreground">{"·"}</span>
+            <SourceCell source={item.source} />
+          </div>
+        </div>
       </div>
       <div className={cn(COL.change, "flex items-center gap-1.5 flex-wrap", dim)}>
         <RiskBadge risk={item.risk} similarity={item.similarity} />
         {item.withNewConnect && <ConnectBadge newConnects={item.newConnects} />}
-      </div>
-      <div className={cn(COL.source, dim)}>
-        <SourceCell source={item.source} />
       </div>
       <div className={cn(COL.action, "flex items-center justify-end gap-2")}>
         <RowStatus item={item} state={state} onRetry={primaryAction}>
@@ -546,32 +626,54 @@ function DesktopRow({
   );
 }
 
-function DesktopTable({ view }: { view: BatchUpdateViewProps }) {
+function DesktopTableHeader() {
   const { t } = useTranslation();
   return (
+    <div className="flex h-10 items-center px-4 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground">
+      <div className="w-9 shrink-0" />
+      <div className="flex-1">{t("install:updatepage.col_script")}</div>
+      <div className={COL.change}>{t("install:updatepage.col_change")}</div>
+      <div className={cn(COL.action, "text-right")}>{t("install:updatepage.col_action")}</div>
+    </div>
+  );
+}
+
+const DESKTOP_GROUP_HEAD = "h-11 px-4 border-b border-border bg-muted/40";
+
+function DesktopTable({ view }: { view: BatchUpdateViewProps }) {
+  const groups = splitBySite(view.updates);
+  const rows = (items: UpdateItem[]) =>
+    items.map((item) => (
+      <DesktopRow
+        key={item.uuid}
+        item={item}
+        state={view.rowStates[item.uuid]}
+        selected={view.selected.has(item.uuid)}
+        opening={view.opening.has(item.uuid)}
+        batchBusy={view.batchBusy}
+        onToggle={view.onToggle}
+        onOpen={view.onOpen}
+        onUpdate={view.onUpdate}
+        onIgnore={view.onIgnore}
+      />
+    ));
+  return (
     <DataPanel>
-      <div className="flex h-10 items-center px-4 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground">
-        <div className="w-9 shrink-0" />
-        <div className="flex-1">{t("install:updatepage.col_script")}</div>
-        <div className={COL.version}>{t("install:updatepage.col_version")}</div>
-        <div className={COL.change}>{t("install:updatepage.col_change")}</div>
-        <div className={COL.source}>{t("install:updatepage.col_source")}</div>
-        <div className={cn(COL.action, "text-right")}>{t("install:updatepage.col_action")}</div>
-      </div>
-      {view.updates.map((item) => (
-        <DesktopRow
-          key={item.uuid}
-          item={item}
-          state={view.rowStates[item.uuid]}
-          selected={view.selected.has(item.uuid)}
-          opening={view.opening.has(item.uuid)}
-          batchBusy={view.batchBusy}
-          onToggle={view.onToggle}
-          onOpen={view.onOpen}
-          onUpdate={view.onUpdate}
-          onIgnore={view.onIgnore}
-        />
-      ))}
+      <DesktopTableHeader />
+      {groups ? (
+        <>
+          <UpdateGroupHeader kind="site" items={groups.site} view={view} className={DESKTOP_GROUP_HEAD} />
+          {rows(groups.site)}
+          {groups.other.length > 0 && (
+            <>
+              <UpdateGroupHeader kind="other" items={groups.other} view={view} className={DESKTOP_GROUP_HEAD} />
+              {rows(groups.other)}
+            </>
+          )}
+        </>
+      ) : (
+        rows(view.updates)
+      )}
     </DataPanel>
   );
 }
@@ -610,16 +712,41 @@ function DesktopIgnored({ view }: { view: BatchUpdateViewProps }) {
   );
 }
 
+/**
+ * 顶部全选：有分段时它的作用范围（全部待更新）不再不言自明，显式写出「全选」，与组头复选框区分。
+ */
+export function SelectAllLabel({ view }: { view: BatchUpdateViewProps }) {
+  const { t } = useTranslation();
+  const selectedCount = view.updates.filter((u) => view.selected.has(u.uuid)).length;
+  const count = t("install:updatepage.selected_count", { selected: selectedCount, total: view.updates.length });
+  return <>{splitBySite(view.updates) ? `${t("script:select_all")} · ${count}` : count}</>;
+}
+
+export function SelectAllCheckbox({ view, className }: { view: BatchUpdateViewProps; className?: string }) {
+  const { t } = useTranslation();
+  return (
+    <Checkbox
+      aria-label={t("script:select_all")}
+      checked={groupCheckState(
+        view.updates.map((u) => u.uuid),
+        view.selected
+      )}
+      disabled={view.batchBusy}
+      onCheckedChange={view.onToggleAll}
+      className={className}
+    />
+  );
+}
+
 function DesktopToolbar({ view }: { view: BatchUpdateViewProps }) {
   const { t } = useTranslation();
   const selectedCount = view.updates.filter((u) => view.selected.has(u.uuid)).length;
-  const allSelected = view.updates.length > 0 && selectedCount === view.updates.length;
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-3">
-        <Checkbox checked={allSelected} disabled={view.batchBusy} onCheckedChange={view.onToggleAll} />
+        <SelectAllCheckbox view={view} />
         <span className="text-sm font-medium text-foreground">
-          {t("install:updatepage.selected_count", { selected: selectedCount, total: view.updates.length })}
+          <SelectAllLabel view={view} />
         </span>
         {view.ignored.length > 0 && (
           <>
@@ -689,34 +816,23 @@ function SkeletonTable() {
 }
 
 function SkeletonRows() {
-  const { t } = useTranslation();
   return (
     <DataPanel data-testid="update-skeleton">
-      <div className="flex h-10 items-center px-4 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground">
-        <div className="w-9 shrink-0" />
-        <div className="flex-1">{t("install:updatepage.col_script")}</div>
-        <div className={COL.version}>{t("install:updatepage.col_version")}</div>
-        <div className={COL.change}>{t("install:updatepage.col_change")}</div>
-        <div className={COL.source}>{t("install:updatepage.col_source")}</div>
-        <div className={cn(COL.action, "text-right")}>{t("install:updatepage.col_action")}</div>
-      </div>
+      <DesktopTableHeader />
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="flex h-14 items-center px-4 border-b border-border last:border-b-0">
+        <div key={i} className="flex min-h-14 items-center px-4 py-2 border-b border-border last:border-b-0">
           <div className="w-9 shrink-0">
             <SkeletonBar className="size-4 rounded-md" />
           </div>
           <div className="flex flex-1 items-center gap-2.5 min-w-0">
             <SkeletonBar className="size-7 shrink-0 rounded-md" />
-            <SkeletonBar className="h-4 w-40 max-w-[55%]" />
-          </div>
-          <div className={COL.version}>
-            <SkeletonBar className="h-4 w-24" />
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <SkeletonBar className="h-4 w-40 max-w-[55%]" />
+              <SkeletonBar className="h-3.5 w-52 max-w-[70%]" />
+            </div>
           </div>
           <div className={COL.change}>
             <SkeletonBar className="h-5 w-20 rounded-full" />
-          </div>
-          <div className={COL.source}>
-            <SkeletonBar className="h-4 w-16" />
           </div>
           <div className={cn(COL.action, "flex justify-end")}>
             <SkeletonBar className="h-4 w-12" />
