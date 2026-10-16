@@ -1,6 +1,8 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { SystemConfig } from "./config";
 import { MessageQueue } from "@Packages/message/message_queue";
+import { defaultConfig as eslintDefaultConfig } from "@Packages/eslint/linter-config";
+import { defaultConfig as editorDefaultConfig } from "@App/pkg/utils/monaco-editor/config";
 
 describe("SystemConfig 双 storage 与懒迁移", () => {
   let mq: MessageQueue;
@@ -284,6 +286,142 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
       // 第二次读取应返回缓存值
       const second = await config.getVscodeUrl();
       expect(second).toBe("ws://old:8642");
+    });
+  });
+
+  describe("JSON 配置的稀疏存储与默认值合并", () => {
+    it("未修改时应返回最新默认配置", async () => {
+      await expect(config.getEslintConfig()).resolves.toBe(eslintDefaultConfig);
+      await expect(config.getEditorConfig()).resolves.toBe(editorDefaultConfig);
+    });
+
+    it("保存时应只存储与默认配置的差异", async () => {
+      const modified = JSON.parse(eslintDefaultConfig);
+      modified.rules["no-debugger"] = ["warn"];
+      modified.rules["custom/added-rule"] = ["error"];
+      config.setEslintConfig(JSON.stringify(modified));
+
+      await vi.waitFor(async () => {
+        const syncData = await chrome.storage.sync.get("system_eslint_config");
+        expect(syncData["system_eslint_config"]).toEqual({
+          format: "scriptcat-json-overrides",
+          version: 1,
+          overrides: { rules: { "no-debugger": ["warn"], "custom/added-rule": ["error"] } },
+        });
+      });
+    });
+
+    it("读取时应将存储的差异合并到最新默认配置", async () => {
+      await chrome.storage.sync.set({
+        system_eslint_config: {
+          format: "scriptcat-json-overrides",
+          version: 1,
+          overrides: { rules: { "no-debugger": ["warn"] } },
+        },
+      });
+
+      const result = JSON.parse(await new SystemConfig(new MessageQueue()).getEslintConfig());
+      const defaults = JSON.parse(eslintDefaultConfig);
+      expect(result.rules["no-debugger"]).toEqual(["warn"]);
+      expect(result.rules["no-empty"]).toEqual(defaults.rules["no-empty"]);
+      expect(result.globals).toEqual(defaults.globals);
+    });
+
+    it("读取旧版全量配置时保留已有值并补充当前缺失字段", async () => {
+      const legacy = JSON.parse(eslintDefaultConfig);
+      legacy.rules["no-debugger"] = ["off"];
+      delete legacy.rules["no-empty"];
+      const legacyString = JSON.stringify(legacy);
+      await chrome.storage.sync.set({ system_eslint_config: legacyString });
+
+      const result = JSON.parse(await new SystemConfig(new MessageQueue()).getEslintConfig());
+      expect(result.rules["no-debugger"]).toEqual(["off"]);
+      expect(result.rules["no-empty"]).toEqual(JSON.parse(eslintDefaultConfig).rules["no-empty"]);
+    });
+
+    it("读取旧版全量配置不会写回 storage", async () => {
+      const legacy = JSON.parse(eslintDefaultConfig);
+      legacy.rules["no-debugger"] = ["off"];
+      const legacyString = JSON.stringify(legacy);
+      await chrome.storage.sync.set({ system_eslint_config: legacyString });
+      const before = await chrome.storage.sync.get("system_eslint_config");
+
+      await new SystemConfig(new MessageQueue()).getEslintConfig();
+
+      const after = await chrome.storage.sync.get("system_eslint_config");
+      expect(after).toEqual(before);
+    });
+
+    it("用户明确保存旧版全量配置后才转换为 V1 sparse object", async () => {
+      const legacy = JSON.parse(eslintDefaultConfig);
+      legacy.rules["no-debugger"] = ["off"];
+      const legacyString = JSON.stringify(legacy);
+      await chrome.storage.sync.set({ system_eslint_config: legacyString });
+
+      const resolved = await config.getEslintConfig();
+      config.setEslintConfig(resolved);
+
+      await vi.waitFor(async () => {
+        const syncData = await chrome.storage.sync.get("system_eslint_config");
+        expect(syncData["system_eslint_config"]).toEqual({
+          format: "scriptcat-json-overrides",
+          version: 1,
+          overrides: { rules: { "no-debugger": ["off"] } },
+        });
+      });
+    });
+
+    it("旧版全量配置中像 envelope 的字段仍按用户配置保留", async () => {
+      const legacy = JSON.stringify({
+        format: "scriptcat-json-overrides",
+        version: 1,
+        overrides: { a: 99 },
+      });
+      await chrome.storage.sync.set({ system_eslint_config: legacy });
+
+      const result = JSON.parse(await new SystemConfig(new MessageQueue()).getEslintConfig());
+      expect(result).toMatchObject({ format: "scriptcat-json-overrides", version: 1, overrides: { a: 99 } });
+    });
+
+    it("保存与默认配置一致的内容时应清除存储", async () => {
+      // 使用紧凑格式，验证差异按语义比较而非字符串比较
+      config.setEslintConfig(JSON.stringify(JSON.parse(eslintDefaultConfig)));
+
+      await vi.waitFor(async () => {
+        const syncData = await chrome.storage.sync.get("system_eslint_config");
+        expect(syncData["system_eslint_config"]).toBeUndefined();
+      });
+      // 重新读取（新实例，不走缓存）应返回默认配置
+      await expect(new SystemConfig(new MessageQueue()).getEslintConfig()).resolves.toBe(eslintDefaultConfig);
+    });
+
+    it("保存空字符串应恢复默认配置", async () => {
+      config.setEslintConfig(JSON.stringify({ rules: { "no-debugger": ["warn"] } }));
+      config.setEslintConfig("");
+
+      await vi.waitFor(async () => {
+        const syncData = await chrome.storage.sync.get("system_eslint_config");
+        expect(syncData["system_eslint_config"]).toBeUndefined();
+      });
+      await expect(config.getEslintConfig()).resolves.toBe(eslintDefaultConfig);
+    });
+
+    it("editor_config 同样只存储差异并合并读取", async () => {
+      const modified = JSON.parse(editorDefaultConfig);
+      modified.strict = false;
+      config.setEditorConfig(JSON.stringify(modified));
+
+      await vi.waitFor(async () => {
+        const syncData = await chrome.storage.sync.get("system_editor_config");
+        expect(syncData["system_editor_config"]).toEqual({
+          format: "scriptcat-json-overrides",
+          version: 1,
+          overrides: { strict: false },
+        });
+      });
+
+      const result = JSON.parse(await new SystemConfig(new MessageQueue()).getEditorConfig());
+      expect(result).toEqual({ ...JSON.parse(editorDefaultConfig), strict: false });
     });
   });
 
