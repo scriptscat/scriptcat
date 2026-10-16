@@ -49,6 +49,8 @@ declare const GM_info: {
   scriptMetaStr?: string;
   userConfig?: UserConfig;
   userConfigStr?: string;
+  /** 当前脚本的 UUID，脚本更新后保持不变（与 Violentmonkey 一致）。 */
+  uuid: string;
   /** 是否在隐私/无痕窗口中运行。 */
   isIncognito: boolean;
   /** 沙箱模式（ScriptCat 始终使用 `"raw"`）。 */

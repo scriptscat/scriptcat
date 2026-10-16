@@ -35,8 +35,12 @@ function setExecCode(exec: ExecScript, script: ScriptLoadInfo, code: string): vo
   exec.scriptFunc = compileScript(compileScriptCode(script));
 }
 
-function makeExec(code: string, grant?: string[]): { exec: ExecScript; script: ScriptLoadInfo } {
-  const script = makeScript({ code, metadata: { grant, version: ["1.0.0"] } });
+function makeExec(
+  code: string,
+  grant?: string[],
+  overrides: Partial<ScriptLoadInfo> = {}
+): { exec: ExecScript; script: ScriptLoadInfo } {
+  const script = makeScript({ code, metadata: { grant, version: ["1.0.0"] }, ...overrides });
   const message = {} as Message;
   const exec = new ExecScript(script, {
     envPrefix: "scripting",
@@ -67,6 +71,15 @@ describe.concurrent("GM_info", () => {
     expect(ret.GM_info.version).toEqual(ExtVersion);
     expect(ret.GM_info.script.version).toEqual("1.0.0");
     expect(ret._this).not.toEqual(global);
+  });
+  it.concurrent.each([
+    ["none", ["none"]],
+    ["sandbox", undefined],
+  ])("GM_info.uuid 与 GM.info.uuid 返回当前脚本 UUID（%s）", async (_mode, grant) => {
+    const { exec } = makeExec("return {GM_info, GM};", grant, { uuid: "4b1c2d3e-5f60-4718-8a9b-0c1d2e3f4a5b" });
+    const ret = await exec.exec();
+    expect(ret.GM_info.uuid).toBe("4b1c2d3e-5f60-4718-8a9b-0c1d2e3f4a5b");
+    expect(ret.GM.info.uuid).toBe("4b1c2d3e-5f60-4718-8a9b-0c1d2e3f4a5b");
   });
 });
 
