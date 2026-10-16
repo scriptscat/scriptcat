@@ -132,7 +132,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
     setDialog({ isNew: false, key: r.key, valueStr: editValue(r.value), type });
   };
 
-  const saveDialog = () => {
+  const saveDialog = async () => {
     if (!dialog) return;
     let value: unknown;
     try {
@@ -153,34 +153,46 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
       notify.error((e as Error).message);
       return;
     }
-    void valueClient.setScriptValue({ uuid, key: dialog.key, value, ts: Date.now() });
-    storage.setData((prev) => {
-      const rows = prev ?? EMPTY_ROWS;
-      const idx = rows.findIndex((r) => r.key === dialog.key);
-      if (idx >= 0) {
-        const next = rows.slice();
-        next[idx] = { key: dialog.key, value };
-        return next;
-      }
-      return [...rows, { key: dialog.key, value }];
-    });
-    notify.success(dialog.isNew ? t("add_success") : t("update_success"));
-    setDialog(null);
+    try {
+      await valueClient.setScriptValue({ uuid, key: dialog.key, value, ts: Date.now() });
+      storage.setData((prev) => {
+        const rows = prev ?? EMPTY_ROWS;
+        const idx = rows.findIndex((r) => r.key === dialog.key);
+        if (idx >= 0) {
+          const next = rows.slice();
+          next[idx] = { key: dialog.key, value };
+          return next;
+        }
+        return [...rows, { key: dialog.key, value }];
+      });
+      notify.success(dialog.isNew ? t("add_success") : t("update_success"));
+      setDialog(null);
+    } catch (error) {
+      notify.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   };
 
   const onDelete = useCallback(
-    (key: string) => {
-      void valueClient.setScriptValue({ uuid, key, value: undefined, ts: Date.now() });
-      storage.setData((prev) => (prev ?? EMPTY_ROWS).filter((r) => r.key !== key));
-      notify.success(t("delete_success"));
+    async (key: string) => {
+      try {
+        await valueClient.setScriptValue({ uuid, key, value: undefined, ts: Date.now() });
+        storage.setData((prev) => (prev ?? EMPTY_ROWS).filter((r) => r.key !== key));
+        notify.success(t("delete_success"));
+      } catch (error) {
+        notify.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
+      }
     },
     [uuid, storage, t]
   );
 
-  const onClear = useCallback(() => {
-    void valueClient.setScriptValues({ uuid, keyValuePairs: [], isReplace: true, ts: Date.now() });
-    storage.setData([]);
-    notify.success(t("editor:clear_success"));
+  const onClear = useCallback(async () => {
+    try {
+      await valueClient.setScriptValues({ uuid, keyValuePairs: [], isReplace: true, ts: Date.now() });
+      storage.setData([]);
+      notify.success(t("editor:clear_success"));
+    } catch (error) {
+      notify.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }, [uuid, storage, t]);
 
   const enterBatch = () => {
@@ -190,7 +202,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
     setBatch(true);
   };
 
-  const saveBatch = () => {
+  const saveBatch = async () => {
     let rec: { [k: string]: unknown };
     try {
       rec = JSON.parse(batchText);
@@ -199,10 +211,14 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
       return;
     }
     const keyValuePairs = Object.keys(rec).map((k) => [k, encodeRValue(rec[k])]) as TKeyValuePair[];
-    void valueClient.setScriptValues({ uuid, keyValuePairs, isReplace: true, ts: Date.now() });
-    storage.setData(Object.keys(rec).map((k) => ({ key: k, value: rec[k] })));
-    setBatch(false);
-    notify.success(t("save_success"));
+    try {
+      await valueClient.setScriptValues({ uuid, keyValuePairs, isReplace: true, ts: Date.now() });
+      storage.setData(Object.keys(rec).map((k) => ({ key: k, value: rec[k] })));
+      setBatch(false);
+      notify.success(t("save_success"));
+    } catch (error) {
+      notify.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   };
 
   if (batch) {

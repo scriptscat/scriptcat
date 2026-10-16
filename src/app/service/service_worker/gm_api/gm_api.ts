@@ -33,6 +33,7 @@ import type {
   MessageRequest,
   NotificationMessageOption,
   GMApiRequest,
+  ServiceWorkerExecutionBinding,
 } from "../types";
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../../queue";
 import type { NotificationOptionCache } from "../utils";
@@ -361,7 +362,11 @@ export default class GMApi {
     private msgSender: MessageSend,
     private mq: IMessageQueue,
     private value: ValueService,
-    private gmExternalDependencies: IGMExternalDependencies
+    private gmExternalDependencies: IGMExternalDependencies,
+    private readonly resolvePageExecutionBinding?: (
+      handle: string,
+      sender: IGetSender
+    ) => ServiceWorkerExecutionBinding | undefined
   ) {
     this.logger = LoggerCore.logger().with({ service: "runtime/gm_api" });
   }
@@ -373,6 +378,31 @@ export default class GMApi {
   // PermissionVerify.API
   // sendMessage from Content Script, etc
   async handlerRequest(data: MessageRequest, sender: IGetSender) {
+    const source = sender.getSender();
+    const isPageRequest = typeof source?.tab?.id === "number";
+    if (isPageRequest && !data.handle) {
+      throw new Error("page execution binding is required");
+    }
+    if (data.handle) {
+      if (data.version !== 2) {
+        throw new Error("unsupported page execution binding version");
+      }
+      // wire 身份只有 handle：canonical uuid/runFlag 一律由 handle + 真实 sender 解析而来，
+      // 页面不能预先带上这些字段来冒充身份。
+      const binding = this.resolvePageExecutionBinding?.(data.handle, sender);
+      if (!binding) {
+        throw new Error("page execution binding is invalid");
+      }
+      if (!binding.allowedAPIs.has(data.api)) {
+        throw new Error("API is not granted to this execution");
+      }
+      try {
+        binding.requestSequenceWindow.consume(data.sequence);
+      } catch (error) {
+        throw new Error(error instanceof Error ? error.message : "page RPC sequence is invalid");
+      }
+      data = { ...data, uuid: binding.uuid, runFlag: binding.runFlag };
+    }
     this.logger.trace("GM API request", { api: data.api, uuid: data.uuid, param: data.params });
     const api = PermissionVerifyApiGet(data.api);
     if (!api) {
@@ -598,7 +628,7 @@ export default class GMApi {
     const keyValuePairs = [[key, encodeRValue(value)]] as TKeyValuePair[];
     const valueSender = {
       runFlag: request.runFlag,
-      tabId: sender.getSender()?.tab?.id || -1,
+      tabId: sender.getSender()?.tab?.id ?? -1,
     };
     await this.value.setValues({ uuid: request.script.uuid, id, keyValuePairs, isReplace: false, valueSender });
   }
@@ -611,7 +641,7 @@ export default class GMApi {
     const [id, keyValuePairs] = request.params;
     const valueSender = {
       runFlag: request.runFlag,
-      tabId: sender.getSender()?.tab?.id || -1,
+      tabId: sender.getSender()?.tab?.id ?? -1,
     };
     await this.value.setValues({ uuid: request.script.uuid, id, keyValuePairs, isReplace: false, valueSender });
   }
@@ -1133,7 +1163,7 @@ export default class GMApi {
       key,
       name,
       options,
-      tabId: sender.getSender()?.tab?.id || -1,
+      tabId: sender.getSender()?.tab?.id ?? -1,
       frameId: sender.getSender()?.frameId,
       documentId: sender.getSender()?.documentId,
     });
@@ -1146,7 +1176,7 @@ export default class GMApi {
     this.mq.emit<TScriptMenuUnregister>("unregisterMenuCommand", {
       uuid: request.script.uuid,
       key,
-      tabId: sender.getSender()?.tab?.id || -1,
+      tabId: sender.getSender()?.tab?.id ?? -1,
       frameId: sender.getSender()?.frameId,
       documentId: sender.getSender()?.documentId,
     });

@@ -7,7 +7,7 @@ import type {
   RuntimeMessageSender,
   TMessage,
 } from "@Packages/message/types";
-import { WindowMessage } from "@Packages/message/window_message";
+import { SandboxChannelHost } from "@Packages/message/sandbox_message_channel";
 import EventEmitter from "eventemitter3";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { ServiceWorkerClient } from "../service_worker/client";
@@ -86,6 +86,7 @@ export class InProcessMessage implements Message, MessageSend {
 
 export class EventPageOffscreenManager extends BackgroundEnvManagerBase implements IOffscreenSend {
   private readonly message: InProcessMessage;
+  private readonly sandboxFrame: HTMLIFrameElement;
   private initialized = false;
 
   constructor(
@@ -102,24 +103,24 @@ export class EventPageOffscreenManager extends BackgroundEnvManagerBase implemen
     const sandbox = document.createElement("iframe");
     sandbox.src = chrome.runtime.getURL("/src/sandbox.html");
     sandbox.style.display = "none";
-    document.documentElement.appendChild(sandbox);
 
     const message = new InProcessMessage();
 
-    // iframe 创建后会从 about:blank 导航到跨源 sandbox 页面。惰性读取 contentWindow，避免
-    // 在导航前固定目标引用，并在 iframe 被移除时给出明确错误。
-    const windowMessage = new WindowMessage(window, () => {
+    // Firefox 与 Chromium 使用完全相同的 bootstrap 顺序：先监听 parent Window，
+    // 再挂载 iframe；收到来自该 iframe 的 transferred port 后，Window listener 永久移除。
+    const sandboxChannel = new SandboxChannelHost(window, () => {
       const win = sandbox.contentWindow;
       if (!win) {
         throw new Error("EventPageOffscreenManager: sandbox iframe has no contentWindow (removed from DOM?).");
       }
       return win;
     });
-    const offscreenServer = new Server("offscreen", [message, windowMessage]);
+    const offscreenServer = new Server("offscreen", [message, sandboxChannel]);
     const serviceWorker = new ServiceWorkerClient(extMsgSender);
 
-    super(extMsgSender, windowMessage, offscreenServer, serviceWorker, messageQueue);
+    super(extMsgSender, sandboxChannel, offscreenServer, serviceWorker, messageQueue);
     this.message = message;
+    this.sandboxFrame = sandbox;
   }
 
   init() {
@@ -127,7 +128,9 @@ export class EventPageOffscreenManager extends BackgroundEnvManagerBase implemen
       return;
     }
     this.initialized = true;
-    return super.initManager();
+    const initialized = super.initManager();
+    document.documentElement.appendChild(this.sandboxFrame);
+    return initialized;
   }
 
   connect(data: TMessage): Promise<MessageConnect> {

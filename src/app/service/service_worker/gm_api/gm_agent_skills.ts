@@ -50,7 +50,7 @@ class GMAgentSkillsApi {
     if (!this.agentService) {
       throw new Error("AgentService is not available");
     }
-    return this.agentService.handleSkillsApi(request.params[0]);
+    return this.agentService.handleSkillsApi({ ...request.params[0], scriptUuid: request.script.uuid });
   }
 }
 

@@ -7,12 +7,15 @@ across contexts to a privileged handler, then streams the result back. The imple
 
 - **Content side** ([`src/app/service/content/gm_api/`](../../src/app/service/content/gm_api)) — what runs *near*
   the userscript. Synchronous-feeling APIs (`GM_getValue`, `GM_log`) and the client half of async ones
-  (`GM_xmlhttpRequest`, `GM_setValue`). Built on `GM_Base`, which owns the messaging plumbing.
+  (`GM_xmlhttpRequest`, `GM_setValue`). Built on `GM_Base`, which owns the request facade. `USER_SCRIPT` calls use
+  the native extension channel; the DOM helper remains a narrow synchronous `CustomEventMessage` path.
 - **Service-worker side** ([`src/app/service/service_worker/gm_api/`](../../src/app/service/service_worker/gm_api))
   — the privileged half: permission verification, cross-origin requests, DNR rule building.
 - **Offscreen side** ([`src/app/service/offscreen/gm_api.ts`](../../src/app/service/offscreen/gm_api.ts)) —
   DOM-dependent operations for background scripts (page-context XHR, `window.open`, clipboard).
-- **Values** flow through `ValueService` and are broadcast so every tab running the same script sees updates.
+- **Values** flow through `ValueService`. MAIN updates use the scripting broadcast, while USER_SCRIPT updates are
+  delivered over the native per-document callback port so privileged packets do not cross the page-observable DOM
+  channel.
 
 ### Registration: the `@GMContext.API` decorator
 
@@ -82,4 +85,6 @@ traditional GM API: `@GMContext.API` on the content side
 [`compat-grant.js`](../../packages/eslint/compat-grant.js). What differs is the naming and transport
 shape — the grant is dotted (`CAT.agent.conversation`) and bound with `follow:` rather than `alias:`, the SW
 handlers set `dotAlias: false`, and conversation chat streams over `connect()` instead of `sendMessage`. Copy
-the nearest existing `CAT.agent.*` method rather than a `GM_*` one.
+the nearest existing `CAT.agent.*` method rather than a `GM_*` one. The service-worker handlers derive the script
+identity from `request.script.uuid`, then the Agent services enforce persisted resource ownership; see
+[`architecture-agent.md`](./architecture-agent.md#userscript-resource-ownership) for the scope and legacy rules.

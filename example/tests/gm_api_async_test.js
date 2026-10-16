@@ -288,7 +288,9 @@
         });
         expect(controller).toBeTypeOf("object");
         expect(controller.abort).toBeTypeOf("function");
+        const aborted = controller.catch((error) => error);
         controller.abort();
+        expect(await aborted).toBe("AbortError");
       },
       null,
       null,

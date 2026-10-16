@@ -11,7 +11,7 @@
 ```bash
 pnpm install              # install deps (preinstall enforces pnpm)
 pnpm run dev              # dev build (source maps); load dist/ext as unpacked extension
-pnpm run dev:noMap        # dev build w/o source maps (incognito)
+pnpm run dev:noMap        # dev build w/o source maps
 pnpm run build            # production Rspack build
 pnpm run pack             # package the extension (requires dist/scriptcat.pem)
 

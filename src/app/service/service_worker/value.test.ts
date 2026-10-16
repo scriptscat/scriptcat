@@ -100,6 +100,131 @@ describe("ValueService - setValue 方法测试", () => {
     vi.restoreAllMocks();
   });
 
+  it("persists __proto__ as an own value key without polluting inherited values", async () => {
+    const mockScript = createMockScript();
+    const stored = { leaked: "secret" };
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue(undefined);
+    vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
+
+    await valueService.setValues({
+      uuid: mockScript.uuid,
+      keyValuePairs: [["__proto__", encodeRValue(stored)]],
+      valueSender: createMockValueSender(),
+      isReplace: false,
+    });
+
+    const savedData = vi.mocked(mockValueDAO.save).mock.calls[0][1].data;
+    expect(Object.prototype.hasOwnProperty.call(savedData, "__proto__")).toBe(true);
+    expect(Object.getPrototypeOf(savedData)).toBe(Object.prototype);
+    expect(savedData.__proto__).toEqual(stored);
+    expect((savedData as Record<string, unknown>).leaked).toBeUndefined();
+  });
+
+  it("does not let a bound config key change the returned value object's prototype", async () => {
+    const mockScript = createMockScript({
+      config: {
+        settings: {
+          setting: {
+            bind: "$__proto__",
+            default: { polluted: true },
+            index: 0,
+          },
+        },
+      } as any,
+    });
+    const stored = {};
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue({ data: stored } as any);
+
+    const values = await valueService.getScriptValue(mockScript);
+
+    expect(Object.getPrototypeOf(values)).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(values, "__proto__")).toBe(true);
+    expect(values.__proto__).toBeUndefined();
+    expect((values as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  it("materializeScriptValue uses a committed raw store without reading ValueDAO", () => {
+    const mockScript = createMockScript({
+      config: {
+        settings: {
+          choice: {
+            default: "default-choice",
+            index: 0,
+          },
+        },
+      } as any,
+    });
+    const values = valueService.materializeScriptValue(mockScript, {
+      direct: "committed",
+      "settings.choice": "stored-choice",
+    });
+
+    expect(mockValueDAO.get).not.toHaveBeenCalled();
+    expect(values.direct).toBe("committed");
+    expect(values["settings.choice"]).toBe("stored-choice");
+    expect(Object.getPrototypeOf(values)).toBeNull();
+  });
+
+  it("getScriptValueDetails 直接赋值到 data/newValues 时不会触发 Object.prototype 上的继承 setter", async () => {
+    // data/newValues 是同一个 Object.create(null) 建出的纯字典，setOwnValue 改成直接赋值后，
+    // 即使 Object.prototype 被投毒了同名 setter，无论是复制 ret.data 还是写入 config 绑定的默认值，
+    // 都必须落在自有属性上，不会被继承 setter 拦截。
+    const mockScript = createMockScript({
+      config: {
+        settings: {
+          bound: {
+            bind: "$poisonedBindKey",
+            default: "bound-default",
+            index: 0,
+          },
+          poisonedConfigKey: {
+            default: "config-default",
+            index: 1,
+          },
+        },
+      } as any,
+    });
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue({ data: { poisonedDataKey: "persisted-value" } } as any);
+
+    // 每个 config 条目都会触发两次写入：bind 目标 key（若有）和 `${tabKey}.${key}`，
+    // 两者都要投毒验证。
+    const poisonedKeys = ["poisonedDataKey", "poisonedBindKey", "settings.bound", "settings.poisonedConfigKey"];
+    const previousDescriptors = poisonedKeys.map(
+      (key) => [key, Object.getOwnPropertyDescriptor(Object.prototype, key)] as const
+    );
+    let setterCalls = 0;
+    for (const [key] of previousDescriptors) {
+      Object.defineProperty(Object.prototype, key, {
+        configurable: true,
+        set() {
+          setterCalls += 1;
+        },
+      });
+    }
+    let values: Record<string, unknown>;
+    try {
+      values = await valueService.getScriptValue(mockScript);
+    } finally {
+      for (const [key, descriptor] of previousDescriptors) {
+        if (descriptor) Object.defineProperty(Object.prototype, key, descriptor);
+        else Reflect.deleteProperty(Object.prototype, key);
+      }
+    }
+
+    expect(setterCalls).toBe(0);
+    expect(Object.getPrototypeOf(values)).toBeNull();
+    expect(values.poisonedDataKey).toBe("persisted-value");
+    // bind 目标只是把 data[bindKey] 原样搬过来；data 里没有这个 key，所以是 undefined。
+    expect(Object.prototype.hasOwnProperty.call(values, "poisonedBindKey")).toBe(true);
+    expect(values.poisonedBindKey).toBeUndefined();
+    // `${tabKey}.${key}` 在 data 里缺失时落回 config 声明的 default。
+    expect(values["settings.bound"]).toBe("bound-default");
+    expect(values["settings.poisonedConfigKey"]).toBe("config-default");
+  });
+
   it("应该成功设置新脚本的值", async () => {
     // 准备测试数据
     const mockScript = createMockScript();
@@ -377,6 +502,90 @@ describe("ValueService - setValue 方法测试", () => {
     expect(mockValueDAO.save).not.toHaveBeenCalled();
     expect(valueService.pushValueUpdate).not.toHaveBeenCalled();
     expect(mockMessageQueue.emit).toHaveBeenCalledTimes(0);
+  });
+
+  it("awaits runtime snapshot refresh before resolving a mutation", async () => {
+    const mockScript = createMockScript();
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue(undefined);
+    vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
+
+    let releaseRefresh!: () => void;
+    const refreshBarrier = new Promise<void>((resolve) => {
+      releaseRefresh = resolve;
+    });
+    vi.mocked(valueService.pushValueUpdate).mockReturnValue(refreshBarrier);
+
+    let resolved = false;
+    const mutation = valueService
+      .setValues({
+        uuid: mockScript.uuid,
+        id: "snapshot-barrier",
+        keyValuePairs: [["key", encodeRValue("value")]],
+        valueSender: createMockValueSender(),
+        isReplace: false,
+      })
+      .then(() => {
+        resolved = true;
+      });
+
+    await vi.waitFor(() => expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1));
+    expect(mockValueDAO.save).toHaveBeenCalledTimes(1);
+    expect(resolved).toBe(false);
+
+    releaseRefresh();
+    await mutation;
+    expect(resolved).toBe(true);
+  });
+
+  it("serializes DB commit and snapshot refresh together for the same storageName", async () => {
+    const mockScript = createMockScript();
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+
+    let current: Value | undefined;
+    vi.mocked(mockValueDAO.get).mockImplementation(async () => current);
+    vi.mocked(mockValueDAO.save).mockImplementation(async (_storageName, model) => {
+      current = { ...model, data: { ...model.data } } as Value;
+      return {} as any;
+    });
+
+    let releaseFirstRefresh!: () => void;
+    const firstRefreshBarrier = new Promise<void>((resolve) => {
+      releaseFirstRefresh = resolve;
+    });
+    vi.mocked(valueService.pushValueUpdate)
+      .mockImplementationOnce(async () => firstRefreshBarrier)
+      .mockResolvedValue(undefined);
+
+    const first = valueService.setValues({
+      uuid: mockScript.uuid,
+      id: "ordered-1",
+      keyValuePairs: [["counter", encodeRValue(1)]],
+      valueSender: createMockValueSender(),
+      isReplace: false,
+    });
+    await vi.waitFor(() => expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1));
+
+    const second = valueService.setValues({
+      uuid: mockScript.uuid,
+      id: "ordered-2",
+      keyValuePairs: [["counter", encodeRValue(2)]],
+      valueSender: createMockValueSender(),
+      isReplace: false,
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // 第二次 DB commit 不能越过第一次 registration refresh。
+    expect(mockValueDAO.save).toHaveBeenCalledTimes(1);
+    expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1);
+
+    releaseFirstRefresh();
+    await Promise.all([first, second]);
+
+    expect(mockValueDAO.save).toHaveBeenCalledTimes(2);
+    expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(2);
+    expect(current?.data.counter).toBe(2);
   });
 
   it("应该正确处理并发访问的缓存键", async () => {

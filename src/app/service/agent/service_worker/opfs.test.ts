@@ -176,6 +176,24 @@ describe("handleOPFSApi", () => {
     expect(mockRepo.getAttachment).toHaveBeenCalledWith("att-123");
   });
 
+  it("readAttachment 不得读取其他脚本未拥有的附件", async () => {
+    const { service, mockRepo } = createTestService();
+    mockRepo.isAttachmentAccessibleToScript.mockResolvedValue(false);
+    mockRepo.getAttachment = vi.fn().mockResolvedValue(new Blob(["secret"], { type: "image/png" }));
+
+    await expect(
+      service.handleOPFSApi(
+        {
+          action: "readAttachment",
+          id: "att-private",
+          scriptUuid: "script-b",
+        },
+        mockOPFSSender
+      )
+    ).rejects.toThrow("Attachment access denied: att-private");
+    expect(mockRepo.getAttachment).not.toHaveBeenCalled();
+  });
+
   it("readAttachment 附件不存在时应抛出错误", async () => {
     const { service, mockRepo } = createTestService();
     mockRepo.getAttachment = vi.fn().mockResolvedValue(null);

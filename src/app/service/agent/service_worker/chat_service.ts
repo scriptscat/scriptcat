@@ -269,8 +269,10 @@ export class ChatService {
       case "create":
         return this.createConversation(params);
       case "get":
-        return this.getConversation(params.id);
+        return this.getConversation(params.id, params.scriptUuid);
       case "getMessages":
+        if (params.scriptUuid !== undefined)
+          await this.requireConversationAccess(params.conversationId, params.scriptUuid);
         // params.generation 提供时，与当前存储不一致（会话已被删除重建）则拒绝而非返回无关一代的消息；
         // 未提供 generation 时保留旧行为：会话不存在则返回空数组
         try {
@@ -281,15 +283,19 @@ export class ChatService {
         }
       case "save": {
         // 对话已经在 chat 过程中持久化，这里确保元数据也保存；仍需校验调用方持有的 generation
-        if (params.generation !== undefined) {
-          const conv = await this.getConversation(params.conversationId);
-          if (!conv || conv.generation !== params.generation) {
-            throw new Error("Conversation generation mismatch");
-          }
+        const conv =
+          params.scriptUuid !== undefined || params.generation !== undefined
+            ? await this.getConversation(params.conversationId, params.scriptUuid)
+            : undefined;
+        if (params.scriptUuid !== undefined && !conv) throw new Error("Conversation not found");
+        if (params.generation !== undefined && (!conv || conv.generation !== params.generation)) {
+          throw new Error("Conversation generation mismatch");
         }
         return true;
       }
       case "clearMessages":
+        if (params.scriptUuid !== undefined)
+          await this.requireConversationAccess(params.conversationId, params.scriptUuid);
         // 会话正在等待脚本工具结果时，这个 clear 很可能来自该工具 handler 内部的
         // await conv.clear()：chat 持有会话队列锁等待 toolResults，clear 排队等锁，
         // 相互等待成死锁。对这个窗口显式拒绝（fail fast）；其余时刻仍与 chat/compact
@@ -317,6 +323,8 @@ export class ChatService {
           return true;
         });
       case "deleteMessages":
+        if (params.scriptUuid !== undefined)
+          await this.requireConversationAccess(params.conversationId, params.scriptUuid);
         return stackAsyncTask(conversationChatLockKey(params.conversationId), async () => {
           const snapshot = await this.chatRepo.getMessageSnapshot(params.conversationId, params.generation);
           const ids = new Set(params.messageIds);
@@ -333,6 +341,8 @@ export class ChatService {
           return true;
         });
       case "delete": {
+        if (params.scriptUuid !== undefined)
+          await this.requireConversationAccess(params.conversationId, params.scriptUuid);
         this.abortAdmittedChats(params.conversationId);
         this.bgSessionManager.stop(params.conversationId);
         return stackAsyncTask(conversationChatLockKey(params.conversationId), async () => {
@@ -352,6 +362,7 @@ export class ChatService {
     const model = await this.modelService.getModel(params.options.model);
     const conv: Conversation = {
       id: params.options.id || uuidv4(),
+      ownerScriptUuid: params.scriptUuid,
       title: "New Chat",
       modelId: model.id,
       system: params.options.system,
@@ -362,15 +373,21 @@ export class ChatService {
     return this.chatRepo.createConversation(conv);
   }
 
-  private async getConversation(id: string): Promise<Conversation | null> {
+  private async getConversation(id: string, scriptUuid?: string): Promise<Conversation | null> {
     const conversations = await this.chatRepo.listConversations();
     const conversation = conversations.find((item) => item.id === id);
-    if (!conversation) return null;
+    if (!conversation || (scriptUuid !== undefined && conversation.ownerScriptUuid !== scriptUuid)) return null;
     return {
       ...conversation,
       generation: conversation.generation || `legacy:${conversation.id}`,
       revision: conversation.revision ?? 0,
     };
+  }
+
+  private async requireConversationAccess(id: string, scriptUuid: string): Promise<Conversation> {
+    const conversation = await this.getConversation(id, scriptUuid);
+    if (!conversation) throw new Error("Conversation not found");
+    return conversation;
   }
 
   // 统一的流式 conversation chat（UI 和脚本 API 共用）
@@ -401,6 +418,21 @@ export class ChatService {
 
     // 后台模式：非 ephemeral、非 compact 时可用
     const isBackground = params.background === true && !params.ephemeral && !params.compact;
+
+    // Script callers must prove ownership before entering the queue or touching a connection.
+    // Legacy/UI conversations have no owner and therefore fail closed for scripts.
+    if (!params.ephemeral && params.scriptUuid !== undefined) {
+      const conversation = await this.getConversation(params.conversationId, params.scriptUuid);
+      if (!conversation) {
+        try {
+          msgConn.sendMessage({ action: "event", data: { type: "error", message: "Conversation not found" } });
+        } catch {
+          // 端口已断开，无需通知
+        }
+        await releaseProvisionalUserAttachments();
+        return;
+      }
+    }
 
     if (!params.ephemeral && this.conversationsAwaitingScriptTools.has(params.conversationId)) {
       try {
@@ -619,7 +651,7 @@ export class ChatService {
     if (isBackground) {
       // 后台会话必须先确认调用方持有的 generation 与当前存储一致，否则一次删除重建后的
       // 陈旧调用会静默附加到无关的新一代会话上
-      const conv = await this.getConversation(params.conversationId);
+      const conv = await this.getConversation(params.conversationId, params.scriptUuid);
       if (!conv) {
         await releaseProvisionalUserAttachments();
         sendEventDirect({ type: "error", message: "Conversation not found" });
@@ -637,6 +669,7 @@ export class ChatService {
       rc = {
         conversationId: params.conversationId,
         generation: conv.generation!,
+        ownerScriptUuid: conv.ownerScriptUuid,
         abortController,
         listeners: new Set(),
         streamingState: { content: "", thinking: "", toolCalls: [] },
@@ -741,7 +774,7 @@ export class ChatService {
       }
 
       // 获取对话和模型
-      const conv = await this.getConversation(params.conversationId);
+      const conv = await this.getConversation(params.conversationId, params.scriptUuid);
       if (!conv) {
         sendEvent({ type: "error", message: "Conversation not found" });
         return;
@@ -924,7 +957,7 @@ export class ChatService {
     abortController: AbortController
   ): Promise<void> {
     const startTime = Date.now();
-    const conv = await this.getConversation(params.conversationId);
+    const conv = await this.getConversation(params.conversationId, params.scriptUuid);
     if (!conv) {
       sendEvent({ type: "error", message: "Conversation not found" });
       return;

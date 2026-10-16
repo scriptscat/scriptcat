@@ -3,7 +3,7 @@ import path from "path";
 import os from "os";
 import { createServer, STATUS_CODES, type IncomingMessage, type ServerResponse } from "http";
 import type { AddressInfo } from "net";
-import { test as base, expect, chromium, type BrowserContext, type Page } from "@playwright/test";
+import { test as base, expect, chromium, type BrowserContext, type Page, type Worker } from "@playwright/test";
 import { headlessArgs } from "./launch-args";
 import { autoApprovePermissions, installScriptByCode } from "./utils";
 
@@ -516,7 +516,7 @@ function patchTargetMatchCode(code: string, targetUrl: string): string {
   const url = new URL(targetUrl);
   const targetPattern = `${url.protocol}//${url.hostname}/*${url.search}`;
   return code.replace(
-    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|early_inject_content|early_inject_page|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test|GM_XHR_REDIRECT_TEST_SC|GM_XHR_TEST_SC)$/gm,
+    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|early_inject_content|early_inject_page|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test|GM_XHR_REDIRECT_TEST_SC|GM_XHR_TEST_SC|GM_STORAGE_COMPATIBILITY)$/gm,
     `// @match        ${targetPattern}`
   );
 }
@@ -559,6 +559,56 @@ function patchGMApiTestCode(code: string, mockOrigin: string): string {
   );
 }
 
+const SW_E2E_ERROR_BUFFER = "__scriptcatE2EUnhandledErrors";
+
+async function installServiceWorkerErrorCapture(worker: Worker): Promise<void> {
+  await worker.evaluate((bufferKey) => {
+    const target = globalThis as typeof globalThis & Record<string, unknown>;
+    const installedKey = `${bufferKey}Installed`;
+    if (target[installedKey]) return;
+
+    const errors: string[] = [];
+    target[bufferKey] = errors;
+    target[installedKey] = true;
+
+    const describe = (value: unknown) => {
+      if (value instanceof Error) return value.stack || `${value.name}: ${value.message}`;
+      if (typeof value === "string") return value;
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return String(value);
+      }
+    };
+
+    globalThis.addEventListener("error", (event) => {
+      const detail = event as Event & { message?: string; error?: unknown };
+      errors.push(detail.error ? describe(detail.error) : detail.message || "Service Worker error");
+    });
+    globalThis.addEventListener("unhandledrejection", (event) => {
+      const detail = event as Event & { reason?: unknown };
+      errors.push(`Unhandled rejection: ${describe(detail.reason)}`);
+    });
+  }, SW_E2E_ERROR_BUFFER);
+}
+
+async function readServiceWorkerErrors(context: BrowserContext): Promise<string[]> {
+  const batches = await Promise.all(
+    context.serviceWorkers().map(async (worker) => {
+      try {
+        return await worker.evaluate((bufferKey) => {
+          const target = globalThis as typeof globalThis & Record<string, unknown>;
+          const errors = target[bufferKey];
+          return Array.isArray(errors) ? (errors as string[]).slice() : [];
+        }, SW_E2E_ERROR_BUFFER);
+      } catch {
+        return [];
+      }
+    })
+  );
+  return batches.flat();
+}
+
 async function runTestScript(
   context: BrowserContext,
   extensionId: string,
@@ -568,26 +618,49 @@ async function runTestScript(
   options?: {
     patchCode?: (code: string) => string;
     requireOrigin?: string;
+    expectedSummaryCount?: number;
     // 声明为 auto:false 的 sctest 套件不随页面加载开跑，要先点面板的「运行」按钮。首次加载时
     // ConsoleReporter 已经打过一次汇总（那时用例全被预置为 skip，即 "通过: 0 / 失败: 0"），
     // 所以点击后必须等**新的一次**汇总，不能沿用已有值。
     beforeCollect?: (page: Page) => Promise<void>;
   }
-): Promise<{ summary: SCTestSummary; logs: string[] }> {
+): Promise<{ summary: SCTestSummary; summaries: SCTestSummary[]; logs: string[] }> {
   let code = fs.readFileSync(path.join(__dirname, `../example/tests/${scriptFile}`), "utf-8");
   code = patchScriptCode(code);
   if (options?.requireOrigin) code = patchRequireCode(code, options.requireOrigin);
   code = patchTargetMatchCode(code, targetUrl);
   code = options?.patchCode ? options.patchCode(code) : code;
 
+  const diagnosticLogs: string[] = [];
+  const handleServiceWorker = (worker: Worker) => {
+    void installServiceWorkerErrorCapture(worker).catch((error) => {
+      diagnosticLogs.push(`[serviceworker-capture] ${String(error)}`);
+    });
+  };
+  for (const worker of context.serviceWorkers()) {
+    await installServiceWorkerErrorCapture(worker).catch((error) => {
+      diagnosticLogs.push(`[serviceworker-capture] ${String(error)}`);
+    });
+  }
+  context.on("serviceworker", handleServiceWorker);
+
   autoApprovePermissions(context);
   await installScriptByCode(context, extensionId, code);
 
   const page = await context.newPage();
   const logs: string[] = [];
+  const pageErrors: string[] = [];
+  const summaries: SCTestSummary[] = [];
   let summary: SCTestSummary | null = null;
-
   let summaryCount = 0;
+  const expectedStartupSummaryCount = options?.expectedSummaryCount ?? 1;
+  const expectedFinalSummaryCount = expectedStartupSummaryCount + (options?.beforeCollect ? 1 : 0);
+
+  page.on("pageerror", (error) => {
+    const detail = error.stack || `${error.name}: ${error.message}`;
+    pageErrors.push(detail);
+    logs.push(`[pageerror] ${detail}`);
+  });
 
   page.on("console", (msg) => {
     const text = msg.text();
@@ -597,40 +670,82 @@ async function runTestScript(
       const parsed = JSON.parse(text.slice("[SCTEST_RESULT] ".length)) as SCTestSummary;
       if (parsed.protocol !== "sctest/v1") return;
       summary = parsed;
+      summaries.push(parsed);
       summaryCount++;
     } catch {
       // Keep collecting console output; the assertion below reports a missing valid summary.
     }
   });
 
-  await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
+  const collectFatalErrors = async () => {
+    const workerErrors = await readServiceWorkerErrors(context);
+    return [
+      ...pageErrors.map((error) => `[page] ${error}`),
+      ...workerErrors.map((error) => `[service-worker] ${error}`),
+    ];
+  };
 
-  if (options?.beforeCollect) {
-    // 顺序很重要：先等页面加载时那组汇总打完（那时 auto:false 的用例还全是 skip，
-    // 汇总是 "通过: 0 / 失败: 0"），再点按钮，最后等下一组汇总。
-    // 若在 goto 之后立刻取快照，首次汇总往往还没打，会让第二个轮询被它立即满足而读到 0/0。
-    await expect
-      .poll(() => summaryCount > 0, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
-      .toBe(true)
-      .catch(() => undefined);
-    const seenBefore = summaryCount;
-    await options.beforeCollect(page);
-    await expect
-      .poll(() => summaryCount > seenBefore, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
-      .toBe(true)
-      .catch(() => undefined);
-  } else {
-    await expect
-      .poll(() => summary !== null, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
-      .toBe(true)
-      .catch(() => undefined);
+  const throwIfStartupFailed = async (expectedSummaryCount: number, seenFatalCount: number, phase: string) => {
+    const fatalErrors = await collectFatalErrors();
+    if (summaryCount >= expectedSummaryCount || fatalErrors.length <= seenFatalCount) return;
+    throw new Error(
+      `Unhandled ${phase} error before SCTest summary for ${scriptFile}:\n${fatalErrors
+        .slice(seenFatalCount)
+        .join("\n\n")}\n\nConsole:\n${[...diagnosticLogs, ...logs].join("\n")}`
+    );
+  };
+
+  try {
+    await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
+
+    if (options?.beforeCollect) {
+      await expect
+        .poll(async () => summaryCount >= expectedStartupSummaryCount || (await collectFatalErrors()).length > 0, {
+          timeout: timeoutMs,
+          intervals: [100, 250, 500, 1_000],
+        })
+        .toBe(true)
+        .catch(() => undefined);
+      await throwIfStartupFailed(expectedStartupSummaryCount, 0, "startup");
+
+      const seenBefore = summaryCount;
+      const seenFatalCount = (await collectFatalErrors()).length;
+      await options.beforeCollect(page);
+      await expect
+        .poll(async () => summaryCount > seenBefore || (await collectFatalErrors()).length > seenFatalCount, {
+          timeout: timeoutMs,
+          intervals: [100, 250, 500, 1_000],
+        })
+        .toBe(true)
+        .catch(() => undefined);
+      await throwIfStartupFailed(seenBefore + 1, seenFatalCount, "post-action");
+    } else {
+      await expect
+        .poll(async () => summaryCount >= expectedStartupSummaryCount || (await collectFatalErrors()).length > 0, {
+          timeout: timeoutMs,
+          intervals: [100, 250, 500, 1_000],
+        })
+        .toBe(true)
+        .catch(() => undefined);
+      await throwIfStartupFailed(expectedStartupSummaryCount, 0, "startup");
+    }
+  } finally {
+    context.off("serviceworker", handleServiceWorker);
+    await page.close().catch(() => undefined);
   }
 
-  await page.close();
-  expect(summary, `No valid SCTest summary found for ${scriptFile}:\n${logs.join("\n")}`).not.toBeNull();
-  return { summary: summary!, logs };
+  expect(
+    summary,
+    `Expected ${expectedFinalSummaryCount} valid SCTest summary result(s) for ${scriptFile}; found ${summaryCount}:\n${[
+      ...diagnosticLogs,
+      ...logs,
+    ].join("\n")}`
+  ).not.toBeNull();
+  expect(summaryCount, `Expected ${expectedFinalSummaryCount} SCTest summary result(s) for ${scriptFile}`).toBe(
+    expectedFinalSummaryCount
+  );
+  return { summary: summary!, summaries, logs: [...diagnosticLogs, ...logs] };
 }
-
 // 设计稿统一为“运行全部”入口；旧面板若仍提供 suite 专属按钮则优先使用。
 // 两条路径都只执行自动用例，itManual 保持待人工确认。
 function clickSuiteRunButton(suiteName: string) {
@@ -878,6 +993,34 @@ test.describe("GM API", () => {
     }
     expect(summary.failed, "Some GM_ sync API tests failed").toBe(0);
     expect(summary.passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("GM storage compatibility script checks cloning, value normalization, and reload persistence from one URL", async ({
+    context,
+    extensionId,
+  }) => {
+    const targetUrl = `${gmApiMockServer.cspOrigin}/?GM_STORAGE_COMPATIBILITY`;
+    const { summary, logs } = await runTestScript(context, extensionId, "gm_storage_test.js", targetUrl, 60_000, {
+      requireOrigin: gmApiMockServer.origin,
+      expectedSummaryCount: 1,
+    });
+
+    console.log("[GM Storage Compatibility]", summary);
+    if (summary.failed !== 0) {
+      console.log("[GM Storage Compatibility] logs:", logs.join("\n"));
+    }
+
+    expect(summary.name).toBe("GM Storage Compatibility");
+    expect(summary.environment.url).toBe(targetUrl);
+    expect(
+      summary.failed,
+      `GM Storage Compatibility reports failed storage assertions: ${failedCaseNames(summary).join(", ")}`
+    ).toBe(0);
+    expect(
+      summary.total,
+      "The unified storage suite must register all clone, normalization, and persistence checks"
+    ).toBe(24);
+    expect(summary.passed, "All unified storage compatibility checks must pass").toBe(24);
   });
 
   test("GM.* async API tests (gm_api_async_test.js)", async ({ context, extensionId }) => {

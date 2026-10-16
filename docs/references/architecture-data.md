@@ -40,8 +40,8 @@ Design notes:
 - **Cache:** `enableCache()` switches reads/writes to a process-local cache that mirrors storage — used for
   hot collections (scripts) to avoid repeated async reads. A subclass that overrides `joinKey` can hash keys
   (e.g. resources keyed by URL via a UUID-v5 namespace).
-- **Storage errors are logged, not thrown** — `chrome.runtime.lastError` is checked and reads continue, since
-  a transient storage hiccup should not crash the worker.
+- **Storage errors reject their promises.** The storage callback paths check `chrome.runtime.lastError` and reject;
+  `Repo<T>` does not log the error and continue.
 
 ### Repository inventory
 
@@ -57,6 +57,8 @@ Names ending in `DAO` don't all share one base class — check which backend bef
 | `PermissionDAO` | [`permission.ts`](../../src/app/repo/permission.ts) | `Permission` | Composite key `<uuid>:<permission>:<value>` |
 | `SubscribeDAO` | [`subscribe.ts`](../../src/app/repo/subscribe.ts) | `Subscribe` | Keyed by feed URL |
 | `FaviconDAO`, `LocalStorageDAO`, `ExportDAO`, `TempStorageDAO` | `src/app/repo/*.ts` | misc | Same `Repo<T>` pattern |
+| `ExternalAccessOperationDAO` | [`external_access.ts`](../../src/app/repo/external_access.ts) | `ExternalAccessOperation` | External-access operation records |
+| `NetworkRuleStateDAO` | [`network_rule.ts`](../../src/app/repo/network_rule.ts) | `NetworkRuleState` | Declarative network-rule state |
 | `AgentModelRepo` | [`agent_model.ts`](../../src/app/repo/agent_model.ts) | `AgentModelConfig` | Agent model configs — small, no indexed query need |
 | `AgentTaskRepo` | [`agent_task.ts`](../../src/app/repo/agent_task.ts) | `AgentTask` | Scheduled agent task definitions |
 | `MCPServerRepo` | [`mcp_server_repo.ts`](../../src/app/repo/mcp_server_repo.ts) | `MCPServerConfig` | MCP server configs |

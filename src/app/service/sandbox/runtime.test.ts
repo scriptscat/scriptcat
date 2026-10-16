@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initTestEnv } from "@Tests/utils";
 import type { Server } from "@Packages/message/server";
-import type { WindowMessage } from "@Packages/message/window_message";
+import type { Message } from "@Packages/message/types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { TExtensionEnv } from "../extension/extension_env";
 import { SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, type SCRIPT_TYPE } from "@App/app/repo/scripts";
@@ -49,7 +49,7 @@ const buildScript = (runIn?: string, type: SCRIPT_TYPE = SCRIPT_TYPE_BACKGROUND)
   }) as unknown as ScriptLoadInfo;
 
 const setup = (extensionEnv: TExtensionEnv | undefined) => {
-  const windowMessage = {} as WindowMessage;
+  const windowMessage = {} as Message;
   const api = {} as Server;
   return new Runtime(windowMessage, api, Promise.resolve(extensionEnv));
 };

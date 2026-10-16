@@ -38,7 +38,7 @@ class GMAgentApi {
     if (!this.agentService) {
       throw new Error("AgentService is not available");
     }
-    return this.agentService.handleConversationApi(request.params[0]);
+    return this.agentService.handleConversationApi({ ...request.params[0], scriptUuid: request.script.uuid });
   }
 
   @PermissionVerify.API({
@@ -50,7 +50,10 @@ class GMAgentApi {
     if (!this.agentService) {
       throw new Error("AgentService is not available");
     }
-    return this.agentService.handleConversationChatFromGmApi(request.params[0], sender);
+    return this.agentService.handleConversationChatFromGmApi(
+      { ...request.params[0], scriptUuid: request.script.uuid },
+      sender
+    );
   }
 
   @PermissionVerify.API({
@@ -62,7 +65,10 @@ class GMAgentApi {
     if (!this.agentService) {
       throw new Error("AgentService is not available");
     }
-    return this.agentService.handleAttachToConversationFromGmApi(request.params[0], sender);
+    return this.agentService.handleAttachToConversationFromGmApi(
+      { ...request.params[0], scriptUuid: request.script.uuid },
+      sender
+    );
   }
 }
 

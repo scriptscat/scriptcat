@@ -197,7 +197,7 @@ export default function UserConfigPanel({ script, userConfig, values, open, onOp
       .map((k) => [k, group[k]]);
 
   // 仅保存当前分组的值
-  const handleSave = () => {
+  const handleSave = async () => {
     const group = userConfig[tab] as ConfigGroup | undefined;
     if (!group) return;
     const keyValuePairs: TKeyValuePair[] = [];
@@ -207,9 +207,13 @@ export default function UserConfigPanel({ script, userConfig, values, open, onOp
       if (v === undefined) continue;
       keyValuePairs.push([fullKey, encodeRValue(v)]);
     }
-    void valueClient.setScriptValues({ uuid: script.uuid, keyValuePairs, isReplace: false, ts: Date.now() });
-    notify.success(t("save_success"));
-    onOpenChange(false);
+    try {
+      await valueClient.setScriptValues({ uuid: script.uuid, keyValuePairs, isReplace: false, ts: Date.now() });
+      notify.success(t("save_success"));
+      onOpenChange(false);
+    } catch (error) {
+      notify.error(`${t("script:operation_failed")}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   };
 
   return (

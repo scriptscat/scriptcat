@@ -21,6 +21,12 @@ describe.concurrent("encodeRValue 编码函数", () => {
     expect(encoded[1]).toBe(value);
   });
 
+  it.concurrent("应将 NaN 与正负 Infinity 编码为无损标记", () => {
+    expect(encodeRValue(Number.NaN)).toEqual([RType.NAN]);
+    expect(encodeRValue(Infinity)).toEqual([RType.POSITIVE_INFINITY]);
+    expect(encodeRValue(-Infinity)).toEqual([RType.NEGATIVE_INFINITY]);
+  });
+
   it.concurrent("应将字符串编码为 STANDARD 类型元组", () => {
     const value = "测试字符串";
     const encoded = encodeRValue(value);
@@ -74,6 +80,12 @@ describe.concurrent("decodeRValue 解码函数", () => {
     expect(decoded).toBe(42);
   });
 
+  it.concurrent("应将特殊数字标记恢复为原始数值", () => {
+    expect(Number.isNaN(decodeRValue([RType.NAN]))).toBe(true);
+    expect(decodeRValue([RType.POSITIVE_INFINITY])).toBe(Infinity);
+    expect(decodeRValue([RType.NEGATIVE_INFINITY])).toBe(-Infinity);
+  });
+
   it.concurrent("应将 STANDARD 类型元组解码为原始值（字符串）", () => {
     const encoded: REncoded<string> = [RType.STANDARD, "解码测试"];
     const decoded = decodeRValue(encoded);
@@ -117,6 +129,9 @@ describe.concurrent("encodeRValue 与 decodeRValue 组合行为", () => {
       0,
       -1,
       3.14,
+      Number.NaN,
+      Infinity,
+      -Infinity,
       "往返测试",
       "",
       true,
@@ -131,8 +146,8 @@ describe.concurrent("encodeRValue 与 decodeRValue 组合行为", () => {
 
     roundTrip.forEach((decoded, index) => {
       const original = values[index];
-      if (typeof original === "object" && original !== null) {
-        expect(decoded).toBe(original);
+      if (typeof original === "number" && Number.isNaN(original)) {
+        expect(Number.isNaN(decoded)).toBe(true);
       } else {
         expect(decoded).toBe(original);
       }

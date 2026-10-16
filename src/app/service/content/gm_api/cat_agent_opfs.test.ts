@@ -24,7 +24,7 @@ describe.concurrent("CATAgentOPFSApi", () => {
 
     const apis = GMContextApiGet("CAT.agent.opfs")!;
     const writeApi = apis.find((a) => a.fnKey === "CAT.agent.opfs.write")!;
-    const result = await writeApi.api.call(ctx, "hello.txt", "Hello");
+    const result = await writeApi.api(ctx, "hello.txt", "Hello");
 
     expect(mockSendMessage).toHaveBeenCalledWith("CAT_agentOPFS", [
       { action: "write", path: "hello.txt", content: "Hello", scriptUuid: "test-uuid" } as OPFSApiRequest,
@@ -38,7 +38,7 @@ describe.concurrent("CATAgentOPFSApi", () => {
 
     const apis = GMContextApiGet("CAT.agent.opfs")!;
     const readApi = apis.find((a) => a.fnKey === "CAT.agent.opfs.read")!;
-    const result = await readApi.api.call(ctx, "f.txt");
+    const result = await readApi.api(ctx, "f.txt");
 
     expect(mockSendMessage).toHaveBeenCalledWith("CAT_agentOPFS", [
       { action: "read", path: "f.txt", scriptUuid: "test-uuid" } as OPFSApiRequest,
@@ -54,14 +54,14 @@ describe.concurrent("CATAgentOPFSApi", () => {
     const listApi = apis.find((a) => a.fnKey === "CAT.agent.opfs.list")!;
 
     // 不带 path
-    await listApi.api.call(ctx);
+    await listApi.api(ctx);
     expect(mockSendMessage).toHaveBeenCalledWith("CAT_agentOPFS", [
       { action: "list", path: undefined, scriptUuid: "test-uuid" } as OPFSApiRequest,
     ]);
 
     // 带 path
     mockSendMessage.mockClear();
-    await listApi.api.call(ctx, "sub");
+    await listApi.api(ctx, "sub");
     expect(mockSendMessage).toHaveBeenCalledWith("CAT_agentOPFS", [
       { action: "list", path: "sub", scriptUuid: "test-uuid" } as OPFSApiRequest,
     ]);
@@ -73,7 +73,7 @@ describe.concurrent("CATAgentOPFSApi", () => {
 
     const apis = GMContextApiGet("CAT.agent.opfs")!;
     const deleteApi = apis.find((a) => a.fnKey === "CAT.agent.opfs.delete")!;
-    const result = await deleteApi.api.call(ctx, "old.txt");
+    const result = await deleteApi.api(ctx, "old.txt");
 
     expect(mockSendMessage).toHaveBeenCalledWith("CAT_agentOPFS", [
       { action: "delete", path: "old.txt", scriptUuid: "test-uuid" } as OPFSApiRequest,
@@ -87,7 +87,7 @@ describe.concurrent("CATAgentOPFSApi", () => {
 
     const apis = GMContextApiGet("CAT.agent.opfs")!;
     const listApi = apis.find((a) => a.fnKey === "CAT.agent.opfs.list")!;
-    await listApi.api.call(ctx);
+    await listApi.api(ctx);
 
     expect(mockSendMessage).toHaveBeenCalledWith("CAT_agentOPFS", [
       { action: "list", path: undefined, scriptUuid: "" } as OPFSApiRequest,
@@ -108,7 +108,7 @@ describe.concurrent("CATAgentOPFSApi", () => {
 
     const apis = GMContextApiGet("CAT.agent.opfs")!;
     const readAttachmentApi = apis.find((a) => a.fnKey === "CAT.agent.opfs.readAttachment")!;
-    const result = await readAttachmentApi.api.call(ctx, "att-1");
+    const result = await readAttachmentApi.api(ctx, "att-1");
 
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     expect((result as any).data).toBe(testBlob);
@@ -126,7 +126,7 @@ describe.concurrent("CATAgentOPFSApi", () => {
 
     const apis = GMContextApiGet("CAT.agent.opfs")!;
     const readApi = apis.find((a) => a.fnKey === "CAT.agent.opfs.read")!;
-    const result = await readApi.api.call(ctx, "img.png", "blob");
+    const result = await readApi.api(ctx, "img.png", "blob");
 
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     expect((result as any).data).toBe(testBlob);
@@ -154,7 +154,7 @@ describe.concurrent("CATAgentOPFSApi", () => {
 
     const apis = GMContextApiGet("CAT.agent.opfs")!;
     const readAttachmentApi = apis.find((a) => a.fnKey === "CAT.agent.opfs.readAttachment")!;
-    const result = await readAttachmentApi.api.call(ctx, "att-1");
+    const result = await readAttachmentApi.api(ctx, "att-1");
 
     expect(mockSendMessage).toHaveBeenCalledWith("CAT_fetchBlob", ["blob:chrome-extension://test/123"]);
     expect((result as any).data).toBe(testBlob);
@@ -181,7 +181,7 @@ describe.concurrent("CATAgentOPFSApi", () => {
 
     const apis = GMContextApiGet("CAT.agent.opfs")!;
     const readApi = apis.find((a) => a.fnKey === "CAT.agent.opfs.read")!;
-    const result = await readApi.api.call(ctx, "img.png", "blob");
+    const result = await readApi.api(ctx, "img.png", "blob");
 
     expect(mockSendMessage).toHaveBeenCalledWith("CAT_fetchBlob", ["blob:chrome-extension://test/456"]);
     expect((result as any).data).toBe(testBlob);

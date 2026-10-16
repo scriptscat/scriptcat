@@ -264,18 +264,20 @@ export class AgentDomService {
   }
 
   // 启动页面监控（CDP：dialog 自动处理 + MutationObserver）
-  async startMonitor(tabId: number): Promise<void> {
-    return cdpStartMonitor(tabId);
+  async startMonitor(tabId: number, scriptUuid?: string): Promise<void> {
+    const tab = await chrome.tabs.get(tabId);
+    assertDomUrlAllowed(tab.url || "");
+    return cdpStartMonitor(tabId, scriptUuid);
   }
 
   // 停止监控并返回收集的结果
-  async stopMonitor(tabId: number): Promise<MonitorResult> {
-    return cdpStopMonitor(tabId);
+  async stopMonitor(tabId: number, scriptUuid?: string): Promise<MonitorResult> {
+    return cdpStopMonitor(tabId, scriptUuid);
   }
 
   // 查询当前 monitor 状态（不停止监控）
-  peekMonitor(tabId: number): MonitorStatus {
-    return cdpPeekMonitor(tabId);
+  peekMonitor(tabId: number, scriptUuid?: string): MonitorStatus {
+    return cdpPeekMonitor(tabId, scriptUuid);
   }
 
   // 处理 GM API 请求路由
@@ -300,11 +302,11 @@ export class AgentDomService {
       case "executeScript":
         return this.executeScript(request.code, request.options);
       case "startMonitor":
-        return this.startMonitor(request.tabId);
+        return this.startMonitor(request.tabId, request.scriptUuid);
       case "stopMonitor":
-        return this.stopMonitor(request.tabId);
+        return this.stopMonitor(request.tabId, request.scriptUuid);
       case "peekMonitor":
-        return this.peekMonitor(request.tabId);
+        return this.peekMonitor(request.tabId, request.scriptUuid);
       default:
         throw new Error(`Unknown DOM action: ${(request as any).action}`);
     }

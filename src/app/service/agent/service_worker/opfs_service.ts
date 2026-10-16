@@ -59,6 +59,9 @@ export class AgentOPFSService {
         return { path: safePath2, content: textContent, size: file2.size };
       }
       case "readAttachment": {
+        if (!(await repo.isAttachmentAccessibleToScript(request.id, request.scriptUuid))) {
+          throw new Error(`Attachment access denied: ${request.id}`);
+        }
         const blob = await repo.getAttachment(request.id);
         if (!blob) {
           throw new Error(`Attachment not found: ${request.id}`);

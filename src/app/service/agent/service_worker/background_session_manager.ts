@@ -10,6 +10,8 @@ export type ListenerEntry = {
 // 后台运行会话状态
 export type RunningConversation = {
   conversationId: string;
+  /** ScriptCat API owner; absent for conversations started by the extension UI. */
+  ownerScriptUuid?: string;
   // 该次运行绑定的会话 generation；attach() 的调用方必须持有同一 generation 才允许附加，
   // 否则会静默观察到删除重建后无关的新一代会话
   generation: string;
@@ -191,7 +193,10 @@ export class BackgroundSessionManager {
   }
 
   // 附加 UI 连接到后台运行中的会话（同步快照 + listener + askUser resolver + stop）
-  async handleAttach(params: { conversationId: string; generation?: string }, sender: IGetSender): Promise<void> {
+  async handleAttach(
+    params: { conversationId: string; generation?: string; scriptUuid?: string },
+    sender: IGetSender
+  ): Promise<void> {
     if (!sender.isType(GetSenderType.CONNECT)) {
       throw new Error("attachToConversation requires connect mode");
     }
@@ -205,6 +210,13 @@ export class BackgroundSessionManager {
 
     if (!rc) {
       // 会话不在运行中
+      sendEvent({ type: "sync", tasks: [], status: "done" });
+      return;
+    }
+
+    // Script callers may observe only the running conversation owned by the same script.
+    // Missing owners are legacy/UI records and therefore fail closed for scripts.
+    if (params.scriptUuid !== undefined && rc.ownerScriptUuid !== params.scriptUuid) {
       sendEvent({ type: "sync", tasks: [], status: "done" });
       return;
     }
