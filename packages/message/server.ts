@@ -47,8 +47,8 @@ export class SenderConnect {
     if (this.sender instanceof ExtensionMessageConnect) {
       const con = this.sender.getPort();
       return {
-        windowId: con.sender?.tab?.windowId || -1, // -1表示后台脚本
-        tabId: con.sender?.tab?.id || -1, // -1表示后台脚本
+        windowId: con.sender?.tab?.windowId ?? -1, // -1表示后台脚本
+        tabId: con.sender?.tab?.id ?? -1, // -1表示后台脚本
         frameId: con.sender?.frameId,
         documentId: con.sender?.documentId,
       };
@@ -97,8 +97,8 @@ export class SenderRuntime {
       };
     }
     return {
-      windowId: sender.tab?.windowId || -1, // -1表示后台脚本
-      tabId: sender.tab?.id || -1, // -1表示后台脚本
+      windowId: sender.tab?.windowId ?? -1, // -1表示后台脚本
+      tabId: sender.tab?.id ?? -1, // -1表示后台脚本
       frameId: sender.frameId,
       documentId: sender.documentId,
     };

@@ -31,6 +31,7 @@ const grantValuePrompts = {
   GM_getResourceText: "Читает текстовое содержимое ресурса, объявленного через @resource.",
   GM_getResourceURL: "Получает URL ресурса, объявленного через @resource.",
   GM_cookie: "Доступ к Cookie API для чтения, записи или удаления cookie.",
+  GM_audio: "Управляет звуком текущей вкладки браузера и отслеживает состояние воспроизведения аудио.",
   CAT_fetchBlob: "Внутренний API ScriptCat: читает доступный со стороны расширения ресурс и возвращает Blob.",
   CAT_fileStorage: "API ScriptCat: доступ к файловому хранилищу скрипта.",
   CAT_userConfig: "API ScriptCat: доступ к пользовательской конфигурации скрипта.",

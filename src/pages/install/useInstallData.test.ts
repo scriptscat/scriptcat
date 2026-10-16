@@ -118,11 +118,16 @@ describe("assembleInstallView 组装安装视图", () => {
   });
 
   it("组装时派生不生效标记，行号取自待安装代码", () => {
-    const metadata = { name: ["示例脚本"], version: ["2.3.1"], "exclude-match": ["*://a.com/*"], grant: ["GM_audio"] };
+    const metadata = {
+      name: ["示例脚本"],
+      version: ["2.3.1"],
+      "exclude-match": ["*://a.com/*"],
+      grant: ["GM_testingAPI"],
+    };
     const code = `// ==UserScript==
 // @name 示例脚本
 // @exclude-match *://a.com/*
-// @grant GM_audio
+// @grant GM_testingAPI
 // ==/UserScript==`;
     const view = assembleInstallView({
       isUpdate: false,
@@ -131,7 +136,7 @@ describe("assembleInstallView 组装安装视图", () => {
       code,
       oldVersion: null,
     });
-    expect(view.compat.grants).toEqual(new Map([["GM_audio", 4]]));
+    expect(view.compat.grants).toEqual(new Map([["GM_testingAPI", 4]]));
     expect(view.compat.tags).toEqual([{ tag: "exclude-match", line: 3 }]);
     expect(view.compat.scriptcatOnlyTags).toEqual([]);
   });

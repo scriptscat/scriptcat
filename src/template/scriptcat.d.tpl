@@ -206,6 +206,18 @@ declare function GM_cookie(
   details: GMTypes.CookieDetails,
   ondone: (cookie: GMTypes.Cookie[], error: unknown | undefined) => void
 ): void;
+
+/** 控制并监听当前浏览器标签页的音频状态。 */
+declare const GM_audio: {
+  /** 将当前标签页静音或取消静音。 */
+  setMute(details: GMTypes.AudioMuteDetails, callback?: GMTypes.AudioErrorCallback): void;
+  /** 读取当前标签页的静音与发声状态。 */
+  getState(callback: GMTypes.AudioStateCallback): void;
+  /** 监听静音或发声状态变化。 */
+  addStateChangeListener(listener: GMTypes.AudioStateChangeListener, callback?: GMTypes.AudioErrorCallback): void;
+  /** 移除之前注册的状态变化监听器。 */
+  removeStateChangeListener(listener: GMTypes.AudioStateChangeListener, callback?: () => void): void;
+};
  
 /**
  * GM.* API (兼容 Greasemonkey4/Tampermonkey 4+ 的 Promise 风格)
@@ -304,6 +316,18 @@ declare const GM: {
 
   /** Cookie 操作 */
   cookie(action: GMTypes.CookieAction, details: GMTypes.CookieDetails): Promise<GMTypes.Cookie[]>;
+
+  /** 控制并监听当前浏览器标签页的音频状态。 */
+  audio: {
+    /** 将当前标签页静音或取消静音。 */
+    setMute(details: GMTypes.AudioMuteDetails): Promise<void>;
+    /** 读取当前标签页的静音与发声状态。 */
+    getState(): Promise<GMTypes.AudioState>;
+    /** 监听静音或发声状态变化。 */
+    addStateChangeListener(listener: GMTypes.AudioStateChangeListener): Promise<void>;
+    /** 移除之前注册的状态变化监听器。 */
+    removeStateChangeListener(listener: GMTypes.AudioStateChangeListener): Promise<void>;
+  };
 };
 
 /**
@@ -450,6 +474,27 @@ declare namespace CATType {
 
 declare namespace GMTypes {
   type CookieAction = "list" | "delete" | "set";
+
+  type AudioMuteReason = "user" | "capture" | "extension";
+
+  interface AudioMuteDetails {
+    isMuted: boolean;
+  }
+
+  interface AudioState {
+    isMuted?: boolean;
+    muteReason?: AudioMuteReason;
+    isAudible?: boolean;
+  }
+
+  interface AudioStateChangeInfo {
+    muted?: AudioMuteReason | false;
+    audible?: boolean;
+  }
+
+  type AudioErrorCallback = (error?: string) => void;
+  type AudioStateCallback = (info: AudioState | undefined) => void;
+  type AudioStateChangeListener = (info: AudioStateChangeInfo) => void;
 
   type LoggerLevel = "debug" | "info" | "warn" | "error";
 
