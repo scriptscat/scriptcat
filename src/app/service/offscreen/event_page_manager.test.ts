@@ -7,6 +7,7 @@ import type LoggerCoreType from "../../logger/core";
 import { EventPageOffscreenManager, InProcessMessage } from "./event_page_manager";
 
 initTestEnv();
+chromeMock.runtime.getURL = vi.fn().mockReturnValue("about:blank");
 
 // keep_alive.ts 在模块顶层把 isFirefox() 固化为 boolFirefox 常量；测试环境不是 Firefox，
 // 必须 mock isFirefox 并配合 vi.resetModules() 重新导入，Firefox 保活分支才会生效。
@@ -29,6 +30,7 @@ afterEach(() => {
   isFirefoxMock.mockReturnValue(false);
   vi.stubGlobal("Image", RealImage);
   chromeMock.init();
+  chromeMock.runtime.getURL = vi.fn().mockReturnValue("about:blank");
   for (const node of Array.from(document.documentElement.querySelectorAll("iframe,img"))) {
     node.remove();
   }
