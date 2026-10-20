@@ -104,6 +104,7 @@ export default class ExecScript {
     GM_info.isIncognito = envInfo.isIncognito;
     GM_info.sandboxMode = envInfo.sandboxMode;
     GM_info.userAgentData = envInfo.userAgentData;
+    GM_info.userLanguage = envInfo.userLanguage;
   }
 
   stop() {

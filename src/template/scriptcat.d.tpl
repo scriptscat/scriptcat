@@ -32,6 +32,7 @@ declare const GM_info: {
   userConfig?: UserConfig;
   userConfigStr?: string;
   isIncognito: boolean;
+  userLanguage: string; // ScriptCat 界面语言，如 "zh-CN"；尚未获知时为 ""
   sandboxMode: "raw"; // "js" | "raw" | "none";
   userAgentData: {
     brands?: {

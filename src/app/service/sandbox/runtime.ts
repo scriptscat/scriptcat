@@ -40,6 +40,9 @@ export class Runtime {
     retryTime: number;
   }[] = [];
 
+  // 供 GM_info.userLanguage 使用，由 SW 经 setSandboxLanguage 同步；收到之前未知，为空串
+  userLanguage = "";
+
   constructor(
     private windowMessage: WindowMessage,
     private api: Server,
@@ -190,7 +193,7 @@ export class Runtime {
       }
     }
 
-    const exec = new BgExecScriptWarp(script, this.windowMessage, extensionEnv);
+    const exec = new BgExecScriptWarp(script, this.windowMessage, extensionEnv, this.userLanguage);
     this.execScriptMap.set(script.uuid, exec);
     proxyUpdateRunStatus(this.windowMessage, { uuid: script.uuid, runStatus: SCRIPT_RUN_STATUS_RUNNING });
     // 修改掉脚本掉最后运行时间, 数据库也需要修改
@@ -372,6 +375,7 @@ export class Runtime {
   }
 
   setSandboxLanguage(lang: string) {
+    this.userLanguage = lang;
     changeLanguage(lang);
   }
 
@@ -434,7 +438,7 @@ export class Runtime {
 
     // 使用 BgExecScriptWarp 执行，它会自动构建 setTimeout/setInterval 等
     const extensionEnv = await this.extensionEnvAsync;
-    const exec = new BgExecScriptWarp(scriptLoadInfo, this.windowMessage, extensionEnv);
+    const exec = new BgExecScriptWarp(scriptLoadInfo, this.windowMessage, extensionEnv, this.userLanguage);
     // 通过 sandboxContext 注入 args（BgExecScriptWarp 通过 globalInjection 注入了 setTimeout 等，
     // sandboxContext 已经包含了这些，再追加 args 即可）
     if ((exec as any).sandboxContext) {

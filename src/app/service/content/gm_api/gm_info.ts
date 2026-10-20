@@ -24,6 +24,7 @@ export function evaluateGMInfo(envInfo: GMInfoEnv, script: TScriptInfo) {
     scriptWillUpdate: !!script.checkUpdate,
     scriptHandler: "ScriptCat",
     userAgentData: envInfo.userAgentData,
+    userLanguage: envInfo.userLanguage,
     // "" => null
     scriptUpdateURL: script.downloadUrl || null,
     scriptMetaStr: script.metadataStr,

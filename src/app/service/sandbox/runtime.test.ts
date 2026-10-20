@@ -30,8 +30,11 @@ vi.mock("../offscreen/client", () => ({
 }));
 
 import { Runtime } from "./runtime";
+import { initLanguage } from "@App/locales/locales";
 
 initTestEnv();
+// 生产中 sandbox init() 会先 initLanguage()，setSandboxLanguage 依赖已初始化的 i18n
+initLanguage();
 
 const buildScript = (runIn?: string, type: SCRIPT_TYPE = SCRIPT_TYPE_BACKGROUND): ScriptLoadInfo =>
   ({
@@ -115,6 +118,13 @@ describe("Runtime.execScript run-in 过滤", () => {
     expect(BgExecScriptWarpCtor).toHaveBeenCalledTimes(1);
   });
 
+  it("执行时向 BgExecScriptWarp 传入最近一次同步的界面语言", async () => {
+    const runtime = setup({ inIncognitoContext: false });
+    runtime.setSandboxLanguage("ko-KR");
+    await runtime.execScript(buildScript());
+    expect(BgExecScriptWarpCtor.mock.calls[0][3]).toBe("ko-KR");
+  });
+
   it("extensionEnv 为 undefined 时，过滤被跳过照常执行（fail-open）", async () => {
     // 当前实现：拿不到 incognito 状态时不做过滤，避免静默丢失任务
     const runtime = setup(undefined);
@@ -135,9 +145,10 @@ describe("Runtime.executeSkillScript 执行环境", () => {
     vi.useRealTimers();
   });
 
-  it("执行 skill 脚本时向 BgExecScriptWarp 传入扩展环境", async () => {
+  it("执行 skill 脚本时向 BgExecScriptWarp 传入扩展环境与界面语言", async () => {
     const extensionEnv: TExtensionEnv = { inIncognitoContext: true };
     const runtime = setup(extensionEnv);
+    runtime.setSandboxLanguage("pt-BR");
 
     await runtime.executeSkillScript({
       uuid: "skill-uuid",
@@ -149,5 +160,6 @@ describe("Runtime.executeSkillScript 执行环境", () => {
 
     expect(BgExecScriptWarpCtor).toHaveBeenCalledTimes(1);
     expect(BgExecScriptWarpCtor.mock.calls[0][2]).toBe(extensionEnv);
+    expect(BgExecScriptWarpCtor.mock.calls[0][3]).toBe("pt-BR");
   });
 });

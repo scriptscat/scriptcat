@@ -1687,6 +1687,7 @@ export class RuntimeService {
         sandboxMode: "raw",
         isIncognito: incognito,
         userAgentData: this.userAgentData ?? undefined,
+        userLanguage: await this.systemConfig.getLanguage(),
       } as GMInfoEnv,
       scriptmenus,
     } satisfies TScriptsForTab;
@@ -1706,10 +1707,11 @@ export class RuntimeService {
         enable: script.status === SCRIPT_STATUS_ENABLE,
       });
     }
+    // 语言须先于 enableScripts 到达沙盒：后台脚本启动时即读取 GM_info.userLanguage
+    this.mq.publish("setSandboxLanguage", language);
     if (scripts.length > 0) {
       this.mq.publish<TEnableScript[]>("enableScripts", scripts);
     }
-    this.mq.publish("setSandboxLanguage", language);
     this.systemConfig.addListener("language", (lng) => {
       this.mq.publish("setSandboxLanguage", lng);
     });

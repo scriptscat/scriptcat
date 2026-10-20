@@ -24,7 +24,12 @@ export class BgExecScriptWarp extends ExecScript {
 
   setInterval: Map<number, boolean>;
 
-  constructor(scriptRes: ScriptLoadInfo, message: Message, extensionEnv: TExtensionEnv | undefined) {
+  constructor(
+    scriptRes: ScriptLoadInfo,
+    message: Message,
+    extensionEnv: TExtensionEnv | undefined,
+    userLanguage: string
+  ) {
     const thisContext: { [key: string]: any } = {};
     const setTimeout = new Map<number, any>();
     const setInterval = new Map<number, any>();
@@ -73,6 +78,7 @@ export class BgExecScriptWarp extends ExecScript {
         platform: "",
       },
       isIncognito: false,
+      userLanguage,
     };
     const { inIncognitoContext, userAgentData } = extensionEnv || {};
     if (typeof inIncognitoContext === "boolean") envInfo.isIncognito = inIncognitoContext;

@@ -30,6 +30,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
   let runtime: RuntimeService;
   let mockSystemConfig: {
     getBlacklist: MockedFunction<() => string>;
+    getLanguage: MockedFunction<() => Promise<string>>;
   };
   let mockScriptService: {
     buildScriptRunResource: MockedFunction<(script: Script, scriptFlag?: string) => ScriptRunResource>;
@@ -73,6 +74,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
   const createRuntimeTestContext = () => {
     const localMockSystemConfig = {
       getBlacklist: vi.fn().mockReturnValue(""),
+      getLanguage: vi.fn().mockResolvedValue("en-US"),
     };
 
     const localMockScriptService = {
@@ -1101,6 +1103,17 @@ describe("getScriptsForTab 附加边界场景", () => {
     expect(result?.envInfo.isIncognito).toBe(true);
   });
 
+  it("返回的 GM_info 环境携带脚本猫当前界面语言", async () => {
+    const { runtime, script, scriptRes, mockScriptDAO, mockSystemConfig } = createFullContext();
+    mockSystemConfig.getLanguage.mockResolvedValue("ja-JP");
+    await runtime.applyScriptMatchInfo(scriptRes);
+    (mockScriptDAO as any).gets = vi.fn().mockResolvedValue([script]);
+
+    const result = await runtime.getScriptsForTab({ url: pageUrl, tabId: 12, frameId: 0 });
+
+    expect(result?.envInfo.userLanguage).toBe("ja-JP");
+  });
+
   it("compiledResource 不存在时应调用 buildAndSaveCompiledResourceFromScript 重新构建", async () => {
     const { runtime, scriptRes, compiledResource, mockCompiledResourceDAO } = createFullContext();
     await runtime.applyScriptMatchInfo(scriptRes);
@@ -1254,6 +1267,23 @@ describe("sandbox verified 初始化重放", () => {
     );
     expect(mockSystemConfig.addListener).toHaveBeenCalledTimes(1);
     expect(mockSystemConfig.addListener).toHaveBeenCalledWith("language", expect.any(Function));
+  });
+
+  it("先下发界面语言再启用后台脚本，保证启动即运行的脚本读到的 GM_info.userLanguage 已就绪", async () => {
+    const { runtime, mockScriptDAO } = _createRuntimeContext();
+    mockScriptDAO.all.mockResolvedValue([
+      _createMockScript({ uuid: "background-script", type: SCRIPT_TYPE_BACKGROUND, status: SCRIPT_STATUS_ENABLE }),
+    ]);
+    const publish = (runtime.mq as unknown as { publish: ReturnType<typeof vi.fn> }).publish;
+    publish.mockClear();
+
+    await (
+      runtime as unknown as { handlePreparationOffscreen(data: { verified: boolean }): Promise<void> }
+    ).handlePreparationOffscreen({ verified: true });
+
+    const topics = publish.mock.calls.map(([topic]) => topic);
+    expect(topics.indexOf("setSandboxLanguage")).toBeGreaterThanOrEqual(0);
+    expect(topics.indexOf("setSandboxLanguage")).toBeLessThan(topics.indexOf("enableScripts"));
   });
 });
 

@@ -26,6 +26,8 @@ export const initEnvInfo: GMInfoEnv = {
   /** isIncognito - inject/content 环境下透過 scripting 环境判断 */
   /** 使用者可透过 「 await navigator.storage.persisted() 」来判断，但ScriptCat不会主动执行此代码来判断 */
   isIncognito: false,
+  /** userLanguage - 页面环境未到达前未知，由 updateEarlyScriptGMInfo 补上 */
+  userLanguage: "",
 } satisfies GMInfoEnv;
 
 // 脚本执行器

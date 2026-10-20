@@ -23,7 +23,7 @@ const getGMInfo = (exec: BgExecScriptWarp) => (exec as any).named?.GM_info;
 
 describe("BgExecScriptWarp envInfo 注入", () => {
   it("extensionEnv 为 undefined 时使用默认值", () => {
-    const exec = new BgExecScriptWarp(buildScriptRes(), fakeMessage, undefined);
+    const exec = new BgExecScriptWarp(buildScriptRes(), fakeMessage, undefined, "");
     const gmInfo = getGMInfo(exec);
     expect(gmInfo.isIncognito).toBe(false);
     expect(gmInfo.userAgentData).toEqual({
@@ -34,9 +34,14 @@ describe("BgExecScriptWarp envInfo 注入", () => {
     expect(gmInfo.sandboxMode).toBe("raw");
   });
 
+  it("userLanguage 使用沙盒当前的脚本猫界面语言", () => {
+    const exec = new BgExecScriptWarp(buildScriptRes(), fakeMessage, undefined, "zh-TW");
+    expect(getGMInfo(exec).userLanguage).toBe("zh-TW");
+  });
+
   it("inIncognitoContext=true 时覆盖 isIncognito 为 true", () => {
     const extensionEnv: TExtensionEnv = { inIncognitoContext: true };
-    const exec = new BgExecScriptWarp(buildScriptRes(), fakeMessage, extensionEnv);
+    const exec = new BgExecScriptWarp(buildScriptRes(), fakeMessage, extensionEnv, "");
     const gmInfo = getGMInfo(exec);
     expect(gmInfo.isIncognito).toBe(true);
     // 没传 userAgentData，沿用默认空值
@@ -58,7 +63,7 @@ describe("BgExecScriptWarp envInfo 注入", () => {
         bitness: "64",
       } as any,
     };
-    const exec = new BgExecScriptWarp(buildScriptRes(), fakeMessage, extensionEnv);
+    const exec = new BgExecScriptWarp(buildScriptRes(), fakeMessage, extensionEnv, "");
     const gmInfo = getGMInfo(exec);
     expect(gmInfo.isIncognito).toBe(false);
     expect(gmInfo.userAgentData).toEqual({
@@ -75,7 +80,7 @@ describe("BgExecScriptWarp envInfo 注入", () => {
       inIncognitoContext: true,
       userAgentData: null,
     };
-    const exec = new BgExecScriptWarp(buildScriptRes(), fakeMessage, extensionEnv);
+    const exec = new BgExecScriptWarp(buildScriptRes(), fakeMessage, extensionEnv, "");
     const gmInfo = getGMInfo(exec);
     expect(gmInfo.isIncognito).toBe(true);
     expect(gmInfo.userAgentData).toEqual({
