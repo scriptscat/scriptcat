@@ -210,7 +210,8 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
     return parseTags({ tag: self.tag ?? meta.tag });
   });
   const [tagInput, setTagInput] = useState("");
-  const [updateUrl, setUpdateUrl] = useState(data.script.checkUpdateUrl ?? data.script.downloadUrl ?? "");
+  // 回显 downloadUrl 而非 checkUpdateUrl：保存时 setCheckUpdateUrl 会把该值同时写入两者，回显 meta.js 会把下载地址写坏 (#1793)
+  const [updateUrl, setUpdateUrl] = useState(data.script.downloadUrl || "");
   const [matches, setMatches] = useState<string[]>(() => {
     const meta = data.script.metadata || {};
     const self = data.script.selfMetadata || {};
@@ -597,7 +598,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
                 value={updateUrl}
                 onChange={(e) => setUpdateUrl(e.target.value)}
                 onBlur={saveUpdateUrl}
-                placeholder="https://example.com/script.meta.js"
+                placeholder="https://example.com/script.user.js"
                 className="h-8 flex-1 font-mono text-xs"
               />
             </Row>

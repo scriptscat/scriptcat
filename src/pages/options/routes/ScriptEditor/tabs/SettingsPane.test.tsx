@@ -223,10 +223,25 @@ describe("SettingsPane 更新URL", () => {
   it("应展示更新URL并在失焦后调用 setCheckUpdateUrl", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("alpha");
-    const input = screen.getByDisplayValue("https://example.com/a.meta.js");
-    fireEvent.change(input, { target: { value: "https://new.example.com/a.meta.js" } });
+    const input = screen.getByDisplayValue("https://example.com/a.user.js");
+    fireEvent.change(input, { target: { value: "https://new.example.com/a.user.js" } });
     fireEvent.blur(input);
-    expect(setCheckUpdateUrl).toHaveBeenCalledWith("u1", true, "https://new.example.com/a.meta.js");
+    expect(setCheckUpdateUrl).toHaveBeenCalledWith("u1", true, "https://new.example.com/a.user.js");
+  });
+
+  // setCheckUpdateUrl 会把同一个值写进 downloadUrl，回显 meta.js 会让失焦/切开关把下载地址改成 meta.js (#1793)
+  it("未修改直接失焦时应以下载地址提交，而不是 meta.js", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("alpha");
+    fireEvent.blur(screen.getByDisplayValue("https://example.com/a.user.js"));
+    expect(setCheckUpdateUrl).toHaveBeenCalledWith("u1", true, "https://example.com/a.user.js");
+  });
+
+  it("切换检查更新开关时应以下载地址提交，而不是 meta.js", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("alpha");
+    fireEvent.click(screen.getByRole("switch", { name: t("check_update") }));
+    expect(setCheckUpdateUrl).toHaveBeenCalledWith("u1", false, "https://example.com/a.user.js");
   });
 });
 
