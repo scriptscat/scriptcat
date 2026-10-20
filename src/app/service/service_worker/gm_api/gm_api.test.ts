@@ -315,6 +315,18 @@ describe.concurrent("native GM_download 的 @connect 校验（verifyXhrConnect �
     expect((ret as ConfirmParam).permission).toBe("cors");
   });
 
+  it.concurrent("native 下载 data: URI 不发起网络请求，无需 @connect 也直接放行 (#1635)", async () => {
+    const url = `data:text/csv;charset=utf-8,${encodeURIComponent("a,b,c\n1,2,3")}`;
+    expect(await downloadConfirm(makeReq({ url, downloadMode: "native" }), makeConnSender(), makeGmApi())).toBe(true);
+    expect(
+      await downloadConfirm(
+        makeReq({ url, downloadMode: "native", connect: ["example.com"] }),
+        makeConnSender(),
+        makeGmApi()
+      )
+    ).toBe(true);
+  });
+
   it.concurrent("native 下载：域名命中 @connect 时放行", async () => {
     const req = makeReq({ url: "https://api.example.com/f.zip", downloadMode: "native", connect: ["example.com"] });
     const ret = await downloadConfirm(req, makeConnSender(), makeGmApi());
