@@ -97,6 +97,16 @@ describe("安装页兼容性标记", () => {
     expect(marks.tags).toEqual([]);
   });
 
+  it("@exclude-match 受支持不标记；解析不出规则的取值连同取值标出并定位，不混进运行网站行", () => {
+    const { code, metadata } = build(
+      `// @name X\n// @match *://a.com/*\n// @exclude-match *://a.com/admin/*\n// @exclude-match *admin*\n`
+    );
+    const marks = deriveCompatMarks(metadata, code);
+    expect(marks.tags).toEqual([{ tag: "exclude-match", value: "*admin*", line: 5 }]);
+    expect(marks.matches).toEqual(new Map());
+    expect(marks.scriptcatOnlyTags).toEqual([]);
+  });
+
   it("脚本猫独有的指令写了也不生效时只按不生效标一次", () => {
     const { code, metadata } = build(`// @name X\n// @early-start\n`);
     const marks = deriveCompatMarks(metadata, code);
