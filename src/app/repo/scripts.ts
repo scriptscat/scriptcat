@@ -109,7 +109,7 @@ export interface ScriptRunResource extends Script {
   resource: ScriptResource; // 资源列表,包含脚本需要的资源
   resourceByType?: ScriptResourceByType;
   metadata: SCMetadata; // 经自定义覆盖的 Metadata
-  originalMetadata: SCMetadata; // 原本的 Metadata （目前只需要 match, include, exclude）
+  originalMetadata: SCMetadata; // 原本的 Metadata （只需要 match, include, exclude, exclude-match）
 }
 
 /**

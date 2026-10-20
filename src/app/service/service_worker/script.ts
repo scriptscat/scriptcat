@@ -971,6 +971,7 @@ export class ScriptService {
       const match = script.selfMetadata?.match ?? script.metadata?.match ?? [];
       const include = script.selfMetadata?.include ?? script.metadata?.include ?? [];
       const exclude = script.selfMetadata?.exclude ?? script.metadata?.exclude ?? [];
+      const excludeMatch = script.selfMetadata?.["exclude-match"] ?? script.metadata?.["exclude-match"] ?? [];
       // 通配网域（`*://*/*`、`*://*.example.com/*`）不只服务于当前站点，移除会连带关掉其他站点
       const keptMatch = match.filter((pattern) => getMatchPatternHost(pattern) !== host);
       const removedFromMatch = keptMatch.length !== match.length;
@@ -982,6 +983,7 @@ export class ScriptService {
         ...keptMatch.map((e) => `@match ${e}`),
         ...include.map((e) => `@include ${e}`),
         ...exclude.map((e) => `@exclude ${e}`),
+        ...excludeMatch.map((e) => `@exclude-match ${e}`),
       ]);
       if (isUrlIncluded(url, rules)) {
         // 用户覆盖整体替换作者规则，因此把作者 @exclude 一并并入用户覆盖，避免丢作者规则

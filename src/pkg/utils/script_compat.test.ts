@@ -20,7 +20,17 @@ import {
 
 describe("元数据指令支持判定", () => {
   it("运行时会消费的指令视为支持", () => {
-    for (const tag of ["match", "include", "exclude", "grant", "run-at", "run-in", "noframes", "connect"]) {
+    for (const tag of [
+      "match",
+      "include",
+      "exclude",
+      "exclude-match",
+      "grant",
+      "run-at",
+      "run-in",
+      "noframes",
+      "connect",
+    ]) {
       expect(isSupportedMetadataTag(tag), tag).toBe(true);
     }
   });
@@ -32,7 +42,7 @@ describe("元数据指令支持判定", () => {
   });
 
   it("别家管理器会执行、脚本猫未实现的指令视为不支持", () => {
-    for (const tag of ["exclude-match", "top-level-await", "sandbox", "webRequest", "allFrames", "user-agent"]) {
+    for (const tag of ["top-level-await", "sandbox", "webRequest", "allFrames", "user-agent"]) {
       expect(isSupportedMetadataTag(tag), tag).toBe(false);
     }
   });
@@ -46,7 +56,8 @@ describe("元数据指令支持判定", () => {
   it("指令名大小写不敏感", () => {
     expect(isSupportedMetadataTag("MATCH")).toBe(true);
     expect(isSupportedMetadataTag("Run-At")).toBe(true);
-    expect(isSupportedMetadataTag("EXCLUDE-MATCH")).toBe(false);
+    expect(isSupportedMetadataTag("EXCLUDE-MATCH")).toBe(true);
+    expect(isSupportedMetadataTag("TOP-LEVEL-AWAIT")).toBe(false);
   });
 
   it("name/description 的语言后缀归到同一指令", () => {
@@ -146,6 +157,15 @@ describe("元数据取值支持判定", () => {
     ).toEqual([
       { tag: "match", index: 3, value: "hello-world^^" },
       { tag: "match", index: 4, value: "" },
+    ]);
+  });
+
+  it("解析不出 match pattern 的 @exclude-match 报为不生效，不会退化成 @exclude 的 glob/正则", () => {
+    expect(
+      ineffectiveMetadataValues({ "exclude-match": ["*://a.com/admin/*", "*admin*", "/admin/", "www.a.com/*"] })
+    ).toEqual([
+      { tag: "exclude-match", index: 1, value: "*admin*" },
+      { tag: "exclude-match", index: 2, value: "/admin/" },
     ]);
   });
 

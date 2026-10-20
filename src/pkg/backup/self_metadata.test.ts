@@ -44,10 +44,18 @@ describe("vmCustomToOverride", () => {
     expect(ov.merge_excludes).toBe(true);
     expect(ov.run_at).toBe("document-start");
   });
-  it("excludeMatch 折入 exclude", () => {
+  it("excludeMatch/origExcludeMatch 与 exclude/origExclude 各自独立归一", () => {
     const ov = vmCustomToOverride({ exclude: ["a"], excludeMatch: ["b"], origExclude: false, origExcludeMatch: true });
-    expect(ov.use_excludes).toEqual(["a", "b"]);
-    expect(ov.merge_excludes).toBe(false); // origExclude=false → 不再合并
+    expect(ov.use_excludes).toEqual(["a"]);
+    expect(ov.merge_excludes).toBe(false);
+    expect(ov.use_exclude_matches).toEqual(["b"]);
+    expect(ov.merge_exclude_matches).toBe(true);
+  });
+  it("VM 关掉脚本自带 @exclude-match 时导入后以用户列表替换，不复活作者规则", () => {
+    const m: SCMetadata = { exclude: ["https://a.com/x"], "exclude-match": ["*://a.com/admin/*"] };
+    const self = overrideToSelfMetadata(vmCustomToOverride({ excludeMatch: [], origExcludeMatch: false }), m);
+    expect(self["exclude-match"]).toEqual([]);
+    expect(self.exclude).toBeUndefined();
   });
   it("把 VM custom 的 tag/origTag 归一到 override", () => {
     const ov = vmCustomToOverride({ tag: ["te", "tag"], origTag: true });

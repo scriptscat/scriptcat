@@ -9,12 +9,15 @@ import {
   shouldAutoOpenChangelog,
   scriptURLPatternResults,
   openNotificationUrl,
+  buildScriptRunResourceBasic,
+  parseScriptLoadInfo,
 } from "./utils";
 import type { SCMetadata, Script, ScriptRunResource } from "@App/app/repo/scripts";
 import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
 import type { ScriptMatchInfo } from "./types";
 import { extractUrlPatterns, RuleTypeBit } from "@App/pkg/utils/url_matcher";
+import { isUrlExcluded, isUrlIncluded } from "@App/pkg/utils/match";
 
 describe.concurrent("parseUrlSRI", () => {
   it.concurrent("should parse URL SRI", () => {
@@ -498,5 +501,76 @@ describe.concurrent("scriptURLPatternResults", () => {
     // 原始规则仍在 => Popup 仍以「未生效」列出该脚本，可点「允许在此执行」恢复
     expect(result!.scriptUrlPatterns.some((rule) => rule.ruleType & RuleTypeBit.INCLUSION)).toBe(false);
     expect(result!.originalUrlPatterns.map((rule) => rule.patternString)).toEqual(["*://example.com/*"]);
+  });
+});
+
+describe.concurrent("@exclude-match 进入生效规则与注册", () => {
+  const createScript = (metadata: SCMetadata, selfMetadata?: SCMetadata): Script => ({
+    uuid: "exclude-match-uuid",
+    name: "exclude-match",
+    namespace: "test",
+    type: SCRIPT_TYPE_NORMAL,
+    status: SCRIPT_STATUS_ENABLE,
+    sort: 0,
+    runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+    createtime: 0,
+    checktime: 0,
+    metadata,
+    selfMetadata,
+  });
+  const toMatchInfo = (script: Script) => {
+    const scriptRes = buildScriptRunResourceBasic(script);
+    const patterns = scriptURLPatternResults(scriptRes)!;
+    return { scriptRes, patterns, matchInfo: { ...scriptRes, ...patterns } as ScriptMatchInfo };
+  };
+
+  it.concurrent("作者的 @exclude-match 进入 excludeMatches，不产生 excludeGlobs", () => {
+    const { matchInfo } = toMatchInfo(
+      createScript({
+        match: ["*://example.com/*"],
+        "exclude-match": ["*://example.com/admin/*", "https://example.com/private/*"],
+      })
+    );
+
+    const { registerScript } = getUserScriptRegister(matchInfo);
+
+    expect(registerScript.matches).toEqual(["*://example.com/*"]);
+    expect(registerScript.excludeMatches).toEqual(["*://example.com/admin/*", "https://example.com/private/*"]);
+    expect(registerScript.excludeGlobs).toEqual([]);
+  });
+
+  it.concurrent("用户覆盖匹配后原始规则仍带 @exclude-match，Popup 判断不会把被排除的站点算作原本匹配", () => {
+    const { patterns } = toMatchInfo(
+      createScript(
+        { match: ["*://example.com/*"], "exclude-match": ["*://example.com/admin/*"] },
+        { match: ["*://other.example/*"] }
+      )
+    );
+
+    expect(isUrlIncluded("https://example.com/admin/x", patterns.originalUrlPatterns)).toBe(false);
+    expect(isUrlIncluded("https://example.com/home", patterns.originalUrlPatterns)).toBe(true);
+  });
+
+  it.concurrent("用户以空列表覆盖 @exclude-match 时生效规则不再排除，原始规则仍排除", () => {
+    const { patterns } = toMatchInfo(
+      createScript(
+        { match: ["*://example.com/*"], "exclude-match": ["*://example.com/admin/*"] },
+        { "exclude-match": [] }
+      )
+    );
+
+    expect(isUrlIncluded("https://example.com/admin/x", patterns.scriptUrlPatterns)).toBe(true);
+    expect(isUrlIncluded("https://example.com/admin/x", patterns.originalUrlPatterns)).toBe(false);
+  });
+
+  it.concurrent("early-start 含正则时注入代码携带的规则同样排除 @exclude-match", () => {
+    const { scriptRes, patterns } = toMatchInfo(
+      createScript({ include: ["/example\\.com/"], "exclude-match": ["*://example.com/admin/*"] })
+    );
+
+    const loadInfo = parseScriptLoadInfo(scriptRes, patterns.scriptUrlPatterns);
+
+    expect(isUrlExcluded("https://example.com/admin/x", loadInfo.scriptUrlPatterns!)).toBe(true);
+    expect(isUrlExcluded("https://example.com/home", loadInfo.scriptUrlPatterns!)).toBe(false);
   });
 });

@@ -23,7 +23,7 @@ export type URLRuleEntry = {
 
 const URL_MATCH_CACHE_MAX_SIZE = 512; // 用来做简单缓存，512 算是足够大小应付需要。
 
-// 检查 @match @include @exclude 是否按照MV3的 match pattern
+// 检查 @match @include @exclude @exclude-match 是否按照MV3的 match pattern
 // export 只用于测试，不要在外部直接引用 checkUrlMatch
 export const checkUrlMatch = (s: string): string[] | null => {
   s = s.trim();
@@ -72,14 +72,16 @@ const globSplit = (text: string): string[] => {
 export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
   const rules = [];
   for (const line of lines) {
-    const mt = /@(match|include|exclude)\s+([^\t\r\n]+?)([\r\n]|$)/.exec(line);
+    const mt = /@(match|include|exclude-match|exclude)\s+([^\t\r\n]+?)([\r\n]|$)/.exec(line);
     if (!mt) continue;
     const [_, tag0, content0] = mt;
     const tag = tag0;
+    // @exclude-match 是 @match 的排除版，取值按同一套 match pattern 规则处理
+    const isMatchPattern = tag === "match" || tag === "exclude-match";
     let content = content0;
     if (content.charAt(0) !== "/") {
-      if (tag === "match") {
-        // @match
+      if (isMatchPattern) {
+        // @match, @exclude-match
         let m: RegExpExecArray | null;
 
         if (content === "*") {
@@ -160,12 +162,12 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
       }
     }
 
-    if (tag === "match") {
-      // match pattern
+    if (isMatchPattern) {
+      // match pattern；解析失败直接丢弃，不像 @exclude 那样退化成 glob/正则
       const mch = checkUrlMatch(content);
       if (!mch) continue;
       rules.push({
-        ruleType: RuleType.MATCH_INCLUDE,
+        ruleType: tag === "match" ? RuleType.MATCH_INCLUDE : RuleType.MATCH_EXCLUDE,
         ruleContent: mch,
         ruleTag: tag,
         patternString: content,

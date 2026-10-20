@@ -36,9 +36,9 @@ describe("安装页兼容性标记", () => {
   });
 
   it("标记按作者的原始写法呈现", () => {
-    const { code, metadata } = build(`// @name X\n// @Exclude-Match *://b.com/*\n// @storageName s\n`);
+    const { code, metadata } = build(`// @name X\n// @SandBox raw\n// @storageName s\n`);
     const marks = deriveCompatMarks(metadata, code);
-    expect(marks.tags).toEqual([{ tag: "Exclude-Match", line: 3 }]);
+    expect(marks.tags).toEqual([{ tag: "SandBox", line: 3 }]);
     expect(marks.scriptcatOnlyTags).toEqual([{ tag: "storageName", line: 4 }]);
   });
 

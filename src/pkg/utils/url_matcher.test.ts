@@ -9,6 +9,7 @@ import {
   embeddedPatternCheckerString,
   getMatchPatternHost,
 } from "./url_matcher";
+import { isUrlIncluded } from "./match";
 
 describe.concurrent("extractMatchPatternsFromGlobs", () => {
   it.concurrent("test1", () => {
@@ -1046,5 +1047,81 @@ describe.concurrent("embeddedPatternChecker", () => {
     // exclude 排除
     const code3 = embeddedPatternCheckerString('"https://example.com/secret/data"', JSON.stringify(reduced));
     expect(eval(code3)).toBe(false);
+  });
+});
+
+describe.concurrent("@exclude-match", () => {
+  const run = (lines: string[], url: string) => isUrlIncluded(url, extractUrlPatterns(lines));
+
+  it.concurrent("一条或多条 @exclude-match 解析为 match pattern 排除规则", () => {
+    const rules = extractUrlPatterns([
+      "@match *://*.example.com/*",
+      "@exclude-match https://example.com/admin/*",
+      "@exclude-match *://cdn.example.com/*",
+    ]);
+    expect(rules.slice(1)).toEqual([
+      {
+        ruleType: RuleType.MATCH_EXCLUDE,
+        ruleContent: ["https", "example.com", "admin/*"],
+        ruleTag: "exclude-match",
+        patternString: "https://example.com/admin/*",
+      },
+      {
+        ruleType: RuleType.MATCH_EXCLUDE,
+        ruleContent: ["*", "cdn.example.com", "*"],
+        ruleTag: "exclude-match",
+        patternString: "*://cdn.example.com/*",
+      },
+    ]);
+  });
+
+  it.concurrent("不命中 @exclude-match 的网址仍按 @match 执行", () => {
+    expect(
+      run(["@match *://*.example.com/*", "@exclude-match *://example.com/admin/*"], "https://example.com/home")
+    ).toBe(true);
+  });
+
+  it.concurrent("同时命中 @match 与 @exclude-match 时不执行，与声明顺序无关", () => {
+    const url = "https://example.com/admin/users";
+    expect(run(["@match *://example.com/*", "@exclude-match *://example.com/admin/*"], url)).toBe(false);
+    expect(run(["@exclude-match *://example.com/admin/*", "@match *://example.com/*"], url)).toBe(false);
+  });
+
+  it.concurrent("按 match pattern 的通配网域与 scheme 语义排除", () => {
+    const lines = ["@match *://*/*", "@exclude-match *://*.example.com/*", "@exclude-match https://secure.test/*"];
+    expect(run(lines, "https://example.com/")).toBe(false);
+    expect(run(lines, "http://a.b.example.com/x")).toBe(false);
+    expect(run(lines, "https://notexample.com/")).toBe(true);
+    expect(run(lines, "https://secure.test/page")).toBe(false);
+    expect(run(lines, "http://secure.test/page")).toBe(true);
+  });
+
+  it.concurrent("与 @match 相同的 TM 兼容写法：省略 scheme、端口、http*", () => {
+    expect(extractUrlPatterns(["@exclude-match www.example.com/*"])[0].patternString).toBe("*://www.example.com/*");
+    expect(extractUrlPatterns(["@exclude-match https://example.com:8080/*"])[0].patternString).toBe(
+      "https://example.com/*"
+    );
+    expect(extractUrlPatterns(["@exclude-match http*://example.com/*"])[0].patternString).toBe("*://example.com/*");
+  });
+
+  it.concurrent("不合法的 match pattern 直接丢弃，不退化为 @exclude 的 glob/正则", () => {
+    for (const value of ["/example\\.com/", "*example*", "https://exa*mple.com/*", "hello-world^^"]) {
+      expect(extractUrlPatterns([`@exclude-match ${value}`]), value).toEqual([]);
+    }
+    // 同一取值写成 @exclude 仍按 glob 生效
+    expect(extractUrlPatterns(["@exclude *example*"])[0].ruleType).toBe(RuleType.GLOB_EXCLUDE);
+  });
+
+  it.concurrent("嵌入式检查器（unwrap / early-start）同样排除，与声明顺序无关", () => {
+    const check = (lines: string[], url: string) => {
+      const reduced = extractUrlPatterns(lines).map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
+      return eval(embeddedPatternCheckerString(JSON.stringify(url), JSON.stringify(reduced)));
+    };
+    const url = "https://example.com/admin/users";
+    expect(check(["@include /example\\.com/", "@exclude-match *://example.com/admin/*"], url)).toBe(false);
+    expect(check(["@exclude-match *://example.com/admin/*", "@include /example\\.com/"], url)).toBe(false);
+    expect(check(["@include /example\\.com/", "@exclude-match *://example.com/admin/*"], "https://example.com/")).toBe(
+      true
+    );
   });
 });

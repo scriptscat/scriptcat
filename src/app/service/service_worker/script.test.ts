@@ -1156,6 +1156,15 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
       });
     });
 
+    it("作者 @exclude-match 已排除当前网址时不应再写入排除", async () => {
+      const script = createMockScript({ metadata: { match: ["*://*/*"], "exclude-match": ["*://current.example/*"] } });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.excludeFromMatch({ uuid: script.uuid, host, url });
+
+      expect(mockScriptDAO.update).not.toHaveBeenCalled();
+    });
+
     it("当前站点本就不在匹配范围内时不应写入任何覆盖", async () => {
       const script = createMockScript({ metadata: { match: ["*://other.example/*"] } });
       vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
