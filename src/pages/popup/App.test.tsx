@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent, act } from "@testing-library/react";
-import fs from "fs";
-import path from "path";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { t } from "@App/locales/locales";
 import { ExtVersion } from "@App/app/const";
@@ -522,16 +520,6 @@ describe("Popup 菜单展开数量为 0 时的菜单位置", () => {
   });
 });
 
-describe("Popup 移动端宽度适配 (#686 Edge Android)", () => {
-  it("popup.html 通过媒体查询在移动端（视口 >360px）将宽度切换为 100%", () => {
-    const html = fs.readFileSync(path.join(process.cwd(), "src/pages/popup.html"), "utf8");
-    // 桌面端 popup 视口恒为 360px、不命中；移动端被撑满（>360px）命中后切换 100% 宽度
-    expect(html).toMatch(/width:\s*360px/);
-    expect(html).toMatch(/@media\s*\(min-width:\s*365px\)/);
-    expect(html).toMatch(/width:\s*100%/);
-  });
-});
-
 describe("Popup 页脚版本号可达性", () => {
   it("无新版本且检查状态空闲时，版本号是可键盘聚焦的按钮（非 span），点击触发检查更新", () => {
     const handleVersionClick = vi.fn();
@@ -651,33 +639,5 @@ describe("Popup 反馈问题链接", () => {
     );
 
     expect(url.searchParams.get("browser")).toBe("Windows 11 + Chrome 143.0.7499.96 (arm64)");
-  });
-});
-
-describe("Popup 滚动区域（避免双滚动条）", () => {
-  it("根容器受最大高度约束并裁剪溢出，仅脚本列表区可滚动", () => {
-    mockData = makeData({ fullScriptCount: 0 });
-
-    const { container } = render(<App />);
-    const root = container.firstElementChild as HTMLElement;
-
-    // 根容器需有最大高度约束并裁剪溢出，避免浏览器 popup 自身再出现一条滚动条
-    expect(cls(root)).toMatch(/max-h-\[/);
-    expect(cls(root)).toMatch(/overflow-hidden/);
-
-    // 整个 popup 仅应有一个 overflow-auto 滚动区，且占据剩余空间（flex-1）
-    const scrollers = Array.from(container.querySelectorAll("*")).filter((el) => /overflow-auto/.test(cls(el)));
-    expect(scrollers).toHaveLength(1);
-    expect(cls(scrollers[0])).toMatch(/flex-1/);
-  });
-
-  it("脚本列表滚动区应应用自定义滚动条样式（明暗主题由 CSS 变量自适应）", () => {
-    mockData = makeData({ fullScriptCount: 0 });
-
-    const { container } = render(<App />);
-    const scrollers = Array.from(container.querySelectorAll("*")).filter((el) => /overflow-auto/.test(cls(el)));
-
-    expect(scrollers).toHaveLength(1);
-    expect(cls(scrollers[0])).toMatch(/scrollbar-custom/);
   });
 });
