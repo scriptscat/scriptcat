@@ -11,20 +11,18 @@
         margin: 0;
         padding: 0;
         border: 0;
-        width: 360px;
         min-height: 150px;
         max-height: 600px;
       }
-      /* 桌面端 popup 的视口宽度恒等于 body 宽度(360px)，永远不会命中此查询，行为不变；
-         移动端(如 Edge Android)popup 被强制撑满设备宽度，命中后填满外层容器，消除右侧留白(#686)。
-         阈值取 365px：高于桌面固定宽度 360px(桌面不命中)，且低于任何比 360px 更宽的手机视口；
-         360px 手机本身已被固定宽度精确填满，无需命中。 */
-      @media (min-width: 365px) {
-        html,
-        body {
-          width: 100%;
-          max-height: none;
-        }
+      /* 桌面 popup 的窗口宽度由内容的内在宽度反推，宽度规则不能依赖视口：
+         曾用 @media (min-width) 在宽视口切到 width:100%，出现经典(非覆盖式)滚动条时
+         视口会变成 360px + 滚动条宽而命中，Chrome 150 及以下据此算出的内在宽度趋近 0，
+         popup 卡在 25px 细条(#1800)。
+         固定 width 让内在宽度恒为 360px；min-width 的百分比不参与内在宽度，
+         只在移动端(如 Edge Android)视口被强制撑满设备宽度时生效，消除右侧留白(#686)。 */
+      html {
+        width: 360px;
+        min-width: 100%;
       }
     </style>
   </head>
