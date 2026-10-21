@@ -249,8 +249,8 @@ export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
 export function buildScriptRunResourceBasic(script: Script): ScriptRunResource {
   const ret: ScriptRunResource = { ...script } as ScriptRunResource;
   // 自定义配置
-  const { match, include, exclude } = ret.metadata;
-  ret.originalMetadata = { match, include, exclude }; // 目前只需要 match, include, exclude
+  const { match, include, exclude, "exclude-match": excludeMatch } = ret.metadata;
+  ret.originalMetadata = { match, include, exclude, "exclude-match": excludeMatch }; // 只需要 URL 匹配规则
   if (ret.selfMetadata) {
     ret.metadata = getCombinedMeta(ret.metadata, ret.selfMetadata);
   }
@@ -274,6 +274,7 @@ export function scriptURLPatternResults(scriptRes: {
   const metaMatch = metadata.match;
   const metaInclude = metadata.include;
   const metaExclude = metadata.exclude;
+  const metaExcludeMatch = metadata["exclude-match"];
   // 生效规则为空时仍要解析原始规则：用户把当前站点从匹配中移除后可能一条不剩，
   // 此时脚本不匹配任何站点，但 Popup 要靠原始规则继续列出它（未生效），用户才有恢复入口。
   // 只有连原始规则都没有的脚本才真的无从匹配。
@@ -289,6 +290,7 @@ export function scriptURLPatternResults(scriptRes: {
     ...(metaMatch || []).map((e) => `@match ${e}`),
     ...(metaInclude || []).map((e) => `@include ${e}`),
     ...(metaExclude || []).map((e) => `@exclude ${e}`),
+    ...(metaExcludeMatch || []).map((e) => `@exclude-match ${e}`),
   ]);
 
   // 如果使用了自定义排除，无法在脚本原有的网域看到匹配情况
@@ -296,11 +298,12 @@ export function scriptURLPatternResults(scriptRes: {
 
   const selfMetadata = scriptRes.selfMetadata;
   const originalUrlPatterns: URLRuleEntry[] | null =
-    selfMetadata?.match || selfMetadata?.include || selfMetadata?.exclude
+    selfMetadata?.match || selfMetadata?.include || selfMetadata?.exclude || selfMetadata?.["exclude-match"]
       ? extractUrlPatterns([
           ...(originalMetadata.match || []).map((e) => `@match ${e}`),
           ...(originalMetadata.include || []).map((e) => `@include ${e}`),
           ...(originalMetadata.exclude || []).map((e) => `@exclude ${e}`),
+          ...(originalMetadata["exclude-match"] || []).map((e) => `@exclude-match ${e}`),
         ])
       : scriptUrlPatterns;
 

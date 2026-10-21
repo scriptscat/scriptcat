@@ -849,6 +849,17 @@ describe("getPageLoadScriptCacheKey 页面加载缓存键生成", () => {
     expect(k1).not.toBe(k2);
   });
 
+  it("@exclude-match 规则变化 → 缓存键不同", () => {
+    const s1 = _createMockScript({ metadata: { match: ["https://a.com/*"], "exclude-match": ["https://a.com/x/*"] } });
+    const s2 = _createMockScript({
+      ...s1,
+      metadata: { match: ["https://a.com/*"], "exclude-match": ["https://a.com/y/*"] },
+    });
+    const k1 = (runtime as any).getPageLoadScriptCacheKey(buildScriptRunResourceBasic(s1));
+    const k2 = (runtime as any).getPageLoadScriptCacheKey(buildScriptRunResourceBasic(s2));
+    expect(k1).not.toBe(k2);
+  });
+
   it("status 不同 → 缓存键不同（禁用脚本 key 与启用脚本 key 区分）", () => {
     const enabled = _createMockScript({ updatetime: 50, status: SCRIPT_STATUS_ENABLE });
     const disabled = { ...enabled, status: SCRIPT_STATUS_DISABLE };

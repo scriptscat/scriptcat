@@ -1354,9 +1354,9 @@ export class RuntimeService {
   private getPageLoadScriptCacheKey(scriptRes: ScriptRunResource) {
     const { status, type, updatetime, metadata } = scriptRes;
     // 代码/原始 metadata/userConfig/资源变化时，主要靠事件处理器（enable/install/delete）失效缓存。
-    // 此缓存键只是低成本的兜底：用于 selfMetadata 修改 match/include/exclude 这类「合并后 metadata 变了
+    // 此缓存键只是低成本的兜底：用于 selfMetadata 修改 match/include/exclude/exclude-match 这类「合并后 metadata 变了
     // 但不一定 bump updatetime」的情况。
-    return `${status}:${type}:${updatetime || 0}~${JSON.stringify([metadata.match, metadata.include, metadata.exclude])}`;
+    return `${status}:${type}:${updatetime || 0}~${JSON.stringify([metadata.match, metadata.include, metadata.exclude, metadata["exclude-match"]])}`;
   }
 
   private getCodeCacheKey(script: Script) {

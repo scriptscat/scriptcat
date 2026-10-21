@@ -36,9 +36,9 @@ describe("安装页兼容性标记", () => {
   });
 
   it("标记按作者的原始写法呈现", () => {
-    const { code, metadata } = build(`// @name X\n// @Exclude-Match *://b.com/*\n// @storageName s\n`);
+    const { code, metadata } = build(`// @name X\n// @SandBox raw\n// @storageName s\n`);
     const marks = deriveCompatMarks(metadata, code);
-    expect(marks.tags).toEqual([{ tag: "Exclude-Match", line: 3 }]);
+    expect(marks.tags).toEqual([{ tag: "SandBox", line: 3 }]);
     expect(marks.scriptcatOnlyTags).toEqual([{ tag: "storageName", line: 4 }]);
   });
 
@@ -95,6 +95,16 @@ describe("安装页兼容性标记", () => {
     const marks = deriveCompatMarks(metadata, code);
     expect(marks.matches).toEqual(new Map([["hello-world^^", 4]]));
     expect(marks.tags).toEqual([]);
+  });
+
+  it("@exclude-match 受支持不标记；解析不出规则的取值连同取值标出并定位，不混进运行网站行", () => {
+    const { code, metadata } = build(
+      `// @name X\n// @match *://a.com/*\n// @exclude-match *://a.com/admin/*\n// @exclude-match *admin*\n`
+    );
+    const marks = deriveCompatMarks(metadata, code);
+    expect(marks.tags).toEqual([{ tag: "exclude-match", value: "*admin*", line: 5 }]);
+    expect(marks.matches).toEqual(new Map());
+    expect(marks.scriptcatOnlyTags).toEqual([]);
   });
 
   it("脚本猫独有的指令写了也不生效时只按不生效标一次", () => {

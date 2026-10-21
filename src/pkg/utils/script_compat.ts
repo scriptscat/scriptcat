@@ -7,7 +7,7 @@ import { extractUrlPatterns } from "./url_matcher";
  *
  * 判定是二元的——指令/能力要么被脚本猫消费，要么写了也不会生效，没有中间档。
  * 表外即「不生效」，因此收录标准是「脚本猫会消费它」或「脚本猫不消费但它也不改变脚本运行行为」；
- * 只有会改变别家管理器下脚本行为、而脚本猫没实现的指令才刻意留在表外（如 @exclude-match）。
+ * 只有会改变别家管理器下脚本行为、而脚本猫没实现的指令才刻意留在表外（如 @sandbox）。
  * 取值同理：取值有限的指令只认白名单里的取值，运行时对不认得的取值会静默回退。
  */
 
@@ -32,6 +32,7 @@ const CONSUMED_TAGS = [
   "match",
   "include",
   "exclude",
+  "exclude-match",
   "connect",
   "grant",
   "require",
@@ -153,7 +154,7 @@ export interface IneffectiveMetadataValue {
   value: string;
 }
 
-/** 受支持指令里不会按写法生效的取值：不在白名单内、运行时只读第一个而被忽略的后续取值、解析不出规则的 @match */
+/** 受支持指令里不会按写法生效的取值：不在白名单内、运行时只读第一个而被忽略的后续取值、解析不出规则的 @match/@exclude-match */
 export function ineffectiveMetadataValues(metadata: SCMetadata): IneffectiveMetadataValue[] {
   const result: IneffectiveMetadataValue[] = [];
   for (const [tag, allowed] of Object.entries(SUPPORTED_TAG_VALUES)) {
@@ -166,10 +167,12 @@ export function ineffectiveMetadataValues(metadata: SCMetadata): IneffectiveMeta
       if (!effective) result.push({ tag, index, value });
     });
   }
-  // @match 写法开放，交给运行时同一个解析器判：解析不出规则的会被静默丢弃（@include/@exclude 总能退化成 glob）
-  (metadata.match || []).forEach((value, index) => {
-    if (!extractUrlPatterns([`@match ${value}`]).length) result.push({ tag: "match", index, value });
-  });
+  // @match/@exclude-match 写法开放，交给运行时同一个解析器判：解析不出规则的会被静默丢弃（@include/@exclude 总能退化成 glob）
+  for (const tag of ["match", "exclude-match"]) {
+    (metadata[tag] || []).forEach((value, index) => {
+      if (!extractUrlPatterns([`@${tag} ${value}`]).length) result.push({ tag, index, value });
+    });
+  }
   return result;
 }
 
