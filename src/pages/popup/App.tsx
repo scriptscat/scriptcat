@@ -102,9 +102,13 @@ export default function App() {
   }
 
   return (
-    <div className="w-full max-h-[600px] flex flex-col bg-background text-foreground overflow-hidden">
-      {/* 固定顶部区域：警告、黑名单、Header、错误/公告、搜索（不参与滚动） */}
-      <div className="shrink-0">
+    // 高度交给浏览器：popup 窗口按内容自适应、超出窗口上限时由文档滚动。不能写死 600px 上限——
+    // 窗口上限是 600 DIP，缩放 125% 时只有 480 CSS px，写死会把页眉页脚挤出可视区(#1800)；
+    // 也不能用 vh 当上限，自适应时视口高度依赖内容，会被夹到最小高度。
+    // 桌面 popup 的视口高度本就等于内容高度，min-h-screen 不会把它撑高；移动端整屏 popup 靠它让页脚贴底。
+    <div className="w-full min-h-screen flex flex-col bg-background text-foreground">
+      {/* 吸顶区域：警告、黑名单、Header、错误/公告、搜索 */}
+      <div className="shrink-0 sticky top-0 z-10 bg-background">
         {/* 顶部警告区：UserScripts API 不可用引导 / 申请权限 / Edge 移动端二维码 / 黑名单 */}
         <PopupWarnings />
         {/* 本页不会运行脚本时说明原因，取代「列出一堆并没有在跑的脚本」 */}
@@ -141,8 +145,7 @@ export default function App() {
         )}
         {data.showSearch && <SearchBar value={data.searchQuery} onChange={data.handleSearch} />}
       </div>
-      {/* 唯一滚动区域：脚本列表（占据剩余空间） */}
-      <div className="flex-1 min-h-0 overflow-auto scrollbar-custom">
+      <div className="flex-1">
         <AccordionPrimitive.Root
           type="multiple"
           defaultValue={data.fullBackScriptCount > 0 ? ["current", "background"] : ["current"]}
@@ -846,7 +849,7 @@ function Footer({
   const hasNewVersion = versionCompare(ExtVersion, checkUpdate.version) === VersionCompare.LESS;
 
   return (
-    <footer className="h-9 shrink-0 px-4 flex items-center border-t border-border">
+    <footer className="h-9 shrink-0 sticky bottom-0 z-10 px-4 flex items-center border-t border-border bg-background">
       {hasNewVersion ? (
         <button
           type="button"

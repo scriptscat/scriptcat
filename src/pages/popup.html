@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="en">
+<!-- 文档是 popup 唯一的滚动容器（见 popup/App.tsx 根容器），滚动条样式挂在 html 上 -->
+<html lang="en" class="scrollbar-custom">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -12,7 +13,6 @@
         padding: 0;
         border: 0;
         min-height: 150px;
-        max-height: 600px;
       }
       /* 桌面 popup 的窗口宽度由内容的内在宽度反推，宽度规则不能依赖视口：
          曾用 @media (min-width) 在宽视口切到 width:100%，出现经典(非覆盖式)滚动条时
