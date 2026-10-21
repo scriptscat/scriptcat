@@ -1398,8 +1398,10 @@ export default class GMApi {
   @PermissionVerify.API({
     // native 下载会发起真实跨域请求，需校验黑名单 / 站点访问 / @connect。
     // 与 TM 不同（TM 的 @connect 只作用于 xhr/fetch），未列入 @connect 的域名改为弹窗询问由用户决定，而非直接拒绝。
+    // data: URI 内容自带、不发起网络请求，没有可校验的域名，直接放行 (#1635)
     confirm: async (request, sender, gmApi) => {
-      if (request.params[0]?.downloadMode !== "native") {
+      const details = request.params[0];
+      if (details?.downloadMode !== "native" || /^\s*data:/i.test(details.url)) {
         return true;
       }
       return gmApi.verifyXhrConnect(request, sender, true);
