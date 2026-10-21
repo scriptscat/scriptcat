@@ -51,6 +51,11 @@ declare const GM_info: {
   userConfigStr?: string;
   /** 是否在隐私/无痕窗口中运行。 */
   isIncognito: boolean;
+  /**
+   * ScriptCat 当前界面语言，如 `"en-US"`、`"zh-CN"`、`"ja-JP"`。
+   * 在脚本启动时取值；尚未获知时为空字符串（例如早期脚本同步读取时）。
+   */
+  userLanguage: string;
   /** 沙箱模式（ScriptCat 始终使用 `"raw"`）。 */
   sandboxMode: "raw";
   userAgentData: {

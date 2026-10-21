@@ -46,6 +46,11 @@ declare const GM_info: {
   userConfigStr?: string;
   /** Whether running in an incognito/private window. */
   isIncognito: boolean;
+  /**
+   * ScriptCat's current interface language, e.g. `"en-US"`, `"zh-CN"`, `"ja-JP"`.
+   * Captured when the script starts; empty string while still unknown (e.g. read synchronously by an early-start script).
+   */
+  userLanguage: string;
   /** Sandbox mode (ScriptCat always uses `"raw"`). */
   sandboxMode: "raw";
   userAgentData: {

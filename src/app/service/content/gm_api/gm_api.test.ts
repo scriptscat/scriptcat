@@ -30,6 +30,7 @@ const envInfo: GMInfoEnv = {
     platform: "",
   },
   isIncognito: false,
+  userLanguage: "en-US",
 };
 
 const makeResource = (url: string, content: string, type: "require" | "require-css" | "resource") => ({

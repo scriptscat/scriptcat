@@ -50,4 +50,5 @@ export interface GMInfoEnv {
   userAgentData: typeof GM_info.userAgentData;
   sandboxMode: typeof GM_info.sandboxMode; // 目前固定为 "raw"，预留
   isIncognito: typeof GM_info.isIncognito;
+  userLanguage: typeof GM_info.userLanguage;
 }

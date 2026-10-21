@@ -16,6 +16,7 @@ const envInfo: GMInfoEnv = {
     platform: "",
   },
   isIncognito: false,
+  userLanguage: "ja-JP",
 };
 
 function makeScript(overrides: Partial<ScriptLoadInfo> = {}): ScriptLoadInfo {
@@ -67,6 +68,16 @@ describe.concurrent("GM_info", () => {
     expect(ret.GM_info.version).toEqual(ExtVersion);
     expect(ret.GM_info.script.version).toEqual("1.0.0");
     expect(ret._this).not.toEqual(global);
+  });
+  it.concurrent("userLanguage 取自环境信息中的脚本猫界面语言", async () => {
+    const { exec } = makeExec("return GM_info.userLanguage;", ["none"]);
+    expect(await exec.exec()).toEqual("ja-JP");
+  });
+  it.concurrent("早期脚本收到页面环境后更新 userLanguage", async () => {
+    const { exec } = makeExec("return GM_info;", ["none"]);
+    const gmInfo = await exec.exec();
+    exec.updateEarlyScriptGMInfo({ ...envInfo, userLanguage: "de-DE" });
+    expect(gmInfo.userLanguage).toEqual("de-DE");
   });
 });
 
