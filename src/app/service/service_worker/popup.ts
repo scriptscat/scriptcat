@@ -808,6 +808,42 @@ export class PopupService {
     );
   }
 
+  /**
+   * 释放标签页关闭时需要清理的数据。
+   * @param replacedByTabId 标签页被替换时的新 tabId：对用户而言仍是同一个标签页，GM_saveTab 数据随之迁移而不是删除
+   */
+  clearTabData(tabId: number, replacedByTabId?: number) {
+    runCountMap.delete(tabId);
+    scriptCountMap.delete(tabId);
+    cacheInstance.del(`${CACHE_KEY_TAB_LOADED}${tabId}`);
+    const list = this.updateMenuCommands.get(tabId);
+    if (list) {
+      // 避免 menuCommand 更新在 Tab 移除后触发
+      list.length = 0;
+      this.updateMenuCommands.delete(tabId);
+    }
+    return cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${tabId}`, (scripts: ScriptMenu[] | undefined, tx) => {
+      if (scripts) {
+        tx.del();
+        return Promise.all(
+          scripts.map(({ uuid }) => {
+            // GM_saveTab 的数据按 tabId 存放，只能借助该 tab 运行过的脚本列表找到，
+            // 所以必须在这里、在删除脚本列表的同一事务里处理
+            return cacheInstance.tx(`GM_getTab:${uuid}`, (tabData: { [key: number]: any } | undefined, tx) => {
+              if (tabData) {
+                if (replacedByTabId !== undefined && tabId in tabData) {
+                  tabData[replacedByTabId] = tabData[tabId];
+                }
+                delete tabData[tabId];
+                tx.set(tabData);
+              }
+            });
+          })
+        );
+      }
+    });
+  }
+
   init() {
     // 处理脚本菜单数据
     this.mq.subscribe<TScriptMenuRegister>("registerMenuCommand", this.registerMenuCommand.bind(this));
@@ -817,35 +853,6 @@ export class PopupService {
     this.dealBackgroundScriptInstall();
 
     // 监听tab开关
-    const clearData = async (tabId: number) => {
-      runCountMap.delete(tabId);
-      scriptCountMap.delete(tabId);
-      cacheInstance.del(`${CACHE_KEY_TAB_LOADED}${tabId}`);
-      const list = this.updateMenuCommands.get(tabId);
-      if (list) {
-        // 避免 menuCommand 更新在 Tab 移除后触发
-        list.length = 0;
-        this.updateMenuCommands.delete(tabId);
-      }
-      // 清理数据tab关闭需要释放的数据
-      cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${tabId}`, (scripts: ScriptMenu[] | undefined, tx) => {
-        if (scripts) {
-          tx.del();
-          return Promise.all(
-            scripts.map(({ uuid }) => {
-              // 处理GM_saveTab关闭事件, 由于需要用到tab相关的脚本数据，所以需要在这里处理
-              // 避免先删除了数据获取不到
-              return cacheInstance.tx(`GM_getTab:${uuid}`, (tabData: { [key: number]: any } | undefined, tx) => {
-                if (tabData) {
-                  delete tabData[tabId];
-                  tx.set(tabData);
-                }
-              });
-            })
-          );
-        }
-      });
-    };
     chrome.tabs.onRemoved.addListener((tabId) => {
       const lastError = chrome.runtime.lastError;
       if (lastError) {
@@ -853,7 +860,16 @@ export class PopupService {
         // 没有 tabId 资讯，无法释放数据
         return;
       }
-      clearData(tabId);
+      this.clearTabData(tabId);
+    });
+    // 标签页被丢弃（discard）等情况下，浏览器会用新 tabId 替换原标签页，旧 tabId 不会再触发 onRemoved
+    chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.tabs.onReplaced:", lastError);
+        return;
+      }
+      this.clearTabData(removedTabId, addedTabId);
     });
     /**
      * @param tabId 当前页面的 tabId。如 tabId 为 null, 则呼叫 getCurrentTab() 以API取当前页面的 tabId。
@@ -898,7 +914,7 @@ export class PopupService {
       // 没有开启脚本时不会触发pageLoad更新数据
       // 这里做一次清理
       if (runCountMap.has(details.tabId) && !this.runtime.isLoadScripts) {
-        clearData(details.tabId);
+        this.clearTabData(details.tabId);
       }
     });
 

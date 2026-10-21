@@ -1172,3 +1172,35 @@ describe("PopupService removeDeletedScriptsFromPopupCaches 缓存清理边界情
     await expect(service.getScriptMenu(-1)).resolves.toHaveLength(0);
   });
 });
+
+describe("PopupService clearTabData 标签页关闭/替换时释放 tab 数据", () => {
+  beforeEach(async () => {
+    await cacheInstance.clear();
+  });
+
+  it("标签页被替换（如被丢弃后换了 tabId）时，GM_saveTab 数据迁移到新 tabId，旧 tabId 的缓存被清理", async () => {
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${10}`, [createMenu("saved"), createMenu("unsaved")]);
+    await cacheInstance.set(`${CACHE_KEY_TAB_LOADED}${10}`, "https://example.com");
+    await cacheInstance.set("GM_getTab:saved", { 10: { v: "tab10" }, 20: { v: "tab20" } });
+    await cacheInstance.set("GM_getTab:unsaved", { 20: { v: "only-tab20" } });
+
+    const { service } = createService();
+    await service.clearTabData(10, 11);
+
+    await expect(cacheInstance.get("GM_getTab:saved")).resolves.toEqual({ 11: { v: "tab10" }, 20: { v: "tab20" } });
+    await expect(cacheInstance.get("GM_getTab:unsaved")).resolves.toEqual({ 20: { v: "only-tab20" } });
+    await expect(service.getScriptMenu(10)).resolves.toEqual([]);
+    await expect(cacheInstance.get(`${CACHE_KEY_TAB_LOADED}${10}`)).resolves.toBeUndefined();
+  });
+
+  it("标签页关闭时删除该 tabId 的 GM_saveTab 数据，不影响其他标签页", async () => {
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${10}`, [createMenu("saved")]);
+    await cacheInstance.set("GM_getTab:saved", { 10: { v: "tab10" }, 20: { v: "tab20" } });
+
+    const { service } = createService();
+    await service.clearTabData(10);
+
+    await expect(cacheInstance.get("GM_getTab:saved")).resolves.toEqual({ 20: { v: "tab20" } });
+    await expect(service.getScriptMenu(10)).resolves.toEqual([]);
+  });
+});
