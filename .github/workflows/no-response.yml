@@ -1,0 +1,32 @@
+name: Close issues waiting for a response
+
+on:
+  issue_comment:
+    types: [created]
+
+  schedule:
+    # Every day at 02:17 UTC (11:17 JST)
+    - cron: '17 2 * * *'
+
+permissions:
+  issues: write
+
+jobs:
+  no-response:
+    if: github.event_name == 'schedule' || !github.event.issue.pull_request
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Close unanswered issues
+        uses: lee-dohm/no-response@v0.5.0
+        with:
+          token: ${{ github.token }}
+          daysUntilClose: 7
+          responseRequiredLabel: more-information-needed
+          responseRequiredColor: ffffff
+          closeComment: |
+            由于原作者在 7 天内未提供请求的补充信息，
+            此 Issue 已自动关闭。
+
+            如果您可以提供更多信息，请直接回复此 Issue，
+            我们将继续调查。
