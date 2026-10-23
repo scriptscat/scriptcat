@@ -184,10 +184,10 @@ export const dataEncode = async (kData: any) => {
     } else {
       const idx = typedArrayTypes.findIndex((e) => kData instanceof e);
       if (idx >= 0) {
-        const buf = kData.buffer;
+        const uint8View = new Uint8Array(kData.buffer, kData.byteOffset, kData.byteLength);
         extData = {
           type: typedArrayTypesText[idx],
-          m: uint8ToBase64(new Uint8Array(buf)),
+          m: uint8ToBase64(uint8View),
         };
       } else {
         throw new Error("Unsupported ArrayBuffer View");
