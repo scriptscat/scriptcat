@@ -6,7 +6,7 @@ import { TrashScriptDAO } from "@App/app/repo/trash_script";
 import type { IGetSender, Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
 import { type PopupService } from "./popup";
-import { getStorageName } from "@App/pkg/utils/utils";
+import { aNow, getStorageName } from "@App/pkg/utils/utils";
 import type { ValueUpdateDataEncoded, ValueUpdateDataREntry, ValueUpdateSender } from "../content/types";
 import { type TDeleteScript } from "../queue";
 import { type IMessageQueue } from "@Packages/message/message_queue";
@@ -94,15 +94,16 @@ export class ValueService {
     if (!script) {
       throw new Error("script not found");
     }
-    // 查询老的值
+    // 查询老的值并按 storageName 串行完成写入与投递
     const storageName = getStorageName(script);
-    let oldValueRecord: ValueStore = {};
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
-    const entries = [] as ValueUpdateDataREntry[];
-    const _flag = await stackAsyncTask<boolean>(cacheKey, async () => {
+    await stackAsyncTask<void>(cacheKey, async () => {
+      const entries = [] as ValueUpdateDataREntry[];
+      let updatetime = 0;
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
+      let shouldSave = true;
       if (!valueModel) {
-        const now = Date.now();
+        const now = aNow();
         const dataModel: ValueStore = {};
         for (const [key, rTyped1] of keyValuePairs) {
           const value = decodeRValue(rTyped1);
@@ -122,7 +123,8 @@ export class ValueService {
         };
       } else {
         let changed = false;
-        let dataModel = (oldValueRecord = valueModel.data);
+        const oldValueRecord = valueModel.data;
+        let dataModel = oldValueRecord;
         dataModel = { ...dataModel }; // 每次储存使用新参考
         const containedKeys = new Set<string>();
         for (const [key, rTyped1] of keyValuePairs) {
@@ -151,23 +153,56 @@ export class ValueService {
             }
           }
         }
-        if (!changed) return false;
-        valueModel.data = dataModel; // 每次储存使用新参考
+        if (!changed) {
+          updatetime = valueModel.updatetime;
+          shouldSave = false;
+        } else {
+          valueModel.data = dataModel; // 每次储存使用新参考
+          valueModel.updatetime = aNow(); // 保证严格递增，供读取端判断新鲜度
+        }
       }
-      await this.valueDAO.save(storageName, valueModel);
-      return true;
+      updatetime = valueModel.updatetime;
+      if (shouldSave) {
+        await this.valueDAO.save(storageName, valueModel);
+      }
+      const sendData = {
+        id,
+        entries,
+        uuid,
+        storageName,
+        sender: valueSender,
+        valueUpdated: entries.length > 0,
+        updatetime,
+      } as ValueUpdateDataEncoded;
+      const delivered = await this.pushValueUpdate(script, sendData);
+      if (delivered === false) {
+        throw new Error("value update delivery failed");
+      }
     });
-    // 推送到所有加载了本脚本的tab中
-    const valueUpdated = entries.length > 0;
-    const sendData = {
-      id,
-      entries: entries,
-      uuid,
-      storageName,
-      sender: valueSender,
-      valueUpdated,
-    } as ValueUpdateDataEncoded;
-    this.pushValueUpdate(script, sendData);
+  }
+
+  /**
+   * 供异步 GM.getValue/getValues/listValues 读取前同步用。
+   * id 非空时先执行一次空 setValues：借同一条 valueUpdate 推送通道把当前
+   * updatetime（连同 id）送达调用方页面，确保其本地缓存至少同步到该时点。
+   * 返回 valueDAO 中该 storageName 当前的 updatetime。
+   */
+  async waitForFreshValueState(uuid: string, id: string, valueSender: ValueUpdateSender): Promise<number> {
+    if (id) {
+      await this.setValues({ uuid, id, keyValuePairs: [], valueSender, isReplace: false });
+    }
+    const script = await this.scriptDAO.get(uuid);
+    if (!script) {
+      throw new Error("script not found");
+    }
+    const storageName = getStorageName(script);
+    const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
+    // 经同一队列读取，避免读到写入中途的状态
+    const ret = await stackAsyncTask<number | undefined>(cacheKey, async () => {
+      const valueModel: Value | undefined = await this.valueDAO.get(storageName);
+      return valueModel?.updatetime;
+    });
+    return ret || 0;
   }
 
   setScriptValues(params: Pick<TSetValuesParams, "uuid" | "keyValuePairs" | "isReplace" | "ts">, _sender: IGetSender) {
