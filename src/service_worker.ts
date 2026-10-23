@@ -7,11 +7,17 @@ import { Server } from "@Packages/message/server";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import { EventPageOffscreenManager, InProcessMessage } from "./app/service/offscreen/event_page_manager";
-import migrate, { migrateChromeStorage } from "./app/migrate";
+import migrate, { migrateChromeStorage, migrateToChromeStorage } from "./app/migrate";
 import { cleanInvalidKeys } from "./app/repo/resource";
 
 migrate();
 migrateChromeStorage();
+
+// IndexedDB 表结构只在这里由 migrate() 声明，选项页「重试迁移储存引擎」必须交给 SW 执行；
+// 留在入口而不放进 SystemService，避免服务层引入 Dexie
+function registerMigrationApi(server: Server) {
+  server.group("system").on("migrateToChromeStorage", () => migrateToChromeStorage());
+}
 
 const OFFSCREEN_DOCUMENT_PATH = "src/offscreen.html";
 
@@ -77,6 +83,7 @@ function main() {
     const offscreen = new ServiceWorkerMessageSend();
     // 同时接收ExtensionMessage(chrome.runtime)和ServiceWorkerMessageSend(postMessage)的消息
     const server = new Server("serviceWorker", [message, swMessage]);
+    registerMigrationApi(server);
     const manager = new ServiceWorkerManager(server, messageQueue, offscreen);
     manager.initManager();
     void setupOffscreenDocument()
@@ -89,6 +96,7 @@ function main() {
     // offscreen → SW 因此必须使用进程内桥接，Chrome 的独立 offscreen 文档仍走原通道。
     const offscreenToSw = new InProcessMessage();
     const server = new Server("serviceWorker", [message, swMessage, offscreenToSw]);
+    registerMigrationApi(server);
     // 同一个 messageQueue 实例同时用于 SW 和 offscreen 两个角色：见 BackgroundEnvManagerBase
     // 构造函数中 messageQueue 参数的说明 - chrome.runtime.sendMessage 广播不会送达发送方自己
     // 所在的 frame，各自新建 MessageQueue 会导致 mq.publish() 广播互相收不到。
