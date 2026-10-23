@@ -24,7 +24,9 @@ const tplPlugin = {
 //   - web-jszipp（vmThreads 的 VM 上下文没有 TransformStream）：backup.test.ts、skill-zip.test.ts
 //   - module-level sharedInitCopy captured against wrong window: create_context.test.ts
 //   - 沙盒断言依赖 vmThreads 中不可用的原生 happy-dom Window 语义：exec_script.test.ts
+//   - 替换 Dexie 的 IndexedDB 来源并打开 dao.ts 的 Dexie 单例，共享模块会泄漏给其它文件：migrate.test.ts
 const ISOLATED = [
+  "src/app/migrate.test.ts",
   "src/pkg/backup/backup.test.ts",
   "src/pkg/utils/skill-zip.test.ts",
   "src/app/service/content/create_context.test.ts",

@@ -11,196 +11,189 @@ import { PermissionDAO } from "./repo/permission";
 import { DocumentationSite } from "./const";
 import { LocalStorageDAO } from "./repo/localStorage";
 
-// 迁移数据到chrome.storage
-export function migrateToChromeStorage() {
-  // 默认使用的事务，这里加个延时，用db.open()打开数据库后，再执行
-  setTimeout(async () => {
-    try {
-      // 迁移脚本
-      const scripts = await db.table("scripts").toArray();
-      const scriptDAO = new ScriptDAO();
-      const scriptCodeDAO = new ScriptCodeDAO();
-      console.log("开始迁移脚本数据", scripts.length);
-      await Promise.all(
-        // 不处理 Promise.reject ?
-        scripts.map(async (script: ScriptAndCode) => {
-          const {
-            uuid,
-            name,
-            namespace,
-            author,
-            originDomain,
-            subscribeUrl,
-            type,
-            sort,
-            status,
-            runStatus,
-            metadata,
-            createtime,
-            checktime,
-            code,
-            checkUpdateUrl,
-            downloadUrl,
-            selfMetadata,
-            config,
-            error,
-            updatetime,
-            lastruntime,
-            nextruntime,
-          } = script;
-          const s = await scriptDAO.save({
-            uuid,
-            name,
-            namespace,
-            author,
-            originDomain,
-            origin,
-            checkUpdateUrl,
-            downloadUrl,
-            metadata,
-            selfMetadata,
-            subscribeUrl,
-            config,
-            type,
-            status,
-            sort,
-            runStatus,
-            error,
-            createtime,
-            updatetime,
-            checktime,
-            lastruntime,
-            nextruntime,
-          });
-          return scriptCodeDAO
-            .save({
-              uuid: s.uuid,
-              code,
-            })
-            .catch((e) => {
-              console.log("脚本代码迁移失败", e);
-              return Promise.reject(e);
-            });
+// 把 0.16（MV2）IndexedDB 中的数据迁移到 chrome.storage；失败时抛出，由调用方决定是否重试
+export async function migrateToChromeStorage() {
+  await db.open();
+  // 迁移脚本
+  const scripts = await db.table("scripts").toArray();
+  const scriptDAO = new ScriptDAO();
+  const scriptCodeDAO = new ScriptCodeDAO();
+  console.log("开始迁移脚本数据", scripts.length);
+  await Promise.all(
+    // 不处理 Promise.reject ?
+    scripts.map(async (script: ScriptAndCode) => {
+      const {
+        uuid,
+        name,
+        namespace,
+        author,
+        originDomain,
+        origin,
+        subscribeUrl,
+        type,
+        sort,
+        status,
+        runStatus,
+        metadata,
+        createtime,
+        checktime,
+        code,
+        checkUpdateUrl,
+        downloadUrl,
+        selfMetadata,
+        config,
+        error,
+        updatetime,
+        lastruntime,
+        nextruntime,
+      } = script;
+      const s = await scriptDAO.save({
+        uuid,
+        name,
+        namespace,
+        author,
+        originDomain,
+        origin,
+        checkUpdateUrl,
+        downloadUrl,
+        metadata,
+        selfMetadata,
+        subscribeUrl,
+        config,
+        type,
+        status,
+        sort,
+        runStatus,
+        error,
+        createtime,
+        updatetime,
+        checktime,
+        lastruntime,
+        nextruntime,
+      });
+      return scriptCodeDAO
+        .save({
+          uuid: s.uuid,
+          code,
         })
-      );
-      // 迁移订阅
-      const subscribe = await db.table("subscribe").toArray();
-      const subscribeDAO = new SubscribeDAO();
-      if (subscribe.length) {
-        await Promise.all(
-          subscribe.map((s: Subscribe) => {
-            const { url, name, code, author, scripts, metadata, status, createtime, updatetime, checktime } = s;
-            return subscribeDAO.save({
-              url,
-              name,
-              code,
-              author,
-              scripts,
-              metadata,
-              status,
+        .catch((e) => {
+          console.log("脚本代码迁移失败", e);
+          return Promise.reject(e);
+        });
+    })
+  );
+  // 迁移订阅
+  const subscribe = await db.table("subscribe").toArray();
+  const subscribeDAO = new SubscribeDAO();
+  if (subscribe.length) {
+    await Promise.all(
+      subscribe.map((s: Subscribe) => {
+        const { url, name, code, author, scripts, metadata, status, createtime, updatetime, checktime } = s;
+        return subscribeDAO.save({
+          url,
+          name,
+          code,
+          author,
+          scripts,
+          metadata,
+          status,
+          createtime,
+          updatetime,
+          checktime,
+        });
+      })
+    );
+  }
+  console.log("订阅数据迁移完成", subscribe.length);
+  // 迁移value
+  interface MV2Value {
+    id: number;
+    scriptId: number;
+    storageName?: string;
+    key: string;
+    value: any;
+    createtime: number;
+    updatetime: number;
+  }
+  const values = await db.table("value").toArray();
+  const valueDAO = new ValueDAO();
+  const valueMap = new Map<string, Value>();
+  await Promise.all(
+    values.map((v: MV2Value) => {
+      const { scriptId, key, value, createtime } = v;
+      return db
+        .table("scripts")
+        .where("id")
+        .equals(scriptId)
+        .first((script: Script) => {
+          if (script) {
+            let data: { [key: string]: any } = {};
+            if (!valueMap.has(script.uuid)) {
+              valueMap.set(script.uuid, {
+                uuid: script.uuid,
+                storageName: getStorageName(script),
+                data: data,
+                createtime,
+                updatetime: 0,
+              });
+            } else {
+              data = valueMap.get(script.uuid)!.data;
+            }
+            data[key] = value;
+          }
+        });
+    })
+  );
+  // 保存到数据库
+  await Promise.all(
+    Array.from(valueMap.keys()).map((uuid) => {
+      const { storageName, data, createtime } = valueMap.get(uuid)!;
+      return valueDAO.save(storageName!, {
+        uuid,
+        storageName,
+        data,
+        createtime,
+        updatetime: 0,
+      });
+    })
+  );
+  console.log("脚本value数据迁移完成", values.length);
+  // 迁移permission
+  const permissions = await db.table("permission").toArray();
+  const permissionDAO = new PermissionDAO();
+  await Promise.all(
+    permissions.map((p: Permission & { scriptId: number }) => {
+      const { scriptId, permission, permissionValue, createtime, updatetime, allow } = p;
+      return db
+        .table("scripts")
+        .where("id")
+        .equals(scriptId)
+        .first((script: Script) => {
+          if (script) {
+            return permissionDAO.save({
+              uuid: script.uuid,
+              permission,
+              permissionValue,
               createtime,
               updatetime,
-              checktime,
+              allow,
             });
-          })
-        );
-      }
-      console.log("订阅数据迁移完成", subscribe.length);
-      // 迁移value
-      interface MV2Value {
-        id: number;
-        scriptId: number;
-        storageName?: string;
-        key: string;
-        value: any;
-        createtime: number;
-        updatetime: number;
-      }
-      const values = await db.table("value").toArray();
-      const valueDAO = new ValueDAO();
-      const valueMap = new Map<string, Value>();
-      await Promise.all(
-        values.map((v: MV2Value) => {
-          const { scriptId, key, value, createtime } = v;
-          return db
-            .table("scripts")
-            .where("id")
-            .equals(scriptId)
-            .first((script: Script) => {
-              if (script) {
-                let data: { [key: string]: any } = {};
-                if (!valueMap.has(script.uuid)) {
-                  valueMap.set(script.uuid, {
-                    uuid: script.uuid,
-                    storageName: getStorageName(script),
-                    data: data,
-                    createtime,
-                    updatetime: 0,
-                  });
-                } else {
-                  data = valueMap.get(script.uuid)!.data;
-                }
-                data[key] = value;
-              }
-            });
-        })
-      );
-      // 保存到数据库
-      await Promise.all(
-        Array.from(valueMap.keys()).map((uuid) => {
-          const { storageName, data, createtime } = valueMap.get(uuid)!;
-          return valueDAO.save(storageName!, {
-            uuid,
-            storageName,
-            data,
-            createtime,
-            updatetime: 0,
-          });
-        })
-      );
-      console.log("脚本value数据迁移完成", values.length);
-      // 迁移permission
-      const permissions = await db.table("permission").toArray();
-      const permissionDAO = new PermissionDAO();
-      await Promise.all(
-        permissions.map((p: Permission & { scriptId: number }) => {
-          const { scriptId, permission, permissionValue, createtime, updatetime, allow } = p;
-          return db
-            .table("scripts")
-            .where("id")
-            .equals(scriptId)
-            .first((script: Script) => {
-              if (script) {
-                return permissionDAO.save({
-                  uuid: script.uuid,
-                  permission,
-                  permissionValue,
-                  createtime,
-                  updatetime,
-                  allow,
-                });
-              }
-            });
-        })
-      );
-      console.log("脚本permission数据迁移完成", permissions.length);
-      // 打开页面，告知数据储存+升级至了mv3，重启一次扩展
-      setTimeout(async () => {
-        const scripts = await scriptDAO.all();
-        console.log("脚本数据迁移完成", scripts.length);
-        if (scripts.length > 0) {
-          chrome.tabs.create({
-            url: `${DocumentationSite}/docs/change/v0.17/`,
-          });
-          setTimeout(() => {
-            chrome.runtime.reload();
-          }, 1000);
-        }
-      }, 2000);
-    } catch (e) {
-      console.error("脚本数据迁移失败", e);
-    }
-  }, 200);
+          }
+        });
+    })
+  );
+  console.log("脚本permission数据迁移完成", permissions.length);
+  // 打开页面，告知数据储存+升级至了mv3，重启一次扩展
+  const migrated = await scriptDAO.all();
+  console.log("脚本数据迁移完成", migrated.length);
+  if (migrated.length > 0) {
+    chrome.tabs.create({
+      url: `${DocumentationSite}/docs/change/v0.17/`,
+    });
+    setTimeout(() => {
+      chrome.runtime.reload();
+    }, 1000);
+  }
 }
 
 // 0.10.0重构,重命名字段,统一使用小峰驼
@@ -234,10 +227,9 @@ function renameField() {
     // export是0.10.x时的兼容性处理
     export: "++id,&scriptId",
   });
-  // 将脚本数据迁移到chrome.storage
-  db.version(18).upgrade(() => {
-    migrateToChromeStorage();
-  });
+  // 0.16.7 起 0.16 自身也声明了 version 18（防降级），这些用户的库打开时不会触发 upgrade，
+  // 所以迁移不挂在版本升级上，而是由 migrateChromeStorage 按数据判断
+  db.version(18);
 
   return db.open();
 }
@@ -267,9 +259,23 @@ export function migrateChromeStorage() {
         );
       },
     },
+    {
+      version: 2,
+      upgrade: async () => {
+        // chrome.storage 已有脚本说明早已迁移过，IndexedDB 里只剩旧副本，不能拿来覆盖
+        if ((await new ScriptDAO().all()).length > 0) {
+          return;
+        }
+        await db.open();
+        if ((await db.table("scripts").count()) === 0) {
+          return;
+        }
+        await migrateToChromeStorage();
+      },
+    },
   ];
   const localstorageDAO = new LocalStorageDAO();
-  localstorageDAO.get("migrations").then(async (item) => {
+  return localstorageDAO.get("migrations").then(async (item) => {
     const migrations = item?.value || [];
     for (let i = 0; i < migrationList.length; i++) {
       const m = migrationList[i];
