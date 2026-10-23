@@ -33,6 +33,14 @@ not match at the start — a rename that crosses a persistence or message bounda
 entity — read that owner then, before continuing. For tasks matching none, inspect `docs/README.md` and nearby
 implementation/tests before inventing a rule or abstraction.
 
+A table row names an owning doc, not the gate itself. For a row that governs a specific invocable action — a
+command, a publish call, a destructive operation — the actual gate is that doc's own point-of-action checklist,
+not this table entry, which loses salience across the many tool calls between reading it and the action actually
+firing; [`docs/develop.md#revision-scope-and-publication-binding`](docs/develop.md#revision-scope-and-publication-binding)
+is the model, read at the point it governs rather than only at session start. Where the environment offers a
+mechanism that fires at the moment the action is invoked — a pre-action hook, a required confirmation, a lint/CI
+gate — prefer wiring the reminder there over relying on this table having stayed salient.
+
 ## DeepWiki Context
 
 For unfamiliar subsystems, when `.deepwiki/index.md` exists, start there and open only the relevant linked pages;
@@ -279,9 +287,11 @@ Before claiming completion, use the applicable owner docs to check the final sta
 a second copy of their mechanics; when details matter, linked owners win. If a check cannot be completed, state the
 limitation instead of claiming “verified” or “all fixed” without evidence.
 
-- **Owners/facts.** Every task part follows its routed owner; changed documentation follows
-  [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md), including branch-aware fact checks against committed
-  code, not memory or untracked files.
+- **Owners/facts.** Every task part follows its routed owner — state which, by naming the doc and restating the
+  specific constraint applied or the exact path it bound, the same evidence bar this file already sets for code
+  claims; a route reference without a restated constraint is not evidence the doc was read. Changed
+  documentation follows [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md), including branch-aware fact
+  checks against committed code, not memory or untracked files.
 - **Evidence/verification.** Reproduction, tests, manual evidence, and the applicable rules in
   [`docs/references/develop-testing.md`](docs/references/develop-testing.md) and [`docs/verification.md`](docs/verification.md)
   support the claim, including any explicit exception; run required checks and report blockers or tooling limits.
