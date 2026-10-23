@@ -518,6 +518,10 @@ export class SystemClient extends Client {
   connectVSCode(params: VSCodeConnectParam): Promise<void> {
     return this.do("connectVSCode", params);
   }
+
+  migrateToChromeStorage(): Promise<void> {
+    return this.do("migrateToChromeStorage");
+  }
 }
 
 export class AgentClient extends Client {

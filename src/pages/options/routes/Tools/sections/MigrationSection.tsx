@@ -1,11 +1,15 @@
 import { SettingCard } from "../../../components/SettingCard";
 import { Button } from "@App/pages/components/ui/button";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
-import { migrateToChromeStorage } from "@App/app/migrate";
+import { SystemClient } from "@App/app/service/service_worker/client";
+import { message } from "@App/pages/store/global";
+import { notify } from "@App/pages/components/ui/toast";
 import { useTranslation } from "react-i18next";
 
 export function MigrationSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const { t } = useTranslation();
+  const migrate = () =>
+    new SystemClient(message).migrateToChromeStorage().catch((e) => notify.error(`${t("error")}: ${e}`));
   return (
     <SettingCard
       id="data-migration"
@@ -18,7 +22,7 @@ export function MigrationSection({ register }: { register: (id: string) => (el: 
           description={t("settings:migration_confirm_message")}
           confirmText={t("confirm")}
           cancelText={t("editor:cancel")}
-          onConfirm={() => migrateToChromeStorage()}
+          onConfirm={migrate}
         >
           <Button data-testid="retry_migration" size="sm">
             {t("settings:retry_migration")}
