@@ -45,10 +45,13 @@ vi.mock("@App/pages/components/ui/toast", () => ({
     dismiss: vi.fn(),
   },
 }));
-// 桌面视图用例:固定为非移动端(移动端重壳另在 LoggerMobile.test.tsx 覆盖)
-vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: () => false, MOBILE_BREAKPOINT: 768 }));
+// 桌面与移动端用例放在同一文件:ui 项目 isolate:false 下两个文件各自 mock 同一个 ./index 的依赖会互相串用
+vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: vi.fn(), MOBILE_BREAKPOINT: 768 }));
 
+import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import Logger from "./index";
+
+const mockedUseIsMobile = vi.mocked(useIsMobile);
 
 const renderPage = () => render(<Logger />, { wrapper: MemoryRouter });
 
@@ -58,6 +61,7 @@ beforeEach(() => {
   mockLoggerData.logs = sampleLogs;
   mockLoggerData.clearLogs = vi.fn(() => Promise.resolve());
   vi.clearAllMocks();
+  mockedUseIsMobile.mockReturnValue(false);
 });
 
 afterEach(() => cleanup());
@@ -99,5 +103,40 @@ describe("日志页面", () => {
     fireEvent.click(screen.getByText(t("logs:clear_logs")).closest("button")!);
     expect(await screen.findByText(t("logs:clear_logs_confirm"))).toBeTruthy();
     expect(mockLoggerData.clearLogs).not.toHaveBeenCalled();
+  });
+});
+
+describe("日志页面 - 移动端", () => {
+  beforeEach(() => mockedUseIsMobile.mockReturnValue(true));
+
+  it("移动端顶栏的删除/清空按钮以图标按钮呈现(带无障碍名,不显示文字标签)", () => {
+    renderPage();
+    const del = screen.getByLabelText(t("logs:delete_current_logs"));
+    const clear = screen.getByLabelText(t("logs:clear_logs"));
+    // 图标按钮:可见文本里不再包含完整中文标签
+    expect(del.textContent).not.toContain(t("logs:delete_current_logs"));
+    expect(clear.textContent).not.toContain(t("logs:clear_logs"));
+  });
+
+  it("移动端日志行的消息允许换行而非截断", () => {
+    renderPage();
+    const msg = screen.getByText("GM_xhr connect failed");
+    expect(msg.className).not.toContain("truncate");
+  });
+
+  it("移动端范围/统计条竖向堆叠，统计与自动清理各自独占整行", () => {
+    renderPage();
+    const bar = screen.getByTestId("logger-stats-bar");
+    expect(bar.className).toContain("flex-col");
+    // 两组必须撑满整行:否则长文本会溢出自身盒子压到相邻分组上(窄屏文字重叠)
+    expect(screen.getByTestId("logger-stats-summary").className).toContain("w-full");
+    expect(screen.getByTestId("logger-clean-schedule").className).toContain("w-full");
+  });
+
+  it("仍渲染全部日志且筛选交互可用", () => {
+    renderPage();
+    expect(screen.getByText("retry timeout reached")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("level-chip-warn"));
+    expect(screen.queryByText("retry timeout reached")).toBeNull();
   });
 });
