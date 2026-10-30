@@ -55,5 +55,14 @@
   "total_logs": "Найдено {{length}} записей журнала",
   "filtered_logs": "После фильтрации {{length}} записей журнала",
   "enter_filter_conditions": "Введите условия фильтрации для поиска",
-  "custom_range": "Произвольный"
+  "custom_range": "Произвольный",
+  "copy_log_line": "Копировать эту запись",
+  "toggle_log_detail": "Показать/скрыть подробности",
+  "export_scope": "Экспорт отфильтрованных логов · {{count}}",
+  "export_copy_text": "Копировать как текст",
+  "export_download_log": "Скачать файл .log",
+  "export_download_json": "Скачать файл .json",
+  "copied_logs": "Скопировано логов: {{count}}",
+  "copy_failed": "Не удалось скопировать",
+  "export_failed": "Не удалось экспортировать"
 }

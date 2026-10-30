@@ -55,5 +55,14 @@
   "total_logs": "총 {{length}}개의 로그가 조회되었습니다",
   "filtered_logs": "필터링 후 {{length}}개의 로그",
   "enter_filter_conditions": "조회할 필터 조건을 입력하세요",
-  "custom_range": "사용자 지정 범위"
+  "custom_range": "사용자 지정 범위",
+  "copy_log_line": "이 로그 복사",
+  "toggle_log_detail": "상세 정보 펼치기/접기",
+  "export_scope": "현재 필터 결과 내보내기 · {{count}}개",
+  "export_copy_text": "텍스트로 복사",
+  "export_download_log": ".log 파일 다운로드",
+  "export_download_json": ".json 파일 다운로드",
+  "copied_logs": "로그 {{count}}개를 복사했습니다",
+  "copy_failed": "복사 실패",
+  "export_failed": "내보내기 실패"
 }

@@ -55,5 +55,14 @@
   "total_logs": "Insgesamt {{length}} Protokolle gefunden",
   "filtered_logs": "Nach Filterung {{length}} Protokolle",
   "enter_filter_conditions": "Bitte geben Sie Filterbedingungen für die Abfrage ein",
-  "custom_range": "Benutzerdefiniert"
+  "custom_range": "Benutzerdefiniert",
+  "copy_log_line": "Diesen Log-Eintrag kopieren",
+  "toggle_log_detail": "Details ein-/ausblenden",
+  "export_scope": "{{count}} gefilterte Logs exportieren",
+  "export_copy_text": "Als Text kopieren",
+  "export_download_log": ".log-Datei herunterladen",
+  "export_download_json": ".json-Datei herunterladen",
+  "copied_logs": "Kopierte Logs: {{count}}",
+  "copy_failed": "Kopieren fehlgeschlagen",
+  "export_failed": "Export fehlgeschlagen"
 }

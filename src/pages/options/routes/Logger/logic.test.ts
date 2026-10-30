@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
+import type { Logger } from "@App/app/repo/logger";
 import {
   REFRESH_INTERVAL_MS,
   aggregateLabels,
   buildMonthGrid,
   countLevels,
   filterLogs,
+  formatLogLine,
+  formatLogsJson,
+  formatLogsText,
   levelBucket,
   presetRange,
   type CalendarCell,
@@ -384,5 +388,38 @@ describe("buildMonthGrid", () => {
     expect(june16.date.getMonth()).toBe(5);
     expect(last.inMonth).toBe(false);
     expect(inMonthDays).toEqual(Array.from({ length: 30 }, (_, index) => index + 1));
+  });
+});
+
+describe("日志导出文本格式", () => {
+  const at = (h: number, m: number, s: number) => new Date(2026, 9, 30, h, m, s).getTime();
+  const errorLog: Logger = {
+    id: 2,
+    level: "error",
+    message: "GM_xmlhttpRequest timeout",
+    label: { component: "GM_xmlhttpRequest", scriptId: 7 },
+    createtime: at(15, 1, 58),
+  };
+  const debugLog: Logger = { id: 1, level: "debug", message: "handshake ok", label: {}, createtime: at(14, 55, 10) };
+
+  it("单条日志格式为「完整时间 [级别] 消息 标签JSON」", () => {
+    expect(formatLogLine(errorLog)).toBe(
+      '2026-10-30 15:01:58 [ERROR] GM_xmlhttpRequest timeout {"component":"GM_xmlhttpRequest","scriptId":7}'
+    );
+  });
+
+  it("没有标签时不追加空的标签 JSON", () => {
+    expect(formatLogLine(debugLog)).toBe("2026-10-30 14:55:10 [DEBUG] handshake ok");
+  });
+
+  it("多条日志按时间从早到晚逐行输出，与页面上新在前的顺序无关", () => {
+    expect(formatLogsText([errorLog, debugLog])).toBe([formatLogLine(debugLog), formatLogLine(errorLog)].join("\n"));
+  });
+
+  it("JSON 导出保留完整字段并附带可读时间，同样按时间从早到晚排列", () => {
+    expect(JSON.parse(formatLogsJson([errorLog, debugLog]))).toEqual([
+      { time: "2026-10-30 14:55:10", ...debugLog },
+      { time: "2026-10-30 15:01:58", ...errorLog },
+    ]);
   });
 });

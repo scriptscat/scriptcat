@@ -55,5 +55,14 @@
   "total_logs": "A total of {{length}} logs were queried",
   "filtered_logs": "{{length}} logs after filtering",
   "enter_filter_conditions": "Please Enter Filter Conditions for Query",
-  "custom_range": "Custom Range"
+  "custom_range": "Custom Range",
+  "copy_log_line": "Copy this log",
+  "toggle_log_detail": "Toggle details",
+  "export_scope": "Export {{count}} filtered logs",
+  "export_copy_text": "Copy as text",
+  "export_download_log": "Download .log file",
+  "export_download_json": "Download .json file",
+  "copied_logs": "Logs copied: {{count}}",
+  "copy_failed": "Copy failed",
+  "export_failed": "Export failed"
 }

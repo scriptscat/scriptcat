@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Copy,
   Plus,
   RefreshCw,
   X,
@@ -111,18 +112,22 @@ function detailJson(log: Logger): string {
 }
 
 /** 单条日志（控制台风格）：时间 + 级别徽标 + 消息 + 标签 chips，左侧级别色条；可展开看完整标签。
- *  桌面端单行(消息截断)；移动端竖向堆叠(时间/级别一行，消息整段换行)。 */
+ *  桌面端单行(消息截断)；移动端竖向堆叠(时间/级别一行，消息整段换行)。
+ *  行本身不是按钮，文字可拖选复制；键盘展开走右侧箭头按钮。 */
 export function LogRow({
   log,
   expanded,
   onToggle,
+  onCopy,
   mobile = false,
 }: {
   log: Logger;
   expanded: boolean;
   onToggle: () => void;
+  onCopy: () => void;
   mobile?: boolean;
 }) {
+  const { t } = useTranslation();
   const bucket = levelBucket(log.level);
   const m = LEVEL_META[bucket];
   const labelChips = Object.entries(log.label).filter(([, v]) => typeof v === "string" || typeof v === "number") as [
@@ -130,14 +135,60 @@ export function LogRow({
     string | number,
   ][];
 
-  return (
-    <div className={cn("border-b border-border border-l-4", m.bar, expanded && "bg-primary-light/50")}>
-      <button
-        type="button"
-        data-testid={`log-row-${log.id}`}
-        onClick={onToggle}
+  // 拖选文字松开鼠标同样会触发 click，有选区时是在复制，不切换展开
+  const handleRowClick = () => {
+    if (window.getSelection()?.toString()) return;
+    onToggle();
+  };
+
+  const chips = labelChips.slice(0, 4).map(([k, v]) => (
+    <span key={k} className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-fg-secondary">
+      {`${k}:${v}`}
+    </span>
+  ));
+
+  const actions = (
+    <span className="flex shrink-0 items-center gap-0.5">
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        data-testid={`log-copy-${log.id}`}
+        aria-label={t("logs:copy_log_line")}
+        title={t("logs:copy_log_line")}
+        onClick={(e) => {
+          e.stopPropagation();
+          onCopy();
+        }}
         className={cn(
-          "w-full text-left transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
+          "text-muted-foreground",
+          !mobile && "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+        )}
+      >
+        <Copy />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        aria-expanded={expanded}
+        aria-label={t("logs:toggle_log_detail")}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
+        }}
+        className="text-muted-foreground/60"
+      >
+        <ChevronRight className={cn("transition-transform", expanded && "rotate-90")} />
+      </Button>
+    </span>
+  );
+
+  return (
+    <div className={cn("group border-b border-border border-l-4", m.bar, expanded && "bg-primary-light/50")}>
+      <div
+        data-testid={`log-row-${log.id}`}
+        onClick={handleRowClick}
+        className={cn(
+          "cursor-pointer transition-colors hover:bg-accent/50",
           mobile ? "flex flex-col gap-1.5 px-4 py-2.5" : "flex items-center gap-3 px-4 py-2"
         )}
       >
@@ -149,23 +200,10 @@ export function LogRow({
               </span>
               <LevelBadge bucket={bucket} />
               <span className="flex-1" />
-              <ChevronRight
-                className={cn(
-                  "w-3.5 h-3.5 shrink-0 text-muted-foreground/60 transition-transform",
-                  expanded && "rotate-90"
-                )}
-              />
+              {actions}
             </span>
             <span className="break-words whitespace-pre-wrap font-mono text-[13px] text-foreground">{log.message}</span>
-            {labelChips.length > 0 && (
-              <span className="flex flex-wrap items-center gap-1.5">
-                {labelChips.slice(0, 4).map(([k, v]) => (
-                  <span key={k} className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-fg-secondary">
-                    {`${k}:${v}`}
-                  </span>
-                ))}
-              </span>
-            )}
+            {labelChips.length > 0 && <span className="flex flex-wrap items-center gap-1.5">{chips}</span>}
           </>
         ) : (
           <>
@@ -176,24 +214,11 @@ export function LogRow({
               <LevelBadge bucket={bucket} />
             </span>
             <span className="flex-1 min-w-0 truncate font-mono text-[13px] text-foreground">{log.message}</span>
-            {labelChips.length > 0 && (
-              <span className="hidden md:flex items-center gap-1.5 shrink-0">
-                {labelChips.slice(0, 4).map(([k, v]) => (
-                  <span key={k} className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-fg-secondary">
-                    {`${k}:${v}`}
-                  </span>
-                ))}
-              </span>
-            )}
-            <ChevronRight
-              className={cn(
-                "w-3.5 h-3.5 shrink-0 text-muted-foreground/60 transition-transform",
-                expanded && "rotate-90"
-              )}
-            />
+            {labelChips.length > 0 && <span className="hidden md:flex items-center gap-1.5 shrink-0">{chips}</span>}
+            {actions}
           </>
         )}
-      </button>
+      </div>
       {expanded && (
         <div data-testid={`log-detail-${log.id}`} className="px-5 pb-3">
           <pre className="overflow-x-auto scrollbar-custom whitespace-pre-wrap break-all rounded-md border border-border bg-muted/50 p-3 font-mono text-xs text-fg-secondary">

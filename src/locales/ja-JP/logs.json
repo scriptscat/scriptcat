@@ -55,5 +55,14 @@
   "total_logs": "合計{{length}}件のログが見つかりました",
   "filtered_logs": "フィルタリング後{{length}}件のログ",
   "enter_filter_conditions": "フィルタリング条件を入力してクエリしてください",
-  "custom_range": "カスタム範囲"
+  "custom_range": "カスタム範囲",
+  "copy_log_line": "このログをコピー",
+  "toggle_log_detail": "詳細の表示/非表示",
+  "export_scope": "現在の絞り込み結果をエクスポート · {{count}} 件",
+  "export_copy_text": "テキストとしてコピー",
+  "export_download_log": ".log ファイルをダウンロード",
+  "export_download_json": ".json ファイルをダウンロード",
+  "copied_logs": "{{count}} 件のログをコピーしました",
+  "copy_failed": "コピーに失敗しました",
+  "export_failed": "エクスポートに失敗しました"
 }

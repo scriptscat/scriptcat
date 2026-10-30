@@ -55,5 +55,14 @@
   "total_logs": "Foram encontrados {{length}} logs no total",
   "filtered_logs": "{{length}} logs após a filtragem",
   "enter_filter_conditions": "Insira as condições de filtro para a consulta",
-  "custom_range": "Intervalo personalizado"
+  "custom_range": "Intervalo personalizado",
+  "copy_log_line": "Copiar este log",
+  "toggle_log_detail": "Mostrar/ocultar detalhes",
+  "export_scope": "Exportar {{count}} logs filtrados",
+  "export_copy_text": "Copiar como texto",
+  "export_download_log": "Baixar arquivo .log",
+  "export_download_json": "Baixar arquivo .json",
+  "copied_logs": "Logs copiados: {{count}}",
+  "copy_failed": "Falha ao copiar",
+  "export_failed": "Falha ao exportar"
 }

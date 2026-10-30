@@ -1,5 +1,6 @@
 import type { Logger } from "@App/app/repo/logger";
 import type { LogLabel, LogLevel } from "@App/app/logger/core";
+import { formatUnixTime } from "@App/pkg/utils/day_format";
 
 /** 标签过滤条件运算符 */
 export type LogCondition = "=" | "=~" | "!=" | "!~";
@@ -96,6 +97,31 @@ export function filterLogs(logs: Logger[], opts: FilterOptions = {}): Logger[] {
     if (messageRegex && !messageRegex.test(log.message)) return false;
     return true;
   });
+}
+
+const formatLogTime = (log: Logger) => formatUnixTime(log.createtime / 1000);
+
+/** 导出按日志文件惯例从早到晚排列；页面列表是新在前 */
+const chronological = (logs: Logger[]) => [...logs].sort((a, b) => a.createtime - b.createtime);
+
+/** 单条日志的纯文本行，沿用 1.4 旧版「时间 消息 标签JSON」的格式并补上级别 */
+export function formatLogLine(log: Logger): string {
+  const line = `${formatLogTime(log)} [${log.level.toUpperCase()}] ${log.message}`;
+  return Object.keys(log.label).length ? `${line} ${JSON.stringify(log.label)}` : line;
+}
+
+/** 导出为 .log / 剪贴板用的多行文本 */
+export function formatLogsText(logs: Logger[]): string {
+  return chronological(logs).map(formatLogLine).join("\n");
+}
+
+/** 导出为 .json：保留完整字段，附带可读时间 */
+export function formatLogsJson(logs: Logger[]): string {
+  return JSON.stringify(
+    chronological(logs).map((log) => ({ time: formatLogTime(log), ...log })),
+    null,
+    2
+  );
 }
 
 /** 时间快捷预设 */

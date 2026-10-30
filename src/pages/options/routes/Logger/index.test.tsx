@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
+import { render, cleanup, screen, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { Logger as LoggerEntry } from "@App/app/repo/logger";
+import { notify } from "@App/pages/components/ui/toast";
+import { formatLogLine, formatLogsJson, formatLogsText } from "./logic";
 
 // 数据 Hook 涉及 IndexedDB 读取，测试中整体打桩；返回稳定引用避免无限重渲染。
 const sampleLogs: LoggerEntry[] = [
@@ -64,7 +66,32 @@ beforeEach(() => {
   mockedUseIsMobile.mockReturnValue(false);
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+const mockClipboard = (writeText: (text: string) => Promise<void>) => {
+  const fn = vi.fn(writeText);
+  Object.defineProperty(navigator, "clipboard", { value: { writeText: fn }, configurable: true });
+  return fn;
+};
+
+const openExportMenu = () => {
+  const trigger = screen.getByRole("button", { name: t("export") });
+  fireEvent.pointerDown(trigger, { button: 0 });
+  fireEvent.click(trigger);
+};
+
+// 捕获交给 chrome.downloads 的文件名与 Blob 内容
+const captureDownload = () => {
+  const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:logs");
+  const download = vi.spyOn(chrome.downloads, "download").mockResolvedValue(undefined);
+  return {
+    download,
+    blobText: () => (createObjectURL.mock.calls[0][0] as Blob).text(),
+  };
+};
 
 describe("日志页面", () => {
   it("渲染传入的全部日志消息", () => {
@@ -103,6 +130,83 @@ describe("日志页面", () => {
     fireEvent.click(screen.getByText(t("logs:clear_logs")).closest("button")!);
     expect(await screen.findByText(t("logs:clear_logs_confirm"))).toBeTruthy();
     expect(mockLoggerData.clearLogs).not.toHaveBeenCalled();
+  });
+
+  it("日志消息文字不在按钮内，可以被拖选复制", () => {
+    renderPage();
+    expect(screen.getByText("GM_xhr connect failed").closest("button")).toBeNull();
+  });
+
+  it("拖选文字后松开鼠标不会展开该行", () => {
+    vi.spyOn(window, "getSelection").mockReturnValue({ toString: () => "connect failed" } as Selection);
+    renderPage();
+    fireEvent.click(screen.getByTestId("log-row-1"));
+    expect(screen.queryByTestId("log-detail-1")).toBeNull();
+  });
+
+  it("点击行内复制按钮把该条日志的文本行写入剪贴板，且不展开该行", async () => {
+    const writeText = mockClipboard(() => Promise.resolve());
+    renderPage();
+    await act(async () => fireEvent.click(screen.getByTestId("log-copy-1")));
+    expect(writeText).toHaveBeenCalledWith(formatLogLine(sampleLogs[0]));
+    expect(notify.success).toHaveBeenCalledWith(t("logs:copied_logs", { count: 1 }));
+    expect(screen.queryByTestId("log-detail-1")).toBeNull();
+  });
+
+  it("导出菜单「复制为文本」复制的是当前筛选结果", async () => {
+    const writeText = mockClipboard(() => Promise.resolve());
+    renderPage();
+    fireEvent.click(screen.getByTestId("level-chip-warn"));
+    openExportMenu();
+    await act(async () => fireEvent.click(screen.getByRole("menuitem", { name: t("logs:export_copy_text") })));
+    expect(writeText).toHaveBeenCalledWith(formatLogsText([sampleLogs[0], sampleLogs[2]]));
+    expect(notify.success).toHaveBeenCalledWith(t("logs:copied_logs", { count: 2 }));
+  });
+
+  it("写入剪贴板失败时提示错误而不是提示成功", async () => {
+    mockClipboard(() => Promise.reject(new Error("denied")));
+    renderPage();
+    openExportMenu();
+    await act(async () => fireEvent.click(screen.getByRole("menuitem", { name: t("logs:export_copy_text") })));
+    expect(notify.error).toHaveBeenCalled();
+    expect(notify.success).not.toHaveBeenCalled();
+  });
+
+  it("导出 .log 文件下载当前筛选结果的纯文本", async () => {
+    const { download, blobText } = captureDownload();
+    renderPage();
+    openExportMenu();
+    await act(async () => fireEvent.click(screen.getByRole("menuitem", { name: t("logs:export_download_log") })));
+    expect(download).toHaveBeenCalledWith(
+      expect.objectContaining({ saveAs: true, filename: expect.stringMatching(/^scriptcat-logs-\d{8}-\d{6}\.log$/) })
+    );
+    await expect(blobText()).resolves.toBe(formatLogsText(sampleLogs));
+  });
+
+  it("导出 .json 文件下载当前筛选结果的完整字段", async () => {
+    const { download, blobText } = captureDownload();
+    renderPage();
+    openExportMenu();
+    await act(async () => fireEvent.click(screen.getByRole("menuitem", { name: t("logs:export_download_json") })));
+    expect(download).toHaveBeenCalledWith(
+      expect.objectContaining({ saveAs: true, filename: expect.stringMatching(/^scriptcat-logs-\d{8}-\d{6}\.json$/) })
+    );
+    await expect(blobText()).resolves.toBe(formatLogsJson(sampleLogs));
+  });
+
+  it("下载失败时提示错误", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:logs");
+    vi.spyOn(chrome.downloads, "download").mockRejectedValue(new Error("download blocked"));
+    renderPage();
+    openExportMenu();
+    await act(async () => fireEvent.click(screen.getByRole("menuitem", { name: t("logs:export_download_log") })));
+    expect(notify.error).toHaveBeenCalledWith(expect.stringContaining("download blocked"));
+  });
+
+  it("筛选结果为空时导出按钮不可用", () => {
+    mockLoggerData.logs = [];
+    renderPage();
+    expect(screen.getByRole("button", { name: t("export") })).toBeDisabled();
   });
 });
 

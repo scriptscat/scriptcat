@@ -1,11 +1,30 @@
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowUp, ChevronDown, Inbox, ScrollText, Trash, Trash2 } from "lucide-react";
+import {
+  ArrowUp,
+  ChevronDown,
+  Copy,
+  Download,
+  FileJson,
+  FileText,
+  Inbox,
+  ScrollText,
+  Trash,
+  Trash2,
+} from "lucide-react";
 import { notify } from "@App/pages/components/ui/toast";
 import { cn } from "@App/pkg/utils/cn";
-import { formatUnixTime } from "@App/pkg/utils/day_format";
+import { dayFormat, formatUnixTime } from "@App/pkg/utils/day_format";
+import { makeBlobURL } from "@App/pkg/utils/utils";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { Button } from "@App/pages/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@App/pages/components/ui/dropdown-menu";
 import { EmptyState } from "@App/pages/components/ui/empty-state";
 import { LoadingState } from "@App/pages/components/ui/loading-state";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
@@ -15,6 +34,9 @@ import {
   aggregateLabels,
   countLevels,
   filterLogs,
+  formatLogLine,
+  formatLogsJson,
+  formatLogsText,
   presetRange,
   type LevelBucket,
   type LogQuery,
@@ -99,6 +121,25 @@ export default function Logger() {
     if (!ids.length) return;
     void deleteLogs(ids).then(() => notify.success(t("logs:delete_completed")));
   };
+  const copyText = (text: string, count: number) =>
+    navigator.clipboard.writeText(text).then(
+      () => notify.success(t("logs:copied_logs", { count })),
+      (e) => notify.error(`${t("logs:copy_failed")}: ${e instanceof Error ? e.message : e}`)
+    );
+  const handleDownload = async (ext: "log" | "json") => {
+    const content = ext === "log" ? formatLogsText(filtered) : formatLogsJson(filtered);
+    const type = ext === "log" ? "text/plain" : "application/json";
+    try {
+      const url = await makeBlobURL({ blob: new Blob([content], { type }), persistence: false });
+      await chrome.downloads.download({
+        url,
+        saveAs: true,
+        filename: `scriptcat-logs-${dayFormat(new Date(), "YYYYMMDD-HHmmss")}.${ext}`,
+      });
+    } catch (e) {
+      notify.error(`${t("logs:export_failed")}: ${e instanceof Error ? e.message : e}`);
+    }
+  };
   const handleClear = () => {
     void clearLogs().then(() => notify.success(t("logs:clear_completed")));
   };
@@ -117,6 +158,38 @@ export default function Logger() {
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              {isMobile ? (
+                <Button variant="outline" size="icon-sm" aria-label={t("export")} disabled={!filtered.length}>
+                  <Download className="w-3.5 h-3.5" />
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" disabled={!filtered.length}>
+                  <Download className="w-3.5 h-3.5" />
+                  {t("export")}
+                  <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+                </Button>
+              )}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                {t("logs:export_scope", { count: filtered.length })}
+              </DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => void copyText(formatLogsText(filtered), filtered.length)}>
+                <Copy />
+                {t("logs:export_copy_text")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => void handleDownload("log")}>
+                <FileText />
+                {t("logs:export_download_log")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => void handleDownload("json")}>
+                <FileJson />
+                {t("logs:export_download_json")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {isMobile ? (
             <Button
               variant="outline"
@@ -278,6 +351,7 @@ export default function Logger() {
               mobile={isMobile}
               expanded={expandedId === log.id}
               onToggle={() => setExpandedId((id) => (id === log.id ? null : log.id))}
+              onCopy={() => void copyText(formatLogLine(log), 1)}
             />
           ))
         )}

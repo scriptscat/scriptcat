@@ -55,5 +55,14 @@
   "total_logs": "Toplam {{length}} günlük sorgulandı",
   "filtered_logs": "Filtrelemeden sonra {{length}} günlük",
   "enter_filter_conditions": "Lütfen sorgu için filtre koşullarını girin",
-  "custom_range": "Özel Aralık"
+  "custom_range": "Özel Aralık",
+  "copy_log_line": "Bu günlüğü kopyala",
+  "toggle_log_detail": "Ayrıntıları göster/gizle",
+  "export_scope": "Filtrelenen {{count}} günlüğü dışa aktar",
+  "export_copy_text": "Metin olarak kopyala",
+  "export_download_log": ".log dosyasını indir",
+  "export_download_json": ".json dosyasını indir",
+  "copied_logs": "Kopyalanan günlük: {{count}}",
+  "copy_failed": "Kopyalama başarısız",
+  "export_failed": "Dışa aktarma başarısız"
 }

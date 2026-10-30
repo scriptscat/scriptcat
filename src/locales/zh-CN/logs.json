@@ -55,5 +55,14 @@
   "total_logs": "共查询到 {{length}} 条日志",
   "filtered_logs": "筛选后 {{length}} 条日志",
   "enter_filter_conditions": "请输入筛选条件进行查询",
-  "custom_range": "自定义范围"
+  "custom_range": "自定义范围",
+  "copy_log_line": "复制此条日志",
+  "toggle_log_detail": "展开/收起详情",
+  "export_scope": "导出当前筛选结果 · {{count}} 条",
+  "export_copy_text": "复制为文本",
+  "export_download_log": "下载 .log 文件",
+  "export_download_json": "下载 .json 文件",
+  "copied_logs": "已复制 {{count}} 条日志",
+  "copy_failed": "复制失败",
+  "export_failed": "导出失败"
 }

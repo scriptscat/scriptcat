@@ -55,5 +55,14 @@
   "total_logs": "共查詢到 {{length}} 筆紀錄",
   "filtered_logs": "篩選後 {{length}} 條紀錄",
   "enter_filter_conditions": "請輸入篩選條件進行查詢",
-  "custom_range": "自訂範圍"
+  "custom_range": "自訂範圍",
+  "copy_log_line": "複製此筆日誌",
+  "toggle_log_detail": "展開/收合詳情",
+  "export_scope": "匯出目前篩選結果 · {{count}} 筆",
+  "export_copy_text": "複製為文字",
+  "export_download_log": "下載 .log 檔案",
+  "export_download_json": "下載 .json 檔案",
+  "copied_logs": "已複製 {{count}} 筆日誌",
+  "copy_failed": "複製失敗",
+  "export_failed": "匯出失敗"
 }
