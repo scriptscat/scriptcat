@@ -91,14 +91,21 @@ export function InstallLayout({
   const isMobile = useIsMobile();
   const contentRef = useRef<HTMLElement>(null);
   const [cardActions, setCardActions] = useState<HTMLDivElement | null>(null);
-  // 初始按「可见」处理:身份卡在正文顶部,首屏不应闪出吸底栏
-  const [cardActionsVisible, setCardActionsVisible] = useState(true);
+  // 观测结果绑定到被观测的那个节点:跨过移动断点后操作组节点重建,旧节点的「已滚出」不能沿用;
+  // 新节点在首次回调前按「可见」处理,身份卡在正文顶部,不应闪出吸底栏
+  const [observed, setObserved] = useState<{ target: Element; visible: boolean } | null>(null);
+  const cardActionsVisible = observed?.target !== cardActions || observed.visible;
 
   useEffect(() => {
     if (!cardActions) return;
-    const observer = new IntersectionObserver(([entry]) => setCardActionsVisible(entry.isIntersecting), {
-      root: contentRef.current,
-    });
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // 回调排队期间同一节点可能累积多条记录,按时间先后排列,只有最后一条是当前状态
+        const latest = entries[entries.length - 1];
+        setObserved({ target: latest.target, visible: latest.isIntersecting });
+      },
+      { root: contentRef.current }
+    );
     observer.observe(cardActions);
     return () => observer.disconnect();
   }, [cardActions]);
@@ -108,6 +115,10 @@ export function InstallLayout({
   const [stickyMounted, setStickyMounted] = useState(false);
   if (sticky && !stickyMounted) {
     setStickyMounted(true);
+  }
+  // 移动端换成常驻吸底栏,桌面吸底栏直接卸掉,回到桌面时不补播一次退出动画
+  if (isMobile && stickyMounted) {
+    setStickyMounted(false);
   }
   const errorBar = (inset: boolean) =>
     failure && <InstallErrorBar message={failure.message} onRetry={failure.onRetry} inset={inset} />;
@@ -170,6 +181,8 @@ export function InstallLayout({
                   // 全局 reduced-motion 规则会把它压到近乎瞬时
                   "animate-out fade-out slide-out-to-bottom-2 fill-mode-forwards duration-200 ease-out"
             )}
+            // 退出中的副本与身份卡里的操作组、失败条同时存在,不能再被点到或被读屏重复播报
+            inert={!sticky}
             onAnimationEnd={(e) => {
               // 下拉菜单等子元素的动画事件经 React 树冒泡上来,只认吸底栏自身的退出
               if (e.target === e.currentTarget && !sticky) setStickyMounted(false);

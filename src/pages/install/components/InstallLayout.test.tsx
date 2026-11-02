@@ -130,6 +130,39 @@ describe("InstallLayout 桌面端：操作组在身份卡内，滚出后吸底",
     expect(screen.getByTestId("action-bar")).toBeInTheDocument();
   });
 
+  it("一次回调批量送达多条记录时以最后一条为准：滚出又滚回不出现吸底栏", () => {
+    render(<InstallLayout {...layoutProps()} />);
+    act(() => {
+      io.setIntersecting(screen.getByTestId("card-actions"), [false, true]);
+    });
+    expect(screen.queryByTestId("action-bar")).not.toBeInTheDocument();
+  });
+
+  it("退出动画中的吸底栏不可交互、不进入无障碍树，失败条与操作只由身份卡承担", () => {
+    render(<InstallLayout {...layoutProps({ failure: { message: "解析失败" } })} />);
+    scrollActionsOut();
+    const bar = screen.getByTestId("action-bar");
+    expect(bar).not.toHaveAttribute("inert");
+
+    act(() => {
+      io.setIntersecting(screen.getByTestId("card-actions"), true);
+    });
+    expect(bar).toHaveAttribute("inert");
+    expect(within(screen.getByTestId("identity")).getByText("解析失败")).toBeInTheDocument();
+  });
+
+  it("跨过移动断点再回到桌面时不沿用旧的滚出状态，也不补播吸底栏退出动画", () => {
+    const { rerender } = render(<InstallLayout {...layoutProps()} />);
+    scrollActionsOut();
+    expect(screen.getByTestId("action-bar")).toBeInTheDocument();
+
+    mockMatchMedia(true);
+    rerender(<InstallLayout {...layoutProps()} />);
+    mockMatchMedia(false);
+    rerender(<InstallLayout {...layoutProps()} />);
+    expect(screen.queryByTestId("action-bar")).not.toBeInTheDocument();
+  });
+
   it("失败条只渲染一份，跟随当前可见的那组操作", () => {
     const onRetry = vi.fn();
     render(<InstallLayout {...layoutProps({ failure: { message: "解析失败", onRetry } })} />);
