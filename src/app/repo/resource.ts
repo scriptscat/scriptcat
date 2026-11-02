@@ -91,6 +91,8 @@ export type CompiledResource = {
   runAt: string;
   scriptUrlPatterns: URLRuleEntry[];
   originalUrlPatterns: URLRuleEntry[] | null;
+  // 不向浏览器预注册，注入代码由 pageLoad 按匹配结果下发（见 getUserScriptRegister）
+  deliverOnPageLoad: boolean;
 };
 
 export const ResourceNamespace = "76f45084-91b1-42c1-8be8-cbcc54b171f0";

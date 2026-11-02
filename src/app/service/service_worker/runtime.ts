@@ -105,6 +105,7 @@ type TPageLoadScriptCache = {
   userConfig: UserConfig | undefined;
   resourceByType: TRuntimeResourceByType;
   localResources: TLocalResourceCache[];
+  deliverOnPageLoad: boolean;
 };
 
 const runtimeGlobal = {
@@ -468,6 +469,11 @@ export class RuntimeService {
       // 供 Popup 恢复用的原始规则，这里再清掉持久化的 CompiledResource 并注销浏览器旧注册，
       // 否则 SW 重启后 waitInit 会信任旧资源、让旧范围复活。
       await this.compiledResourceDAO.delete(script.uuid);
+      await this.unregistryPageScripts([script.uuid]);
+      return;
+    }
+    if (ret.compiledResource.deliverOnPageLoad) {
+      // 规则改成收不窄的正则后，之前的预注册必须撤掉，否则代码仍挂在所有页面
       await this.unregistryPageScripts([script.uuid]);
       return;
     }
@@ -872,8 +878,7 @@ export class RuntimeService {
     // 这种规则集转换不出任何 matches，提前返回，免得后面把它当成「只匹配不支持的 scheme」记警告。
     if (!scriptMatchInfo.scriptUrlPatterns.some((rule) => rule.ruleType & RuleTypeBit.INCLUSION)) return undefined;
 
-    const res = getUserScriptRegister(scriptMatchInfo);
-    const registerScript = res.registerScript;
+    const { registerScript, deliverOnPageLoad } = getUserScriptRegister(scriptMatchInfo);
 
     let jsCode = "";
     if (withCode) {
@@ -906,6 +911,7 @@ export class RuntimeService {
       runAt: registerScript.runAt || "",
       scriptUrlPatterns: scriptUrlPatterns,
       originalUrlPatterns: scriptUrlPatterns === originalUrlPatterns ? null : originalUrlPatterns,
+      deliverOnPageLoad,
     } as CompiledResource;
 
     this.compiledResourceDAO.save(result);
@@ -976,10 +982,10 @@ export class RuntimeService {
           if (!ret) return undefined;
           result = ret.compiledResource;
           resultCode = ret.jsCode;
-        } else {
+        } else if (!result.deliverOnPageLoad) {
           resultCode = await this.restoreJSCodeFromCompiledResource(script, result);
         }
-        if (!resultCode) return undefined;
+        if (result.deliverOnPageLoad || !resultCode) return undefined;
         const registerScript = {
           id: result.uuid,
           js: [{ code: resultCode }],
@@ -1450,6 +1456,7 @@ export class RuntimeService {
       userConfig: codeInfo.userConfig,
       resourceByType: this.cloneRuntimeResourceByType(resourceByType),
       localResources: this.getLocalResourceCacheList(resourceByType),
+      deliverOnPageLoad: compiledResource.deliverOnPageLoad,
     };
   }
 
@@ -1676,7 +1683,11 @@ export class RuntimeService {
     const contentScriptList: TScriptInfo[] = [];
     for (const script of enableScriptList) {
       const list = isInjectIntoContent(script.metadata) ? contentScriptList : injectScriptList;
-      list.push(trimScriptInfo({ ...script }));
+      const info = trimScriptInfo({ ...script });
+      if (this.pageLoadCaches.get(script.uuid)?.deliverOnPageLoad) {
+        info.code = compileInjectionCode(script, script.code, script.scriptUrlPatterns);
+      }
+      list.push(info);
     }
 
     // 发布给 inject 和 content 的信息

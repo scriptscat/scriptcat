@@ -52,6 +52,23 @@ export class ScriptRuntime {
       const nodeId = msg.sendRelatedTarget(el);
       return nodeId;
     });
+
+    // 未预注册的脚本（见 getUserScriptRegister 的 deliverOnPageLoad），注入代码随 pageLoad 下发到这里挂载 window[flag]，
+    // 执行环境照常通过 flag 接手。content 运行在 USER_SCRIPT world，其 CSP 放行内联脚本与 eval，
+    // 插入页面的 <script> 不受页面 CSP 限制
+    this.server.on("loadScriptCode", (data: { pageCodes: string[]; contentCodes: string[] }) => {
+      for (const code of data.contentCodes) {
+        new Function(code)();
+      }
+      for (const code of data.pageCodes) {
+        // createElementNS 确保 XML 文档里也能执行（#211）
+        const el = document.createElementNS("http://www.w3.org/1999/xhtml", "script");
+        el.setAttribute("type", "text/javascript");
+        el.textContent = code;
+        document.documentElement.appendChild(el);
+        el.remove();
+      }
+    });
   }
 
   init() {
