@@ -17,7 +17,7 @@ import { Button } from "@App/pages/components/ui/button";
 import { cn } from "@App/pkg/utils/cn";
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import type { SkillConfigField } from "@App/app/service/agent/core/types";
-import { InstallLayout } from "./InstallLayout";
+import { InstallLayout, InstallSummary, type ActionPlacement, type InstallFailure } from "./InstallLayout";
 
 export interface SkillInstallViewProps {
   metadata: { name: string; description: string; version?: string; config?: Record<string, SkillConfigField> };
@@ -30,8 +30,8 @@ export interface SkillInstallViewProps {
   phase?: "idle" | "installing" | "installed" | "failed";
   /** 安装完成且即将自动关闭：整页淡出 */
   closing?: boolean;
-  /** 吸底操作栏上方的内联失败条 */
-  alert?: React.ReactNode;
+  /** 安装失败:失败条跟随当前可见的那组操作 */
+  failure?: InstallFailure;
   onInstall: () => void;
   onCancel: () => void;
 }
@@ -72,7 +72,7 @@ export function SkillInstallView({
   installUrl,
   phase = "idle",
   closing,
-  alert,
+  failure,
   onInstall,
   onCancel,
 }: SkillInstallViewProps) {
@@ -92,74 +92,104 @@ export function SkillInstallView({
             ? t("install:skill_update")
             : t("install:skill_install");
 
+  const buttons = (placement: ActionPlacement) => {
+    const size = placement === "card" ? "lg" : "default";
+    return (
+      <div className="flex shrink-0 items-center gap-2">
+        <Button variant="outline" size={size} data-testid="skill-cancel" onClick={onCancel}>
+          {t("common:close")}
+        </Button>
+        <Button
+          data-testid="skill-install"
+          size={size}
+          disabled={busy}
+          className={cn(
+            "gap-1.5 bg-skill text-skill-foreground duration-350 hover:bg-skill/90",
+            phase === "installed" && "bg-success text-success-foreground hover:bg-success disabled:opacity-100"
+          )}
+          onClick={onInstall}
+        >
+          {phase === "installing" && <Loader2 className="size-4 animate-spin" />}
+          {phase === "installed" && <Check className="size-4" />}
+          {installLabel}
+        </Button>
+      </div>
+    );
+  };
+
   return (
     <InstallLayout
       title={title}
       titleIcon={Sparkles}
       titleTone="skill"
-      alert={alert}
+      failure={failure}
       closing={closing}
-      actions={
-        <div className="flex w-full flex-wrap items-center gap-3">
-          <p className="min-w-0 flex-1 text-xs text-muted-foreground">{t("install:skill_warning")}</p>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" data-testid="skill-cancel" onClick={onCancel}>
-              {t("common:close")}
-            </Button>
-            <Button
-              data-testid="skill-install"
-              disabled={busy}
-              className={cn(
-                "gap-1.5 bg-skill text-skill-foreground duration-350 hover:bg-skill/90",
-                phase === "installed" && "bg-success text-success-foreground hover:bg-success disabled:opacity-100"
-              )}
-              onClick={onInstall}
-            >
-              {phase === "installing" && <Loader2 className="size-4 animate-spin" />}
-              {phase === "installed" && <Check className="size-4" />}
-              {installLabel}
-            </Button>
-          </div>
-        </div>
+      note={t("install:skill_warning")}
+      summary={
+        <InstallSummary
+          icon={<Sparkles className="size-4 text-skill" />}
+          tone="skill"
+          name={metadata.name}
+          version={metadata.version}
+        />
       }
+      actions={(placement) =>
+        // 移动端不渲染 note,警示语沿用吸底栏里与按钮同行的位置
+        placement === "footer" ? (
+          <div className="flex w-full flex-wrap items-center gap-3">
+            <p className="min-w-0 flex-1 text-xs text-muted-foreground">{t("install:skill_warning")}</p>
+            {buttons(placement)}
+          </div>
+        ) : (
+          buttons(placement)
+        )
+      }
+      identity={(slots) => (
+        <section
+          data-testid="skill-identity"
+          className="flex flex-col gap-3.5 rounded-xl border border-border bg-card p-4"
+        >
+          <div className="flex gap-4">
+            <div className="flex size-[52px] shrink-0 items-center justify-center rounded-xl bg-skill-bg">
+              <Sparkles className="size-7 text-skill" />
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-[22px] font-semibold leading-tight wrap-anywhere text-foreground">
+                  {metadata.name}
+                </h1>
+                <span className={cn("rounded-md px-1.5 py-0.5 text-xs font-medium", violetChip)}>{"Skill"}</span>
+                {metadata.version && (
+                  <span className="rounded-md bg-input px-1.5 py-0.5 font-mono text-xs text-foreground">{`v${metadata.version}`}</span>
+                )}
+                {isUpdate && (
+                  <span className="rounded-md bg-success-bg px-1.5 py-0.5 text-xs font-medium text-success-fg">
+                    {t("install:update_script")}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <span className={cn("rounded px-1.5 py-0.5 font-medium", violetChip)}>{t("install:skill_kind")}</span>
+                {installUrl && (
+                  <span className="flex min-w-0 items-center gap-1">
+                    <Globe className="size-3.5 shrink-0" />
+                    <span className="truncate">{installUrl}</span>
+                  </span>
+                )}
+              </div>
+              {metadata.description && (
+                <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere text-muted-foreground">
+                  {metadata.description}
+                </p>
+              )}
+            </div>
+            {slots?.actions}
+          </div>
+          {slots?.alert}
+          {slots?.note}
+        </section>
+      )}
     >
-      {/* 身份卡 */}
-      <section className="rounded-xl border border-border bg-card p-4">
-        <div className="flex gap-4">
-          <div className="flex size-[52px] shrink-0 items-center justify-center rounded-xl bg-skill-bg">
-            <Sparkles className="size-7 text-skill" />
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-[22px] font-semibold leading-tight text-foreground">{metadata.name}</h1>
-              <span className={cn("rounded-md px-1.5 py-0.5 text-xs font-medium", violetChip)}>{"Skill"}</span>
-              {metadata.version && (
-                <span className="rounded-md bg-input px-1.5 py-0.5 font-mono text-xs text-foreground">{`v${metadata.version}`}</span>
-              )}
-              {isUpdate && (
-                <span className="rounded-md bg-success-bg px-1.5 py-0.5 text-xs font-medium text-success-fg">
-                  {t("install:update_script")}
-                </span>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              <span className={cn("rounded px-1.5 py-0.5 font-medium", violetChip)}>{t("install:skill_kind")}</span>
-              {installUrl && (
-                <span className="flex min-w-0 items-center gap-1">
-                  <Globe className="size-3.5 shrink-0" />
-                  <span className="truncate">{installUrl}</span>
-                </span>
-              )}
-            </div>
-            {metadata.description && (
-              <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
-                {metadata.description}
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
-
       {/* 提示词卡 */}
       {prompt && (
         <SectionCard icon={FileText} title={t("install:skill_prompt_title")}>

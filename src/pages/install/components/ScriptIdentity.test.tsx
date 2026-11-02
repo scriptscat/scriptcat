@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { ScriptIdentity } from "./ScriptIdentity";
 
@@ -86,6 +86,32 @@ describe("ScriptIdentity 身份卡", () => {
       />
     );
     fireEvent.click(document.querySelector('[role="switch"]')!);
+    expect(onEnabledChange).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("ScriptIdentity 桌面端插槽", () => {
+  const slots = {
+    actions: <button>{"安装脚本"}</button>,
+    alert: <div role="alert">{"安装失败"}</div>,
+    note: <p>{"信任提示"}</p>,
+  };
+
+  it("传入插槽时渲染操作组、失败条与说明，启用开关仍可切换", () => {
+    const onEnabledChange = vi.fn();
+    render(
+      <ScriptIdentity
+        {...base}
+        version={{ kind: "install", version: "2.3.1" }}
+        onEnabledChange={onEnabledChange}
+        slots={slots}
+      />
+    );
+    const card = screen.getByTestId("script-identity");
+    expect(within(card).getByRole("button", { name: "安装脚本" })).toBeInTheDocument();
+    expect(within(card).getByRole("alert")).toHaveTextContent("安装失败");
+    expect(within(card).getByText("信任提示")).toBeInTheDocument();
+    fireEvent.click(within(card).getByRole("switch"));
     expect(onEnabledChange).toHaveBeenCalledWith(false);
   });
 });

@@ -55,6 +55,7 @@
   "source_privacy_hint": "Reading source exposes the script’s content. Confirm you trust this request.",
   "decision_reject": "Reject",
   "decision_session_allow": "Allow this session",
+  "decision_update_session_allow": "Update and allow this session",
   "decision_allow": "Allow",
   "err_operation_expired": "This request has expired or is no longer pending.",
   "approve_install_banner": "Requested to install this script via External Access — your decision is required.",

@@ -55,6 +55,7 @@
   "source_privacy_hint": "Kaynağı okumak betiğin içeriğini açığa çıkarır. Bu isteğe güvendiğinizi onaylayın.",
   "decision_reject": "Reddet",
   "decision_session_allow": "Bu oturumda izin ver",
+  "decision_update_session_allow": "Güncelle ve bu oturumda izin ver",
   "decision_allow": "İzin ver",
   "err_operation_expired": "Bu istek süresi doldu veya artık beklemede değil.",
   "approve_install_banner": "«Harici Erişim» üzerinden bu betiğin kurulması istendi — kararınız gerekiyor.",

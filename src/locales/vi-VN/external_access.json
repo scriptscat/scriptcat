@@ -55,6 +55,7 @@
   "source_privacy_hint": "Đọc mã nguồn sẽ tiết lộ nội dung tập lệnh. Hãy xác nhận rằng bạn tin tưởng yêu cầu này.",
   "decision_reject": "Từ chối",
   "decision_session_allow": "Cho phép phiên này",
+  "decision_update_session_allow": "Cập nhật và cho phép phiên này",
   "decision_allow": "Cho phép",
   "err_operation_expired": "Yêu cầu này đã hết hạn hoặc không còn đang chờ xử lý.",
   "approve_install_banner": "Yêu cầu cài đặt tập lệnh này qua «Truy cập bên ngoài» — cần bạn quyết định.",

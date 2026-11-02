@@ -4,6 +4,7 @@ import { initTestLanguage } from "@Tests/initTestLanguage";
 import { InstallActions } from "./InstallActions";
 
 const baseProps = () => ({
+  placement: "footer" as const,
   isUpdate: false,
   isSubscribe: false,
   onInstall: vi.fn(),
@@ -84,11 +85,6 @@ describe("InstallActions 操作区", () => {
     expect(screen.getByTestId("watch-toggle")).toHaveTextContent("停止监听");
   });
 
-  it("操作栏左侧渲染信任提示语(对照设计稿 BarNote)", () => {
-    render(<InstallActions {...baseProps()} />);
-    expect(screen.getByTestId("action-bar-note")).toBeInTheDocument();
-  });
-
   it("未提供 onExternalAccessReject 时不渲染拒绝按钮", () => {
     render(<InstallActions {...baseProps()} />);
     expect(screen.queryByTestId("external-access-reject")).not.toBeInTheDocument();
@@ -103,9 +99,49 @@ describe("InstallActions 操作区", () => {
     expect(onExternalAccessReject).toHaveBeenCalledTimes(1);
   });
 
-  it("外部接入触发时操作栏提示语切换为渠道说明（设计稿 ActionNote）", () => {
-    render(<InstallActions {...baseProps()} onExternalAccessReject={vi.fn()} />);
-    expect(screen.getByTestId("action-bar-note")).toHaveTextContent("由「外部接入」触发");
+  it("外部接入更新时「本会话允许」不再是独立按钮，而是主按钮下拉的首项，选中触发会话允许", async () => {
+    const p = baseProps();
+    const onExternalAccessSessionAllow = vi.fn();
+    render(
+      <InstallActions
+        {...p}
+        isUpdate
+        onExternalAccessReject={vi.fn()}
+        onExternalAccessSessionAllow={onExternalAccessSessionAllow}
+      />
+    );
+    expect(screen.queryByTestId("external-access-session-allow")).not.toBeInTheDocument();
+    await open(screen.getByTestId("install-more"));
+    const items = screen.getAllByRole("menuitem");
+    expect(items[0]).toHaveTextContent("更新并本会话允许");
+    fireEvent.click(items[0]);
+    expect(onExternalAccessSessionAllow).toHaveBeenCalledTimes(1);
+    expect(p.onInstall).not.toHaveBeenCalled();
+  });
+
+  it("未提供会话允许回调时下拉不含「更新并本会话允许」", async () => {
+    render(<InstallActions {...baseProps()} isUpdate onExternalAccessReject={vi.fn()} />);
+    await open(screen.getByTestId("install-more"));
+    expect(screen.queryByText("更新并本会话允许")).not.toBeInTheDocument();
+  });
+});
+
+describe("InstallActions 按位置渲染", () => {
+  it("身份卡内整组按钮放大一号，吸底栏保持常规尺寸", () => {
+    const { unmount } = render(<InstallActions {...baseProps()} placement="card" />);
+    expect(screen.getByTestId("install-primary")).toHaveAttribute("data-size", "lg");
+    expect(screen.getByTestId("close-primary")).toHaveAttribute("data-size", "lg");
+    unmount();
+    render(<InstallActions {...baseProps()} placement="sticky" />);
+    expect(screen.getByTestId("install-primary")).toHaveAttribute("data-size", "default");
+  });
+
+  it("外部接入的拒绝按钮在首屏获得焦点，滚动中途出现的吸底副本不抢焦点", () => {
+    const { unmount } = render(<InstallActions {...baseProps()} placement="card" onExternalAccessReject={vi.fn()} />);
+    expect(screen.getByTestId("external-access-reject")).toHaveFocus();
+    unmount();
+    render(<InstallActions {...baseProps()} placement="sticky" onExternalAccessReject={vi.fn()} />);
+    expect(screen.getByTestId("external-access-reject")).not.toHaveFocus();
   });
 });
 
@@ -139,13 +175,15 @@ describe("InstallActions 主按钮就地状态机", () => {
     render(
       <InstallActions
         {...baseProps()}
+        isUpdate
         phase="installed"
         onExternalAccessReject={vi.fn()}
         onExternalAccessSessionAllow={vi.fn()}
       />
     );
     expect(screen.getByTestId("external-access-reject")).toBeDisabled();
-    expect(screen.getByTestId("external-access-session-allow")).toBeDisabled();
+    // 本会话允许位于主按钮下拉中，下拉触发器锁住即该入口锁住
+    expect(screen.getByTestId("install-more")).toBeDisabled();
   });
 
   it("未传 phase 时保持原有的安装文案与可点状态", () => {
