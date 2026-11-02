@@ -92,6 +92,34 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
     expect(connectClient.connect).toHaveBeenCalledWith({ url: DEFAULT_URL, auth: { mode: "session", key: "abc123" } });
   });
 
+  describe("隐身（split）进程", () => {
+    // split 模式下隐身进程与普通进程共用 chrome.storage.local 里的密钥和脚本，它再连一次只会与普通进程互相顶替（sctl#14）。
+    const extension = chrome.extension as unknown as { inIncognitoContext: boolean };
+
+    beforeEach(() => {
+      extension.inIncognitoContext = true;
+    });
+
+    afterEach(() => {
+      extension.inIncognitoContext = false;
+    });
+
+    it("已启用且已接入时启动也不拨号，状态保持 disabled", async () => {
+      systemConfig.setExternalAccessEnabled(true);
+      const controller = await initEnrolled("abc123", "cid");
+      expect(connectClient.connect).not.toHaveBeenCalled();
+      expect(controller.getStatus().status).toBe("disabled");
+    });
+
+    it("enroll(code) 不以配对模式拨号", async () => {
+      const controller = makeController();
+      await controller.initialize();
+      await controller.enroll("PAIR-CODE");
+      expect(connectClient.connect).not.toHaveBeenCalled();
+      expect(controller.getStatus().status).toBe("disabled");
+    });
+  });
+
   it("enroll(code) 以配对模式拨号", async () => {
     const controller = makeController();
     await controller.initialize();

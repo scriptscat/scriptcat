@@ -55,6 +55,10 @@ export class ExternalAccessController {
     this.group.on("paired", (payload: { key: string }) => this.onEnrolled(payload.key));
     this.group.on("disconnected", () => this.onDisconnected());
 
+    // split 模式下隐身进程与普通进程共用 chrome.storage.local 里的密钥和脚本，由普通进程代表这份安装连接 sctl；
+    // 隐身进程再连只会与普通进程互相顶替（sctl#14）。
+    if (chrome.extension.inIncognitoContext) return;
+
     this.systemConfig.addListener("external_access_enabled", (enabled) => {
       if (enabled) {
         void this.connect();
@@ -90,6 +94,7 @@ export class ExternalAccessController {
   // pairing mode with C; on success the daemon ships a fresh long-term key K, which offscreen
   // decrypts and relays back via `onEnrolled`.
   async enroll(code: string): Promise<void> {
+    if (chrome.extension.inIncognitoContext) return;
     this.active = true;
     this.setStatus("connecting");
     const url = await this.systemConfig.getExternalAccessUrl();
