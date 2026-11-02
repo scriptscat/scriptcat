@@ -112,6 +112,9 @@ export const BRIDGE_ERROR_CODES = [
   "RATE_LIMITED",
   "PAYLOAD_TOO_LARGE",
   "INTERNAL_ERROR",
+  "SCRIPTCAT_OFFLINE",
+  "SCRIPTCAT_NOT_FOUND",
+  "SCRIPTCAT_AMBIGUOUS",
 ] as const;
 
 export type BridgeErrorCode = (typeof BRIDGE_ERROR_CODES)[number];
