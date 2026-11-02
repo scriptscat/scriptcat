@@ -71,7 +71,7 @@
   "devDependencies": {
     "@eslint/compat": "^1.4.1",
     "@eslint/js": "9.39.2",
-    "@playwright/test": "^1.60.0",
+    "@playwright/test": "^1.64.1",
     "@rspack/cli": "^1.7.12",
     "@rspack/core": "^1.7.12",
     "@swc/helpers": "^0.5.17",
