@@ -104,6 +104,11 @@ export function InstallLayout({
   }, [cardActions]);
 
   const sticky = !isMobile && !cardActionsVisible;
+  // 吸底栏消失也要走退出动画:sticky 转 false 后保留节点,直到它自身的动画结束才卸载
+  const [stickyMounted, setStickyMounted] = useState(false);
+  if (sticky && !stickyMounted) {
+    setStickyMounted(true);
+  }
   const errorBar = (inset: boolean) =>
     failure && <InstallErrorBar message={failure.message} onRetry={failure.onRetry} inset={inset} />;
 
@@ -154,10 +159,21 @@ export function InstallLayout({
           <div className="flex min-h-[68px] items-center px-8 py-3">{actions("footer")}</div>
         </footer>
       ) : (
-        sticky && (
+        stickyMounted && (
           <footer
             data-testid="action-bar"
-            className="sticky bottom-0 z-10 shrink-0 border-t border-border bg-card/95 px-6 backdrop-blur motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-200 motion-safe:ease-out"
+            className={cn(
+              "sticky bottom-0 z-10 shrink-0 border-t border-border bg-card/95 px-6 backdrop-blur",
+              sticky
+                ? "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-200 motion-safe:ease-out"
+                : // 退出动画不能加 motion-safe:否则「减少动态效果」下没有 animationend,节点永远卸不掉;
+                  // 全局 reduced-motion 规则会把它压到近乎瞬时
+                  "animate-out fade-out slide-out-to-bottom-2 fill-mode-forwards duration-200 ease-out"
+            )}
+            onAnimationEnd={(e) => {
+              // 下拉菜单等子元素的动画事件经 React 树冒泡上来,只认吸底栏自身的退出
+              if (e.target === e.currentTarget && !sticky) setStickyMounted(false);
+            }}
           >
             <div className="mx-auto flex w-full max-w-[864px] flex-col gap-2.5 py-2.5">
               {errorBar(true)}

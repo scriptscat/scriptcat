@@ -92,7 +92,42 @@ describe("InstallLayout 桌面端：操作组在身份卡内，滚出后吸底",
     act(() => {
       io.setIntersecting(screen.getByTestId("card-actions"), true);
     });
+    fireEvent.animationEnd(bar);
     expect(screen.queryByTestId("action-bar")).not.toBeInTheDocument();
+  });
+
+  it("吸底栏进出都有过渡：滚回时先播退出动画，吸底栏自身动画结束后才移出 DOM", () => {
+    render(<InstallLayout {...layoutProps()} />);
+    scrollActionsOut();
+    const bar = screen.getByTestId("action-bar");
+    expect(bar.className).toContain("animate-in");
+
+    act(() => {
+      io.setIntersecting(screen.getByTestId("card-actions"), true);
+    });
+    expect(bar).toBeInTheDocument();
+    expect(bar.className).toContain("animate-out");
+
+    // 子元素（如下拉菜单）的动画事件会冒泡上来，不能误当成吸底栏自己的退出结束
+    fireEvent.animationEnd(within(bar).getByRole("button", { name: "install" }));
+    expect(screen.getByTestId("action-bar")).toBe(bar);
+
+    fireEvent.animationEnd(bar);
+    expect(screen.queryByTestId("action-bar")).not.toBeInTheDocument();
+  });
+
+  it("退出动画中途再次滚出时吸底栏恢复显示，不被随后的动画结束移除", () => {
+    render(<InstallLayout {...layoutProps()} />);
+    scrollActionsOut();
+    act(() => {
+      io.setIntersecting(screen.getByTestId("card-actions"), true);
+    });
+    scrollActionsOut();
+    const bar = screen.getByTestId("action-bar");
+    expect(bar.className).not.toContain("animate-out");
+
+    fireEvent.animationEnd(bar);
+    expect(screen.getByTestId("action-bar")).toBeInTheDocument();
   });
 
   it("失败条只渲染一份，跟随当前可见的那组操作", () => {
