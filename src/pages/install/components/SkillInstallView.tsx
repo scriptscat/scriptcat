@@ -155,7 +155,9 @@ export function SkillInstallView({
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-2">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-[22px] font-semibold leading-tight text-foreground">{metadata.name}</h1>
+                <h1 className="text-[22px] font-semibold leading-tight wrap-anywhere text-foreground">
+                  {metadata.name}
+                </h1>
                 <span className={cn("rounded-md px-1.5 py-0.5 text-xs font-medium", violetChip)}>{"Skill"}</span>
                 {metadata.version && (
                   <span className="rounded-md bg-input px-1.5 py-0.5 font-mono text-xs text-foreground">{`v${metadata.version}`}</span>
@@ -176,7 +178,7 @@ export function SkillInstallView({
                 )}
               </div>
               {metadata.description && (
-                <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere text-muted-foreground">
                   {metadata.description}
                 </p>
               )}

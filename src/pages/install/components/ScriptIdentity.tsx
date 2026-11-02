@@ -85,7 +85,7 @@ export function ScriptIdentity({
 
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-[22px] font-semibold leading-tight text-foreground">{name}</h1>
+            <h1 className="text-[22px] font-semibold leading-tight wrap-anywhere text-foreground">{name}</h1>
             {version.kind === "install" ? (
               <span
                 data-testid="version-single"
@@ -112,9 +112,9 @@ export function ScriptIdentity({
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {author && (
               <>
-                <span className="flex items-center gap-1.5">
-                  <User className="size-3.5" />
-                  {author}
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <User className="size-3.5 shrink-0" />
+                  <span className="wrap-anywhere">{author}</span>
                 </span>
                 <span className="size-[3px] shrink-0 rounded-full bg-muted-foreground/70" aria-hidden="true" />
               </>
@@ -164,7 +164,9 @@ export function ScriptIdentity({
 
       {slots?.alert}
 
-      {description && <p className="text-sm leading-relaxed whitespace-pre-wrap text-fg-secondary">{description}</p>}
+      {description && (
+        <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere text-fg-secondary">{description}</p>
+      )}
 
       {schedule?.kind === "cron" && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg bg-success-bg px-3 py-2 text-xs">
