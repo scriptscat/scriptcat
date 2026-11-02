@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach, type Mock } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within, act } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
+import { mockIntersectionObserver } from "@Tests/mockIntersectionObserver";
 
 vi.mock("./useInstallData", () => ({ useInstallData: vi.fn() }));
 // Monaco 编辑器无法在 DOM 测试环境中渲染(需 worker + ThemeProvider),用桩替换
@@ -276,7 +277,7 @@ describe("Install App 安装反馈", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
-  it("安装失败在操作栏上方渲染内联错误条,点击重试触发重装", () => {
+  it("安装失败在身份卡内渲染内联错误条,点击重试触发重装", () => {
     const retryInstall = vi.fn();
     mockHook.mockReturnValue({
       ...baseHook(),
@@ -285,7 +286,8 @@ describe("Install App 安装反馈", () => {
       state: { status: "ready", view: readyView() },
     });
     render(<App />);
-    expect(screen.getByTestId("install-error-bar-message")).toHaveTextContent("写入数据库失败");
+    const card = screen.getByTestId("script-identity");
+    expect(within(card).getByTestId("install-error-bar-message")).toHaveTextContent("写入数据库失败");
     expect(screen.getByTestId("install-primary")).toHaveTextContent("重试安装");
     fireEvent.click(screen.getByTestId("install-error-retry"));
     expect(retryInstall).toHaveBeenCalledTimes(1);
@@ -324,6 +326,56 @@ describe("Install App 安装反馈", () => {
     });
     render(<App />);
     expect(screen.getByTestId("install-error-bar-message")).toHaveTextContent("技能写入失败");
+  });
+});
+
+describe("Install App 桌面端操作位置", () => {
+  let io: ReturnType<typeof mockIntersectionObserver>;
+  beforeEach(() => {
+    io = mockIntersectionObserver();
+  });
+
+  it("主按钮与信任说明位于脚本身份卡内，首屏不渲染吸底栏", () => {
+    mockHook.mockReturnValue({ ...baseHook(), state: { status: "ready", view: readyView() } });
+    render(<App />);
+    const card = screen.getByTestId("script-identity");
+    expect(within(card).getByTestId("install-primary")).toHaveTextContent("安装");
+    expect(within(card).getByTestId("action-note")).toHaveTextContent("安装代表您信任该脚本的来源与作者");
+    expect(screen.queryByTestId("action-bar")).not.toBeInTheDocument();
+  });
+
+  it("外部接入触发时身份卡底部说明切换为渠道说明", () => {
+    mockHook.mockReturnValue({
+      ...baseHook(),
+      rejectExternalAccess: vi.fn(),
+      state: {
+        status: "ready",
+        view: readyView({ externalAccess: { operationId: "op-1", contentHash: "abcdef123456" } }),
+      },
+    });
+    render(<App />);
+    expect(screen.getByTestId("action-note")).toHaveTextContent("由「外部接入」触发");
+  });
+
+  it("身份卡操作组滚出后，吸底栏给出脚本名与可用的主按钮", () => {
+    const install = vi.fn();
+    mockHook.mockReturnValue({ ...baseHook(), install, state: { status: "ready", view: readyView() } });
+    render(<App />);
+    act(() => {
+      io.setIntersecting(screen.getByTestId("card-actions"), false);
+    });
+    const bar = screen.getByTestId("action-bar");
+    expect(within(bar).getByText("全网每日签到助手")).toBeInTheDocument();
+    fireEvent.click(within(bar).getByTestId("install-primary"));
+    expect(install).toHaveBeenCalledTimes(1);
+  });
+
+  it("移动端主按钮仍在吸底栏，身份卡内没有操作按钮", () => {
+    mockMatchMedia(true);
+    mockHook.mockReturnValue({ ...baseHook(), state: { status: "ready", view: readyView() } });
+    render(<App />);
+    expect(within(screen.getByTestId("script-identity")).queryByTestId("install-primary")).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("action-bar")).getByTestId("install-primary")).toBeInTheDocument();
   });
 });
 

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, RefreshCw, Rss, HardDrive, RotateCcw, PlugZap } from "lucide-react";
+import { Download, RefreshCw, Rss, HardDrive, RotateCcw, PlugZap, FileCode } from "lucide-react";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { isPermissionOk, openInCurrentTab } from "@App/pkg/utils/utils";
-import { InstallLayout } from "./components/InstallLayout";
+import { InstallLayout, InstallSummary } from "./components/InstallLayout";
 import { ScriptIdentity } from "./components/ScriptIdentity";
 import { PermissionCard } from "./components/PermissionCard";
 import { SubscribeScripts } from "./components/SubscribeScripts";
@@ -14,7 +14,6 @@ import { InstallLoading, InstallError, InstallExpired } from "./components/Insta
 import { WatchingBanner } from "./components/WatchingBanner";
 import { ExternalAccessBanner } from "./components/ExternalAccessBanner";
 import { InstallSuccessRibbon } from "./components/InstallSuccessRibbon";
-import { InstallErrorBar } from "./components/InstallErrorBar";
 import { BackgroundPrompt, backgroundPromptShownKey, keepAlivePromptShownKey } from "./components/BackgroundPrompt";
 import { useInstallData } from "./useInstallData";
 
@@ -55,10 +54,10 @@ export default function App() {
   const codePreviewRef = useRef<CodePreviewHandle>(null);
   const installed = outcome.phase === "installed" ? outcome.result : null;
   const externalAccessFailure = state.status === "ready" && !!state.view.externalAccess;
-  const errorBar =
-    outcome.phase === "failed" ? (
-      <InstallErrorBar message={outcome.message} onRetry={externalAccessFailure ? undefined : retryInstall} />
-    ) : undefined;
+  const failure =
+    outcome.phase === "failed"
+      ? { message: outcome.message, onRetry: externalAccessFailure ? undefined : retryInstall }
+      : undefined;
 
   // 后台/定时脚本首次安装时,提示开启后台运行(对照 v1.4 checkBackgroundPrompt)
   const ready = state.status === "ready" ? state.view : null;
@@ -122,7 +121,7 @@ export default function App() {
         installUrl={state.skill.installUrl}
         phase={outcome.phase}
         closing={installed?.closing === true}
-        alert={errorBar}
+        failure={failure}
         onInstall={installSkill}
         onCancel={cancelSkill}
       />
@@ -148,6 +147,16 @@ export default function App() {
         : t("external_access:install_context_chip")
       : baseTitle;
   const titleTone = watching ? "watching" : "default";
+  const note = watching
+    ? t("install:action_note_watching")
+    : externalAccess
+      ? // 外部接入触发:提示这是可信渠道请求 + 安装即信任来源/作者(设计稿 ActionNote)
+        t("external_access:install_action_note")
+      : view.isUpdate
+        ? t("install:action_note_update")
+        : view.isSubscribe
+          ? t("install:action_note_subscribe")
+          : t("install:action_note_install");
   const titleIcon = externalAccess
     ? PlugZap
     : view.isSubscribe
@@ -181,9 +190,24 @@ export default function App() {
             />
           ) : undefined
         }
-        alert={errorBar}
-        actions={
+        failure={failure}
+        note={note}
+        summary={
+          <InstallSummary
+            icon={
+              view.iconUrl ? (
+                <img src={view.iconUrl} alt="" className="size-5 rounded object-contain" />
+              ) : (
+                <FileCode className="size-4 text-primary" />
+              )
+            }
+            name={view.name}
+            version={view.version.kind === "install" ? view.version.version : view.version.newVersion}
+          />
+        }
+        actions={(placement) => (
           <InstallActions
+            placement={placement}
             isUpdate={view.isUpdate}
             inTrash={view.inTrash}
             versionChanged={view.version.kind === "update" && view.version.changed}
@@ -200,21 +224,24 @@ export default function App() {
               view.externalAccess && view.isUpdate ? () => install({ rememberSession: true }) : undefined
             }
           />
-        }
+        )}
+        identity={(slots) => (
+          <ScriptIdentity
+            name={view.name}
+            iconUrl={view.iconUrl}
+            version={view.version}
+            author={view.author}
+            source={view.source}
+            antifeatures={view.antifeatures}
+            schedule={view.schedule}
+            scheduleNextRun={view.scheduleNextRun}
+            description={view.description}
+            enabled={enabled}
+            onEnabledChange={setEnabled}
+            slots={slots}
+          />
+        )}
       >
-        <ScriptIdentity
-          name={view.name}
-          iconUrl={view.iconUrl}
-          version={view.version}
-          author={view.author}
-          source={view.source}
-          antifeatures={view.antifeatures}
-          schedule={view.schedule}
-          scheduleNextRun={view.scheduleNextRun}
-          description={view.description}
-          enabled={enabled}
-          onEnabledChange={setEnabled}
-        />
         {view.externalAccess && (
           <ExternalAccessBanner
             contentHash={view.externalAccess.contentHash}

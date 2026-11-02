@@ -1,5 +1,7 @@
-import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
+import { render, screen, cleanup, fireEvent, within, act } from "@testing-library/react";
+import { mockMatchMedia } from "@Tests/mockMatchMedia";
+import { mockIntersectionObserver } from "@Tests/mockIntersectionObserver";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { SkillInstallView } from "./SkillInstallView";
 
@@ -87,5 +89,49 @@ describe("SkillInstallView 技能安装视图", () => {
   it("渲染安全警示卡(对照设计稿 Alert Warning)", () => {
     render(<SkillInstallView {...baseProps()} />);
     expect(screen.getByTestId("skill-warning-card")).toBeInTheDocument();
+  });
+});
+
+describe("SkillInstallView 操作位置", () => {
+  let io: ReturnType<typeof mockIntersectionObserver>;
+  beforeEach(() => {
+    mockMatchMedia(false);
+    io = mockIntersectionObserver();
+  });
+
+  it("桌面端关闭、安装与警示语位于技能身份卡内，首屏不渲染吸底栏", () => {
+    render(<SkillInstallView {...baseProps()} />);
+    const card = screen.getByTestId("skill-identity");
+    expect(within(card).getByTestId("skill-install")).toBeInTheDocument();
+    expect(within(card).getByTestId("skill-cancel")).toBeInTheDocument();
+    expect(within(card).getByTestId("action-note")).toHaveTextContent("技能会向 AI 注入提示词");
+    expect(screen.queryByTestId("action-bar")).not.toBeInTheDocument();
+  });
+
+  it("桌面端身份卡操作组滚出后，吸底栏给出技能名与可用的安装按钮", () => {
+    const p = baseProps();
+    render(<SkillInstallView {...p} />);
+    act(() => {
+      io.setIntersecting(screen.getByTestId("card-actions"), false);
+    });
+    const bar = screen.getByTestId("action-bar");
+    expect(within(bar).getByText("网页摘要技能")).toBeInTheDocument();
+    fireEvent.click(within(bar).getByTestId("skill-install"));
+    expect(p.onInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it("桌面端安装失败时失败条在技能身份卡内", () => {
+    render(<SkillInstallView {...baseProps()} phase="failed" failure={{ message: "技能写入失败" }} />);
+    const card = screen.getByTestId("skill-identity");
+    expect(within(card).getByTestId("install-error-bar-message")).toHaveTextContent("技能写入失败");
+  });
+
+  it("移动端安装按钮与警示语仍在吸底栏", () => {
+    mockMatchMedia(true);
+    render(<SkillInstallView {...baseProps()} />);
+    const bar = screen.getByTestId("action-bar");
+    expect(within(bar).getByTestId("skill-install")).toBeInTheDocument();
+    expect(within(bar).getByText(/技能会向 AI 注入提示词/)).toBeInTheDocument();
+    expect(within(screen.getByTestId("skill-identity")).queryByTestId("skill-install")).not.toBeInTheDocument();
   });
 });

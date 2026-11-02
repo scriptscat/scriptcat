@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, Download, Eye, EyeOff, History, Info, Loader2, RefreshCw } from "lucide-react";
+import { Check, ChevronDown, Download, Eye, EyeOff, History, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@App/pages/components/ui/button";
 import {
   DropdownMenu,
@@ -9,8 +9,11 @@ import {
   DropdownMenuItem,
 } from "@App/pages/components/ui/dropdown-menu";
 import { cn } from "@App/pkg/utils/cn";
+import type { ActionPlacement } from "./InstallLayout";
 
 export interface InstallActionsProps {
+  /** 身份卡内用大一号按钮;sticky 副本不抢初始焦点 */
+  placement: ActionPlacement;
   isUpdate: boolean;
   /** 脚本在回收站中：主按钮由「安装/更新」改为「还原/还原并更新」 */
   inTrash?: boolean;
@@ -39,6 +42,7 @@ function MoreMenu({
   testid,
   label,
   variant,
+  size,
   triggerClassName,
   disabled,
   children,
@@ -46,6 +50,7 @@ function MoreMenu({
   testid: string;
   label: string;
   variant: "default" | "outline";
+  size: "icon" | "icon-lg";
   triggerClassName?: string;
   disabled?: boolean;
   children: React.ReactNode;
@@ -57,7 +62,7 @@ function MoreMenu({
         <Button
           data-testid={testid}
           variant={variant}
-          size="icon"
+          size={size}
           disabled={disabled}
           aria-label={label}
           onPointerDown={(e) => e.preventDefault()}
@@ -73,6 +78,7 @@ function MoreMenu({
 }
 
 export function InstallActions({
+  placement,
   isUpdate,
   inTrash,
   versionChanged,
@@ -111,110 +117,103 @@ export function InstallActions({
   const PrimaryIcon =
     phase === "installing" ? Loader2 : phase === "installed" ? Check : isUpdate ? RefreshCw : Download;
 
-  const note = watching
-    ? t("install:action_note_watching")
-    : onExternalAccessReject
-      ? // 外部接入触发:提示这是可信渠道请求 + 安装即信任来源/作者(设计稿 ActionNote)
-        t("external_access:install_action_note")
-      : isUpdate
-        ? t("install:action_note_update")
-        : isSubscribe
-          ? t("install:action_note_subscribe")
-          : t("install:action_note_install");
+  const large = placement === "card";
+  const size = large ? "lg" : "default";
+  const iconSize = large ? "icon-lg" : "icon";
 
   return (
-    <div className="flex w-full flex-wrap items-center gap-3">
-      <span
-        data-testid="action-bar-note"
-        className="hidden min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground md:flex"
-      >
-        <Info className="size-[15px] shrink-0" />
-        <span className="truncate">{note}</span>
-      </span>
-      <div className="flex items-center gap-2 max-md:w-full max-md:justify-end md:ml-auto">
-        {localFile && (
-          <Button
-            data-testid="watch-toggle"
-            variant={watching ? "default" : "outline"}
-            title={t("editor:watch_file_description")}
-            disabled={busy}
-            onClick={onToggleWatch}
-            className="gap-1.5"
-          >
-            {watching ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-            {watching ? t("editor:stop_watch_file") : t("editor:watch_file")}
-          </Button>
-        )}
+    <div className={cn("flex shrink-0 items-center gap-2", placement === "footer" && "w-full justify-end")}>
+      {localFile && (
+        <Button
+          data-testid="watch-toggle"
+          variant={watching ? "default" : "outline"}
+          size={size}
+          title={t("editor:watch_file_description")}
+          disabled={busy}
+          onClick={onToggleWatch}
+          className="gap-1.5"
+        >
+          {watching ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          {watching ? t("editor:stop_watch_file") : t("editor:watch_file")}
+        </Button>
+      )}
 
-        {onExternalAccessReject ? (
-          // 「外部接入」触发：三档决策 拒绝 / 本会话允许 / 安装（设计 §3）。安装 = 下方 install-split
-          // 主按钮，本会话允许收在其下拉首项；此处只补拒绝，替换普通「关闭」——关闭窗口本身不算决定（op 挂起至 TTL/断开）。
-          <Button
-            data-testid="external-access-reject"
-            variant="outline"
-            autoFocus
-            disabled={busy}
-            onClick={onExternalAccessReject}
-          >
-            {t("external_access:decision_reject")}
-          </Button>
-        ) : isUpdate ? (
-          <div className="flex">
-            <Button data-testid="close-primary" variant="outline" onClick={() => onClose()} className="rounded-r-none">
-              {t("common:close")}
-            </Button>
-            <MoreMenu
-              testid="close-more"
-              label={t("install:close_update_script_no_more_update")}
-              variant="outline"
-              triggerClassName="rounded-l-none border-l-0"
-            >
-              <DropdownMenuItem onSelect={() => onClose({ noMoreUpdates: true })}>
-                {t("install:close_update_script_no_more_update")}
-              </DropdownMenuItem>
-            </MoreMenu>
-          </div>
-        ) : (
-          <Button data-testid="close-primary" variant="outline" onClick={() => onClose()}>
-            {t("common:close")}
-          </Button>
-        )}
-
+      {onExternalAccessReject ? (
+        // 「外部接入」触发：三档决策 拒绝 / 本会话允许 / 安装（设计 §3）。安装 = 下方 install-split
+        // 主按钮，本会话允许收在其下拉首项；此处只补拒绝，替换普通「关闭」——关闭窗口本身不算决定（op 挂起至 TTL/断开）。
+        <Button
+          data-testid="external-access-reject"
+          variant="outline"
+          size={size}
+          autoFocus={placement !== "sticky"}
+          disabled={busy}
+          onClick={onExternalAccessReject}
+        >
+          {t("external_access:decision_reject")}
+        </Button>
+      ) : isUpdate ? (
         <div className="flex">
           <Button
-            data-testid="install-primary"
-            disabled={primaryDisabled || busy}
-            onClick={() => onInstall()}
-            className={cn(
-              "gap-1.5 rounded-r-none duration-350",
-              // 已安装态靠 ✓ 与绿色本身表达「完成」，禁用态的半透明会把这个信号糊掉
-              phase === "installed" && "bg-success text-success-foreground hover:bg-success disabled:opacity-100"
-            )}
+            data-testid="close-primary"
+            variant="outline"
+            size={size}
+            onClick={() => onClose()}
+            className="rounded-r-none"
           >
-            <PrimaryIcon className={cn("size-4", phase === "installing" && "animate-spin")} />
-            {primaryLabel}
+            {t("common:close")}
           </Button>
           <MoreMenu
-            testid="install-more"
-            label={primaryLabel}
-            variant="default"
-            disabled={primaryDisabled || busy}
-            triggerClassName={cn("rounded-l-none border-l border-primary-foreground/25")}
+            testid="close-more"
+            label={t("install:close_update_script_no_more_update")}
+            variant="outline"
+            size={iconSize}
+            triggerClassName="rounded-l-none border-l-0"
           >
-            {onExternalAccessSessionAllow && (
-              <DropdownMenuItem onSelect={onExternalAccessSessionAllow}>
-                <History className="size-4" />
-                {t("external_access:decision_update_session_allow")}
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onSelect={() => onInstall({ closeAfterInstall: false })}>{noCloseLabel}</DropdownMenuItem>
-            {!isSubscribe && (
-              <DropdownMenuItem onSelect={() => onInstall({ noMoreUpdates: true })}>
-                {noMoreUpdateLabel}
-              </DropdownMenuItem>
-            )}
+            <DropdownMenuItem onSelect={() => onClose({ noMoreUpdates: true })}>
+              {t("install:close_update_script_no_more_update")}
+            </DropdownMenuItem>
           </MoreMenu>
         </div>
+      ) : (
+        <Button data-testid="close-primary" variant="outline" size={size} onClick={() => onClose()}>
+          {t("common:close")}
+        </Button>
+      )}
+
+      <div className="flex">
+        <Button
+          data-testid="install-primary"
+          size={size}
+          disabled={primaryDisabled || busy}
+          onClick={() => onInstall()}
+          className={cn(
+            "gap-1.5 rounded-r-none duration-350",
+            // 已安装态靠 ✓ 与绿色本身表达「完成」，禁用态的半透明会把这个信号糊掉
+            phase === "installed" && "bg-success text-success-foreground hover:bg-success disabled:opacity-100"
+          )}
+        >
+          <PrimaryIcon className={cn("size-4", phase === "installing" && "animate-spin")} />
+          {primaryLabel}
+        </Button>
+        <MoreMenu
+          testid="install-more"
+          label={primaryLabel}
+          variant="default"
+          size={iconSize}
+          disabled={primaryDisabled || busy}
+          triggerClassName={cn("rounded-l-none border-l border-primary-foreground/25")}
+        >
+          {onExternalAccessSessionAllow && (
+            <DropdownMenuItem onSelect={onExternalAccessSessionAllow}>
+              <History className="size-4" />
+              {t("external_access:decision_update_session_allow")}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onSelect={() => onInstall({ closeAfterInstall: false })}>{noCloseLabel}</DropdownMenuItem>
+          {!isSubscribe && (
+            <DropdownMenuItem onSelect={() => onInstall({ noMoreUpdates: true })}>{noMoreUpdateLabel}</DropdownMenuItem>
+          )}
+        </MoreMenu>
       </div>
     </div>
   );

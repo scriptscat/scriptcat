@@ -3,6 +3,7 @@ import { User, Globe, ArrowRight, Timer, Clock, Power, FileCode } from "lucide-r
 import { Switch } from "@App/pages/components/ui/switch";
 import { cn } from "@App/pkg/utils/cn";
 import type { VersionDisplay, AntifeatureType, ScheduleInfo } from "../model";
+import type { IdentitySlots } from "./InstallLayout";
 
 const ANTIFEATURE_TITLE_KEY: Record<AntifeatureType, string> = {
   "referral-link": "install:referral_link_title",
@@ -48,6 +49,8 @@ export interface ScriptIdentityProps {
   description?: string;
   enabled: boolean;
   onEnabledChange: (v: boolean) => void;
+  /** 桌面端由 InstallLayout 注入:操作组放右上、启用开关移到其下,失败条与说明随卡片 */
+  slots?: IdentitySlots | null;
 }
 
 export function ScriptIdentity({
@@ -62,11 +65,15 @@ export function ScriptIdentity({
   description,
   enabled,
   onEnabledChange,
+  slots,
 }: ScriptIdentityProps) {
   const { t } = useTranslation(["install", "common"]);
 
   return (
-    <section className="flex flex-col gap-3.5 rounded-xl border border-border bg-card p-5">
+    <section
+      data-testid="script-identity"
+      className="flex flex-col gap-3.5 rounded-xl border border-border bg-card p-5"
+    >
       <div className="flex gap-4">
         <div className="flex size-[52px] shrink-0 items-center justify-center rounded-xl bg-primary-light">
           {iconUrl ? (
@@ -139,11 +146,23 @@ export function ScriptIdentity({
           )}
         </div>
 
-        <div className="flex shrink-0 flex-col items-center gap-1">
-          <Switch checked={enabled} onCheckedChange={onEnabledChange} />
-          <span className="text-xs text-muted-foreground">{t("install:enabled_label")}</span>
-        </div>
+        {slots ? (
+          <div className="flex shrink-0 flex-col items-end gap-2.5">
+            {slots.actions}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{t("install:enabled_label")}</span>
+              <Switch checked={enabled} onCheckedChange={onEnabledChange} />
+            </div>
+          </div>
+        ) : (
+          <div className="flex shrink-0 flex-col items-center gap-1">
+            <Switch checked={enabled} onCheckedChange={onEnabledChange} />
+            <span className="text-xs text-muted-foreground">{t("install:enabled_label")}</span>
+          </div>
+        )}
       </div>
+
+      {slots?.alert}
 
       {description && <p className="text-sm leading-relaxed whitespace-pre-wrap text-fg-secondary">{description}</p>}
 
@@ -172,6 +191,8 @@ export function ScriptIdentity({
           {t("install:schedule_background_desc")}
         </div>
       )}
+
+      {slots?.note}
     </section>
   );
 }
