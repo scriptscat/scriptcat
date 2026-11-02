@@ -869,7 +869,7 @@ export class RuntimeService {
     const scriptMatchInfo = await this.applyScriptMatchInfo(scriptRes);
     if (!scriptMatchInfo) return undefined;
     // 生效规则一条 inclusion 都不剩（用户把当前站点从匹配中移除后可能如此）时不能注册：
-    // getApiMatchesAndGlobs 对没有 match pattern 的规则集会退回 *://*/*，注册出去等于全站运行。
+    // 这种规则集转换不出任何 matches，提前返回，免得后面把它当成「只匹配不支持的 scheme」记警告。
     if (!scriptMatchInfo.scriptUrlPatterns.some((rule) => rule.ruleType & RuleTypeBit.INCLUSION)) return undefined;
 
     const res = getUserScriptRegister(scriptMatchInfo);

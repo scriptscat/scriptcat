@@ -225,7 +225,7 @@ export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
     id: scriptMatchInfo.uuid,
     js: [{ code: "" }],
     matches: matches, // primary
-    includeGlobs: includeGlobs, // includeGlobs applied after matches
+    includeGlobs: includeGlobs, // 浏览器与 matches 取并集，见 getApiMatchesAndGlobs
     excludeMatches: excludeMatches,
     excludeGlobs: excludeGlobs,
     allFrames: !scriptMatchInfo.metadata["noframes"],
