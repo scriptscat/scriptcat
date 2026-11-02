@@ -55,6 +55,7 @@
   "source_privacy_hint": "소스를 읽으면 스크립트 내용이 노출됩니다. 이 요청을 신뢰하는지 확인하세요.",
   "decision_reject": "거부",
   "decision_session_allow": "이 세션에서 허용",
+  "decision_update_session_allow": "업데이트하고 이 세션에서 허용",
   "decision_allow": "허용",
   "err_operation_expired": "이 요청이 만료되었거나 더 이상 대기 중이 아닙니다.",
   "approve_install_banner": "외부 접근에서 이 스크립트 설치를 요청했습니다. 결정이 필요합니다.",

@@ -55,6 +55,7 @@
   "source_privacy_hint": "Ler o código-fonte expõe o conteúdo do script. Confirme que você confia nesta solicitação.",
   "decision_reject": "Rejeitar",
   "decision_session_allow": "Permitir nesta sessão",
+  "decision_update_session_allow": "Atualizar e permitir nesta sessão",
   "decision_allow": "Permitir",
   "err_operation_expired": "Esta solicitação expirou ou não está mais pendente.",
   "approve_install_banner": "Instalação deste script solicitada via «Acesso externo» — sua decisão é necessária.",

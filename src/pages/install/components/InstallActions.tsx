@@ -148,30 +148,16 @@ export function InstallActions({
 
         {onExternalAccessReject ? (
           // 「外部接入」触发：三档决策 拒绝 / 本会话允许 / 安装（设计 §3）。安装 = 下方 install-split
-          // 主按钮；此处只补前两档，替换普通「关闭」——关闭窗口本身不算决定（op 挂起至 TTL/断开）。
-          <>
-            <Button
-              data-testid="external-access-reject"
-              variant="outline"
-              autoFocus
-              disabled={busy}
-              onClick={onExternalAccessReject}
-            >
-              {t("external_access:decision_reject")}
-            </Button>
-            {onExternalAccessSessionAllow && (
-              <Button
-                data-testid="external-access-session-allow"
-                variant="secondary"
-                className="gap-1.5 font-medium text-primary"
-                disabled={busy}
-                onClick={onExternalAccessSessionAllow}
-              >
-                <History className="size-4" />
-                {t("external_access:decision_session_allow")}
-              </Button>
-            )}
-          </>
+          // 主按钮，本会话允许收在其下拉首项；此处只补拒绝，替换普通「关闭」——关闭窗口本身不算决定（op 挂起至 TTL/断开）。
+          <Button
+            data-testid="external-access-reject"
+            variant="outline"
+            autoFocus
+            disabled={busy}
+            onClick={onExternalAccessReject}
+          >
+            {t("external_access:decision_reject")}
+          </Button>
         ) : isUpdate ? (
           <div className="flex">
             <Button data-testid="close-primary" variant="outline" onClick={() => onClose()} className="rounded-r-none">
@@ -215,6 +201,12 @@ export function InstallActions({
             disabled={primaryDisabled || busy}
             triggerClassName={cn("rounded-l-none border-l border-primary-foreground/25")}
           >
+            {onExternalAccessSessionAllow && (
+              <DropdownMenuItem onSelect={onExternalAccessSessionAllow}>
+                <History className="size-4" />
+                {t("external_access:decision_update_session_allow")}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={() => onInstall({ closeAfterInstall: false })}>{noCloseLabel}</DropdownMenuItem>
             {!isSubscribe && (
               <DropdownMenuItem onSelect={() => onInstall({ noMoreUpdates: true })}>

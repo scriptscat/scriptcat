@@ -55,6 +55,7 @@
   "source_privacy_hint": "讀取原始碼會暴露腳本內容，請確認你信任此請求。",
   "decision_reject": "拒絕",
   "decision_session_allow": "本工作階段允許",
+  "decision_update_session_allow": "更新並於本工作階段允許",
   "decision_allow": "允許",
   "err_operation_expired": "此請求已逾期或不再處於待處理狀態。",
   "approve_install_banner": "透過「外部接入」請求安裝此腳本 —— 需你決定。",

@@ -55,6 +55,7 @@
   "source_privacy_hint": "Das Lesen des Quelltexts legt den Skriptinhalt offen. Bestätige, dass du dieser Anfrage vertraust.",
   "decision_reject": "Ablehnen",
   "decision_session_allow": "Für diese Sitzung erlauben",
+  "decision_update_session_allow": "Aktualisieren und für diese Sitzung erlauben",
   "decision_allow": "Erlauben",
   "err_operation_expired": "Diese Anfrage ist abgelaufen oder nicht mehr ausstehend.",
   "approve_install_banner": "Über „Externer Zugriff“ wurde die Installation dieses Skripts angefragt – deine Entscheidung ist erforderlich.",

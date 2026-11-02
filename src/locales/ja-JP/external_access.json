@@ -55,6 +55,7 @@
   "source_privacy_hint": "ソースを読み取るとスクリプトの内容が公開されます。この要求を信頼できるか確認してください。",
   "decision_reject": "拒否",
   "decision_session_allow": "このセッションで許可",
+  "decision_update_session_allow": "更新してこのセッションで許可",
   "decision_allow": "許可",
   "err_operation_expired": "この要求は期限切れか、保留中ではありません。",
   "approve_install_banner": "外部アクセスからこのスクリプトのインストールが要求されました。判断が必要です。",

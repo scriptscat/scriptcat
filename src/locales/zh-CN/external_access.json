@@ -55,6 +55,7 @@
   "source_privacy_hint": "读取源码会暴露脚本内容，请确认你信任此请求。",
   "decision_reject": "拒绝",
   "decision_session_allow": "本会话允许",
+  "decision_update_session_allow": "更新并本会话允许",
   "decision_allow": "允许",
   "err_operation_expired": "该请求已过期或不再处于待处理状态。",
   "approve_install_banner": "通过「外部接入」请求安装此脚本 —— 需你决定。",
