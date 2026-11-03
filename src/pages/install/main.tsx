@@ -6,6 +6,7 @@ import { message } from "../store/global.ts";
 import MessageWriter from "@App/app/logger/message_writer.ts";
 import { ThemeProvider } from "../components/theme-provider.tsx";
 import { Toaster } from "../components/ui/sonner.tsx";
+import { getIncompleteContextFallbackUrl } from "./context_fallback.ts";
 import "@App/index.css";
 
 // 初始化日志组件
@@ -23,6 +24,11 @@ const Root = (
   </ThemeProvider>
 );
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  process.env.NODE_ENV === "development" ? <React.StrictMode>{Root}</React.StrictMode> : Root
-);
+const fallbackUrl = getIncompleteContextFallbackUrl(location.search, typeof chrome.tabs !== "undefined");
+if (fallbackUrl) {
+  location.replace(fallbackUrl);
+} else {
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    process.env.NODE_ENV === "development" ? <React.StrictMode>{Root}</React.StrictMode> : Root
+  );
+}
