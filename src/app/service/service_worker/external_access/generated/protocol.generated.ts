@@ -25,6 +25,9 @@ export const ERROR_CODES = [
   "RATE_LIMITED",
   "PAYLOAD_TOO_LARGE",
   "INTERNAL_ERROR",
+  "SCRIPTCAT_OFFLINE",
+  "SCRIPTCAT_NOT_FOUND",
+  "SCRIPTCAT_AMBIGUOUS",
 ] as const;
 export const CRYPTO = {
   mac: "HMAC-SHA-256",
@@ -37,6 +40,10 @@ export const CRYPTO = {
     sessionDaemon: "scriptcat-rpc-v1/daemon",
     pairExt: "scriptcat-rpc-v1/pair-ext",
     pairDaemon: "scriptcat-rpc-v1/pair-daemon",
+    scriptcatSessionExt: "scriptcat-rpc-v1/instance-ext",
+    scriptcatSessionDaemon: "scriptcat-rpc-v1/instance-daemon",
+    scriptcatPairExt: "scriptcat-rpc-v1/instance-pair-ext",
+    scriptcatPairDaemon: "scriptcat-rpc-v1/instance-pair-daemon",
     pairKdfSalt: "scriptcat-rpc-v1/pair-salt",
     pairKdfInfoMac: "scriptcat-rpc-v1/pair-mac",
     pairKdfInfoEnc: "scriptcat-rpc-v1/pair-enc",
