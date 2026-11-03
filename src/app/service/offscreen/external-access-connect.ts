@@ -41,6 +41,7 @@ export type ExternalAccessAuth = { mode: "session"; key: string } | { mode: "pai
 export interface ExternalAccessConnectParam {
   url: string;
   auth: ExternalAccessAuth;
+  instanceId: string;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -105,7 +106,6 @@ export function normalizePairingCode(code: string): string {
     .replace(/[IL]/g, "1");
 }
 
-// HMAC-SHA-256(key, utf8(context || firstHex || secondHex)) → 小写 hex。
 export async function computeHandshakeHmac(
   keyBytes: Bytes,
   context: string,
@@ -150,18 +150,20 @@ export async function decryptLongTermKey(encKeyBytes: Bytes, ivB64: string, ciph
 // 收到 $session.authenticate 后，按当前模式计算响应，并带出握手参数以验证 $session.authenticated。
 async function buildAuthResponse(
   auth: ExternalAccessAuth,
+  instanceId: string,
   nonceD: string
 ): Promise<{ payload: AuthResponsePayload; verifyKey: Bytes; nonceE: string; enc?: Bytes }> {
   const nonceE = randomNonceHex();
   const mode: AuthMode = auth.mode;
+  const peer: AuthResponsePayload["peer"] = { kind: "scriptcat", instanceId };
   if (auth.mode === "session") {
     const keyBytes = hexToBytes(auth.key);
-    const hmac = await computeHandshakeHmac(keyBytes, CRYPTO.context.sessionExt, nonceD, nonceE);
-    return { payload: { mode, nonceE, hmac }, verifyKey: keyBytes, nonceE };
+    const hmac = await computeHandshakeHmac(keyBytes, CRYPTO.context.scriptcatSessionExt + instanceId, nonceD, nonceE);
+    return { payload: { mode, nonceE, hmac, peer }, verifyKey: keyBytes, nonceE };
   }
   const { mac, enc } = await derivePairingKeys(auth.code);
-  const hmac = await computeHandshakeHmac(mac, CRYPTO.context.pairExt, nonceD, nonceE);
-  return { payload: { mode, nonceE, hmac }, verifyKey: mac, nonceE, enc };
+  const hmac = await computeHandshakeHmac(mac, CRYPTO.context.scriptcatPairExt + instanceId, nonceD, nonceE);
+  return { payload: { mode, nonceE, hmac, peer }, verifyKey: mac, nonceE, enc };
 }
 
 export class ExternalAccessConnect {
@@ -281,12 +283,12 @@ export class ExternalAccessConnect {
   }
 
   private async handleHandshakeMessage(envelope: WSEnvelope, sessionEpoch: number): Promise<void> {
-    const auth = this.currentParams?.auth;
-    if (!auth) return;
+    if (!this.currentParams) return;
+    const { auth, instanceId } = this.currentParams;
 
     if (envelope.method === "$session.authenticate" && envelope.id) {
       const { nonceD } = envelope.params as AuthChallengePayload;
-      const built = await buildAuthResponse(auth, nonceD);
+      const built = await buildAuthResponse(auth, instanceId, nonceD);
       if (sessionEpoch !== this.epoch) return;
       // 保存验证素材，供随后的 $session.authenticated 校验使用。
       this.pendingVerify = {
@@ -311,12 +313,18 @@ export class ExternalAccessConnect {
 
   private async verifyAuthOk(payload: AuthOkPayload, sessionEpoch: number): Promise<void> {
     const pending = this.pendingVerify;
-    if (!pending) {
+    if (!pending || !this.currentParams) {
       this.ws?.close();
       return;
     }
-    const context = pending.mode === "session" ? CRYPTO.context.sessionDaemon : CRYPTO.context.pairDaemon;
-    const expected = await computeHandshakeHmac(pending.verifyKey, context, pending.nonceE, pending.nonceD);
+    const context =
+      pending.mode === "session" ? CRYPTO.context.scriptcatSessionDaemon : CRYPTO.context.scriptcatPairDaemon;
+    const expected = await computeHandshakeHmac(
+      pending.verifyKey,
+      context + this.currentParams.instanceId,
+      pending.nonceE,
+      pending.nonceD
+    );
     if (sessionEpoch !== this.epoch) return;
     if (!constantTimeEqualHex(expected, payload.hmac || "")) {
       this.logger.warn("$session.authenticated HMAC mismatch, closing");

@@ -48,15 +48,16 @@ export interface AuthChallengePayload {
   nonceD: string;
 }
 
-// ext->daemon: the extension's nonceE plus HMAC(key, ctx || nonceD || nonceE). `key` is the
+// ext->daemon: the extension's nonceE plus HMAC(key, ctx || instanceId || nonceD || nonceE). `key` is the
 // long-term K in session mode, or the code-derived Kp_mac in pairing mode.
 export interface AuthResponsePayload {
   mode: AuthMode;
+  peer: { kind: "scriptcat"; instanceId: string };
   nonceE: string;
   hmac: string;
 }
 
-// daemon->ext: HMAC(key, ctx || nonceE || nonceD) proving the daemon also holds the key. In
+// daemon->ext: HMAC(key, ctx || instanceId || nonceE || nonceD) proving the daemon also holds the key. In
 // pairing mode it additionally ships the freshly minted long-term K, AES-256-GCM encrypted under
 // the code-derived Kp_enc.
 export interface AuthOkPayload {

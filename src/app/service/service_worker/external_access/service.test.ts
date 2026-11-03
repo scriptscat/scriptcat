@@ -1,11 +1,13 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { mockIdentityLock } from "./test-locks";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { ExternalAccessUIService } from "./service";
 import { ExternalAccessOperationDAO } from "@App/app/repo/external_access";
 import { ExternalAccessApprovalService } from "./approval";
 import { ScriptDAO, ScriptCodeDAO } from "@App/app/repo/scripts";
 import { TempStorageDAO } from "@App/app/repo/tempStorage";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
-import type { SystemConfig } from "@App/pkg/config/config";
+import { SystemConfig } from "@App/pkg/config/config";
+import { MessageQueue } from "@Packages/message/message_queue";
 
 describe("ExternalAccessUIService（外部接入页端点）", () => {
   let approval: ExternalAccessApprovalService;
@@ -14,12 +16,11 @@ describe("ExternalAccessUIService（外部接入页端点）", () => {
     enroll: ReturnType<typeof vi.fn>;
     stop: ReturnType<typeof vi.fn>;
   };
-  let systemConfig: {
-    setExternalAccessPairing: ReturnType<typeof vi.fn>;
-    setExternalAccessEnabled: ReturnType<typeof vi.fn>;
-  };
+  let systemConfig: SystemConfig;
   let handlers: Record<string, (...args: any[]) => any>;
   let service: ExternalAccessUIService;
+
+  afterEach(() => vi.restoreAllMocks());
 
   beforeEach(() => {
     chrome.storage.local.clear();
@@ -37,10 +38,10 @@ describe("ExternalAccessUIService（外部接入页端点）", () => {
       enroll: vi.fn(),
       stop: vi.fn(),
     };
-    systemConfig = { setExternalAccessPairing: vi.fn(), setExternalAccessEnabled: vi.fn() };
+    systemConfig = new SystemConfig(new MessageQueue());
     handlers = {};
     const group = { on: (name: string, fn: (...args: any[]) => any) => (handlers[name] = fn) } as any;
-    service = new ExternalAccessUIService(group, controller as any, approval, systemConfig as unknown as SystemConfig);
+    service = new ExternalAccessUIService(group, controller as any, approval, systemConfig);
     service.init();
   });
 
@@ -75,12 +76,17 @@ describe("ExternalAccessUIService（外部接入页端点）", () => {
     expect(decide).toHaveBeenCalledWith("op", true, { enable: true, rememberSession: true });
   });
 
-  it("stopExternalAccess 废弃密钥 K、清本会话授权、停止并关闭开关", async () => {
+  it("stopExternalAccess 废弃密钥但保留实例身份、清本会话授权、停止并关闭开关", async () => {
+    mockIdentityLock();
+    const identity = await systemConfig.getExternalAccessIdentity();
+    systemConfig.setExternalAccessPairing({ key: "test-key" });
+    systemConfig.setExternalAccessEnabled(true);
     const clear = vi.spyOn(approval, "clearSessionAllow").mockResolvedValue(undefined);
     await handlers["stopExternalAccess"]();
-    expect(systemConfig.setExternalAccessPairing).toHaveBeenCalledWith(undefined);
+    expect(await systemConfig.getExternalAccessPairing()).toEqual({ key: "" });
+    expect(await new SystemConfig(new MessageQueue()).getExternalAccessIdentity()).toEqual(identity);
     expect(clear).toHaveBeenCalled();
     expect(controller.stop).toHaveBeenCalled();
-    expect(systemConfig.setExternalAccessEnabled).toHaveBeenCalledWith(false);
+    expect(await systemConfig.getExternalAccessEnabled()).toBe(false);
   });
 });

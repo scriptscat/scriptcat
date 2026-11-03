@@ -1,5 +1,6 @@
 import { uuidv4 } from "@App/pkg/utils/uuid";
-import type { SystemConfig } from "@App/pkg/config/config";
+import { getBrowserVersion } from "@App/pkg/utils/utils";
+import { externalAccessProduct, type SystemConfig } from "@App/pkg/config/config";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { ExternalAccessConnectClient } from "../../offscreen/client";
 import type { ExternalAccessBridge } from "./bridge";
@@ -13,6 +14,11 @@ import {
 } from "./types";
 import type { Group } from "@Packages/message/server";
 import { RPC_METHODS, SCHEMA_VERSION } from "./generated/protocol.generated";
+
+function truncatePeerText(text: string): string {
+  const { read } = new TextEncoder().encodeInto(text, new Uint8Array(64));
+  return text.slice(0, read);
+}
 
 // Broadcast on every status transition so the Tools settings page updates live.
 export const ExternalAccessStatusChanged = "mcpStatusChanged";
@@ -86,7 +92,8 @@ export class ExternalAccessController {
     }
     this.setStatus("connecting");
     const url = await this.systemConfig.getExternalAccessUrl();
-    void this.connectClient.connect({ url, auth: { mode: "session", key: pairing.key } });
+    const { instanceId } = await this.systemConfig.getExternalAccessIdentity();
+    void this.connectClient.connect({ url, instanceId, auth: { mode: "session", key: pairing.key } });
   }
 
   // Enrollment (接入): the user ran `sctl connect`, which printed a one-time code C shown only in the
@@ -98,20 +105,33 @@ export class ExternalAccessController {
     this.active = true;
     this.setStatus("connecting");
     const url = await this.systemConfig.getExternalAccessUrl();
-    void this.connectClient.connect({ url, auth: { mode: "pairing", code } });
+    const { instanceId } = await this.systemConfig.getExternalAccessIdentity();
+    void this.connectClient.connect({ url, instanceId, auth: { mode: "pairing", code } });
   }
 
-  private onEnvelope(envelope: WSEnvelope): void {
+  private async onEnvelope(envelope: WSEnvelope): Promise<void> {
     switch (envelope.method) {
       case "$session.hello": {
         const { daemonVersion } = envelope.params as HelloPayload;
         this.daemonVersion = daemonVersion;
         this.setStatus("connected");
+        const { name } = await this.systemConfig.getExternalAccessIdentity();
+        const product = externalAccessProduct();
+        const version = getBrowserVersion();
         void this.connectClient.send({
           jsonrpc: "2.0",
           id: uuidv4(),
           method: "$session.capabilities",
-          params: { schemaVersion: SCHEMA_VERSION, methods: Object.keys(RPC_METHODS) },
+          params: {
+            schemaVersion: SCHEMA_VERSION,
+            methods: Object.keys(RPC_METHODS),
+            peer: {
+              name: truncatePeerText(name),
+              ...(product ? { product } : {}),
+              ...(Number.isFinite(version) && version > 0 ? { productVersion: String(version) } : {}),
+              extensionVersion: truncatePeerText(chrome.runtime.getManifest().version),
+            },
+          },
         });
         break;
       }
@@ -137,11 +157,8 @@ export class ExternalAccessController {
     }
   }
 
-  // Enrollment succeeded: persist the daemon-minted long-term key alongside a stable local client
-  // identity so future reconnects use session-mode auth.
-  private async onEnrolled(key: string): Promise<void> {
-    const existing = await this.systemConfig.getExternalAccessPairing();
-    this.systemConfig.setExternalAccessPairing({ key, clientId: existing.clientId || uuidv4() });
+  private onEnrolled(key: string): void {
+    this.systemConfig.setExternalAccessPairing({ key });
   }
 
   private onDisconnected(): void {

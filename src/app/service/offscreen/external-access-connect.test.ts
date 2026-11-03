@@ -21,9 +21,28 @@ import { CRYPTO, LIMITS } from "../service_worker/external_access/generated/prot
 
 initTestEnv();
 
-const CTX = CRYPTO.context;
+// sctl Go Crypto.ScriptCat{Ext,Daemon}HMAC 生成的固定互操作向量。
+const vector = {
+  instanceId: "0123456789abcdef0123456789abcdef",
+  sessionKeyHex: "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+  nonceD: "aa11111111111111111111111111111111111111111111111111111111111111",
+  nonceE: "bb22222222222222222222222222222222222222222222222222222222222222",
+  pairingCode: "ABCD-EFGH",
+  sessionExtHmac: "044bb6d6f20efdd664e5c86e6c97127e1628784723b119149a93e7d0184ffa5c",
+  sessionDaemonHmac: "50bfad50a876b61b357ebfd9702feb1717fe7302acb08fbc87c588bf6d2c762d",
+  pairingExtHmac: "dd6e5d75790912cc8d530ac5cd7fef6d56b026ec48baa24d18a05c1f34a4848e",
+  pairingDaemonHmac: "f9954343b576e9388ea515635102cf74fb63db503c5a6cf08155ee6aa00fe037",
+  legacySessionExtHmac: "e522fd7aaa35892f1bbb76081e79946a8f8142d1c83c1dbc8804fe33dae99359",
+};
 
 // ────────────────────────────────────────────────
+const CTX = {
+  sessionExt: CRYPTO.context.scriptcatSessionExt + vector.instanceId,
+  sessionDaemon: CRYPTO.context.scriptcatSessionDaemon + vector.instanceId,
+  pairExt: CRYPTO.context.scriptcatPairExt + vector.instanceId,
+  pairDaemon: CRYPTO.context.scriptcatPairDaemon + vector.instanceId,
+};
+
 // 独立参照实现（node:crypto）——同时充当 daemon 模拟器，钉住线格式与 sctl 互操作
 // ────────────────────────────────────────────────
 
@@ -35,9 +54,9 @@ function nodeHmacHex(keyBytes: Uint8Array, context: string, a: string, b: string
 
 function nodePairingKeys(code: string): { mac: Buffer; enc: Buffer } {
   const ikm = Buffer.from(normalizePairingCode(code), "utf8");
-  const salt = Buffer.from(CTX.pairKdfSalt, "utf8");
-  const mac = Buffer.from(hkdfSync("sha256", ikm, salt, Buffer.from(CTX.pairKdfInfoMac, "utf8"), 32));
-  const enc = Buffer.from(hkdfSync("sha256", ikm, salt, Buffer.from(CTX.pairKdfInfoEnc, "utf8"), 32));
+  const salt = Buffer.from(CRYPTO.context.pairKdfSalt, "utf8");
+  const mac = Buffer.from(hkdfSync("sha256", ikm, salt, Buffer.from(CRYPTO.context.pairKdfInfoMac, "utf8"), 32));
+  const enc = Buffer.from(hkdfSync("sha256", ikm, salt, Buffer.from(CRYPTO.context.pairKdfInfoEnc, "utf8"), 32));
   return { mac, enc };
 }
 
@@ -161,14 +180,83 @@ describe("ExternalAccessConnect", () => {
     vi.useRealTimers();
   });
 
-  function triggerConnect(param: ExternalAccessConnectParam): MockWebSocket {
-    (externalAccessConnect as any).startSession(param);
+  function triggerConnect(param: Omit<ExternalAccessConnectParam, "instanceId">): MockWebSocket {
+    (externalAccessConnect as unknown as { startSession(params: ExternalAccessConnectParam): void }).startSession({
+      ...param,
+      instanceId: vector.instanceId,
+    });
     return wsInstances[wsInstances.length - 1];
   }
 
   const sessionParam = (key: string): ExternalAccessConnectParam => ({
     url: "ws://127.0.0.1:8643",
+    instanceId: vector.instanceId,
     auth: { mode: "session", key },
+  });
+
+  it.each(["session", "pairing"] as const)("%s 身份握手匹配 Go 向量并接受对应 daemon MAC", async (mode) => {
+    vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
+      if (!(array instanceof Uint8Array)) throw new Error("Expected nonce bytes");
+      array.set(hexToBytes(vector.nonceE));
+      return array;
+    });
+    const auth = mode === "session" ? { mode, key: vector.sessionKeyHex } : { mode, code: vector.pairingCode };
+    const ws = triggerConnect({ url: "ws://localhost:8643", auth });
+    ws.simulateOpen();
+    ws.simulateMessage({
+      jsonrpc: "2.0",
+      id: "golden",
+      method: "$session.authenticate",
+      params: { nonceD: vector.nonceD },
+    });
+    await vi.waitFor(() => expect(ws.sentMessages).toHaveLength(1));
+    expect(ws.sent(0).result).toEqual({
+      mode,
+      nonceE: vector.nonceE,
+      hmac: mode === "session" ? vector.sessionExtHmac : vector.pairingExtHmac,
+      peer: { kind: "scriptcat", instanceId: vector.instanceId },
+    });
+    expect(ws.sent(0).result.hmac).not.toBe(vector.legacySessionExtHmac);
+    const key =
+      mode === "pairing"
+        ? nodeEncryptKey(nodePairingKeys(vector.pairingCode).enc, Buffer.from(vector.sessionKeyHex, "hex"))
+        : undefined;
+    ws.simulateMessage({
+      jsonrpc: "2.0",
+      method: "$session.authenticated",
+      params: { hmac: mode === "session" ? vector.sessionDaemonHmac : vector.pairingDaemonHmac, key },
+    });
+    await vi.waitFor(() =>
+      expect((externalAccessConnect as unknown as { handshakeComplete: boolean }).handshakeComplete).toBe(true)
+    );
+    if (mode === "pairing") expect(relay.paired).toHaveBeenCalledWith(vector.sessionKeyHex);
+  });
+
+  it.each(["session", "pairing"] as const)("%s 拒绝未绑定实例的旧 daemon MAC", async (mode) => {
+    const auth = mode === "session" ? { mode, key: vector.sessionKeyHex } : { mode, code: vector.pairingCode };
+    const ws = triggerConnect({ url: "ws://localhost:8643", auth });
+    ws.simulateOpen();
+    ws.simulateMessage({
+      jsonrpc: "2.0",
+      id: "legacy",
+      method: "$session.authenticate",
+      params: { nonceD: vector.nonceD },
+    });
+    await vi.waitFor(() => expect(ws.sentMessages).toHaveLength(1));
+    const macKey = mode === "session" ? hexToBytes(vector.sessionKeyHex) : nodePairingKeys(vector.pairingCode).mac;
+    const hmac = nodeHmacHex(
+      macKey,
+      mode === "session" ? CRYPTO.context.sessionDaemon : CRYPTO.context.pairDaemon,
+      ws.sent(0).result.nonceE,
+      vector.nonceD
+    );
+    const key =
+      mode === "pairing"
+        ? nodeEncryptKey(nodePairingKeys(vector.pairingCode).enc, Buffer.from(vector.sessionKeyHex, "hex"))
+        : undefined;
+    ws.simulateMessage({ jsonrpc: "2.0", method: "$session.authenticated", params: { hmac, key } });
+    await vi.waitFor(() => expect(ws.readyState).toBe(MockWebSocket.CLOSED));
+    expect(relay.paired).not.toHaveBeenCalled();
   });
 
   it("按配置原样连接 WebSocket URL，不限定回环地址或 ws 协议", () => {
@@ -238,7 +326,6 @@ describe("ExternalAccessConnect", () => {
       const resp = ws.sent(0);
       expect(resp).toMatchObject({ jsonrpc: "2.0", id: "c1" });
       expect(resp.result.mode).toBe("session");
-      // 扩展侧 HMAC 用 sessionExt || nonceD || nonceE，参照实现逐字节复核
       expect(resp.result.hmac).toBe(nodeHmacHex(new Uint8Array(K), CTX.sessionExt, nonceD, resp.result.nonceE));
 
       const okHmac = nodeHmacHex(new Uint8Array(K), CTX.sessionDaemon, resp.result.nonceE, nonceD);
@@ -310,7 +397,6 @@ describe("ExternalAccessConnect", () => {
       await vi.waitFor(() => expect(ws.sentMessages.length).toBe(1));
       const resp = ws.sent(0);
       expect(resp.result.mode).toBe("pairing");
-      // 配对模式用 pairExt 上下文 + Kp_mac；认证响应不含配对码本身
       expect(resp.result.hmac).toBe(nodeHmacHex(new Uint8Array(mac), CTX.pairExt, nonceD, resp.result.nonceE));
       expect(resp.result.code).toBeUndefined();
 

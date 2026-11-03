@@ -7,7 +7,7 @@ import { matchLanguage } from "@App/locales/locales";
 import { ExtVersion } from "@App/app/const";
 import defaultTypeDefinition from "@App/template/scriptcat.d.tpl";
 import type { ScriptTemplateOverrides } from "@App/pkg/utils/script_template";
-import { toCamelCase } from "../utils/utils";
+import { BrowserType, getBrowserType, toCamelCase } from "../utils/utils";
 import EventEmitter from "eventemitter3";
 import { STORAGE_LOCAL_KEYS } from "./consts";
 
@@ -46,12 +46,24 @@ export type FaviconService = "none" | "scriptcat" | "google" | "duckduckgo" | "i
 export type ExternalAccessWritePolicy = "approval" | "allow";
 export type ExternalAccessSourceReadPolicy = "approval" | "allow";
 
-// MCP 配对成功后落地的长期共享密钥 K（小写 hex）与本扩展实例的客户端身份。
 // key 为空串表示尚未配对。仅存 chrome.storage.local，绝不跨设备同步。
 export type ExternalAccessPairing = {
   key: string;
-  clientId: string;
 };
+
+export type ExternalAccessIdentity = {
+  instanceId: string;
+  name: string;
+};
+
+export function externalAccessProduct() {
+  const browser = getBrowserType();
+  if (browser.firefox) return "Firefox";
+  if (browser.webkit) return "Safari";
+  if (browser.chrome & BrowserType.Edge) return "Edge";
+  if (browser.chrome & BrowserType.Chrome) return "Chrome";
+  return undefined;
+}
 
 export type CATFileStorage = {
   filesystem: FileSystemType;
@@ -713,7 +725,24 @@ export class SystemConfig {
   }
 
   getExternalAccessPairing() {
-    return this._get<ExternalAccessPairing>("external_access_pairing", { key: "", clientId: "" });
+    return this._get<ExternalAccessPairing>("external_access_pairing", { key: "" });
+  }
+
+  async getExternalAccessIdentity(): Promise<ExternalAccessIdentity> {
+    // 页面、后台及隐身上下文可能同时首次读取；跨上下文锁保证只生成一份身份。
+    // 身份没有历史同步数据，不能走普通配置的 sync → local 迁移路径。
+    return navigator.locks.request("scriptcat-external-access-identity", async () => {
+      const key = "system_external_access_identity";
+      const stored = await chrome.storage.local.get(key);
+      if (stored[key]) return stored[key] as ExternalAccessIdentity;
+      const instanceId = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+        byte.toString(16).padStart(2, "0")
+      ).join("");
+      const slug = externalAccessProduct()?.toLowerCase() ?? "scriptcat";
+      const identity = { instanceId, name: `${slug}-${instanceId.slice(0, 4)}` };
+      await chrome.storage.local.set({ [key]: identity });
+      return identity;
+    });
   }
 
   setBlacklist(blacklist: string) {
