@@ -76,7 +76,11 @@ function StatusPill({ status, t }: { status: ExternalAccessBridgeStatus; t: (key
     rejected: "external_access:status_rejected",
   };
   return (
-    <Badge variant={STATUS_VARIANT[status]} data-testid="external_access_status_pill">
+    <Badge
+      variant={STATUS_VARIANT[status]}
+      className="shrink-0 whitespace-nowrap"
+      data-testid="external_access_status_pill"
+    >
       {t(labelKey[status])}
     </Badge>
   );

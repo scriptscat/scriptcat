@@ -117,10 +117,10 @@ export function PairingCodeInput({
       data-testid={testId}
       role="group"
       aria-label={ariaLabel}
-      className={cn("flex items-center justify-center gap-2", className)}
+      className={cn("flex items-center justify-center gap-1.5 md:gap-2", className)}
     >
       {chars.map((char, index) => (
-        <div key={index} className="flex items-center gap-2">
+        <div key={index} className="flex items-center gap-1.5 md:gap-2">
           {groupSize > 0 && index > 0 && index % groupSize === 0 && (
             <span aria-hidden className="h-0.5 w-3 rounded-full bg-muted-foreground/50" />
           )}
@@ -144,7 +144,8 @@ export function PairingCodeInput({
             onPaste={(e) => handlePaste(index, e)}
             onFocus={(e) => e.target.select()}
             className={cn(
-              "size-10 rounded-md border border-input bg-background text-center font-mono text-lg font-semibold uppercase text-foreground shadow-sm outline-none transition-colors",
+              // 8 格 + 分隔符在 40px 下约 396px 宽，超过手机宽度对话框的内容区；窄屏缩到 32px。
+              "size-8 rounded-md border border-input bg-background text-center font-mono text-base font-semibold uppercase text-foreground shadow-sm outline-none transition-colors md:size-10 md:text-lg",
               "focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary",
               "disabled:cursor-not-allowed disabled:opacity-50"
             )}
