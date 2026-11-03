@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { SystemConfig } from "./config";
 import * as browserUtils from "../utils/utils";
-import { mockIdentityLock } from "@App/app/service/service_worker/external_access/test-locks";
+import { mockWebLocks } from "@Tests/mockWebLocks";
 import { MessageQueue } from "@Packages/message/message_queue";
 
 describe("SystemConfig 双 storage 与懒迁移", () => {
@@ -9,7 +9,7 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
   let config: SystemConfig;
 
   beforeEach(() => {
-    mockIdentityLock();
+    mockWebLocks();
     // 清空 storage 数据
     chrome.storage.sync.clear();
     chrome.storage.local.clear();

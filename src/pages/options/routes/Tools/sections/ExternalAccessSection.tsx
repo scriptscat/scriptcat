@@ -37,7 +37,11 @@ import type {
   ExternalAccessBridgeStatus,
   ExternalAccessBridgeStatusInfo,
 } from "@App/app/service/service_worker/external_access/types";
-import type { ExternalAccessWritePolicy, ExternalAccessSourceReadPolicy } from "@App/pkg/config/config";
+import {
+  isValidExternalAccessName,
+  type ExternalAccessWritePolicy,
+  type ExternalAccessSourceReadPolicy,
+} from "@App/pkg/config/config";
 import { notify } from "@App/pages/components/ui/toast";
 import { DocumentationSite } from "@App/app/const";
 import { localePath } from "@App/locales/locales";
@@ -58,9 +62,6 @@ const AUDIT_QUERY = encodeURIComponent(JSON.stringify([{ key: "component", value
 
 // `sctl connect` 打印一次性配对码，只在终端显示、绝不过线；用户读到后填入接入对话框。
 const ENROLL_COMMAND = "sctl connect";
-
-// 与 sctl 的实例名称校验保持一致：不合规的输入在页面就地拦下，不发给 daemon。
-const NAME_PATTERN = /^[a-z0-9-]{1,32}$/;
 
 // 文档站只有中文与英文两版，localePath 按界面语言在两者间切换（同 agentDocUrl）。
 const docUrl = () => `${DocumentationSite}${localePath}/docs/use/external-access/`;
@@ -190,8 +191,8 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
     if (trimmed) systemConfig.setExternalAccessUrl(trimmed);
   };
 
-  const nameInvalid = !NAME_PATTERN.test(nameDraft);
-  const enrollNameInvalid = !NAME_PATTERN.test(enrollName);
+  const nameInvalid = !isValidExternalAccessName(nameDraft);
+  const enrollNameInvalid = !isValidExternalAccessName(enrollName);
 
   // 对话框可能从待接入态或拒绝态的「重新接入」打开；两处都用当前名称预填并清掉上一轮的码与提示。
   const openEnroll = () => {
@@ -234,6 +235,8 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
       setShowEnroll(false);
       // 名称问题之外的结果沿用原有的进行中提示：sctl 未运行时 offscreen 仍在重连，最终成败以状态胶囊为准。
       notify.info(t("external_access:enroll_started"));
+    } catch {
+      notify.error(t("external_access:enroll_failed"));
     } finally {
       setEnrolling(false);
     }

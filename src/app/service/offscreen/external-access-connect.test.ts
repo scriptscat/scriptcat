@@ -1,4 +1,3 @@
-import type { WSEnvelope } from "../service_worker/external_access/types";
 import { initTestEnv } from "@Tests/utils";
 import {
   ExternalAccessConnect,
@@ -19,6 +18,7 @@ import { Server } from "@Packages/message/server";
 import EventEmitter from "eventemitter3";
 import { createCipheriv, createHmac, hkdfSync, randomBytes } from "node:crypto";
 import { CRYPTO, LIMITS } from "../service_worker/external_access/generated/protocol.generated";
+import { ExternalAccessConnectClient } from "./client";
 
 initTestEnv();
 
@@ -151,6 +151,7 @@ describe("ExternalAccessConnect", () => {
   beforeAll(() => vi.setConfig({ testTimeout: 5000 }));
 
   let externalAccessConnect: ExternalAccessConnect;
+  let client: ExternalAccessConnectClient;
   let relay: {
     envelope: ReturnType<typeof vi.fn>;
     established: ReturnType<typeof vi.fn>;
@@ -167,6 +168,7 @@ describe("ExternalAccessConnect", () => {
     const group = server.group("externalAccessConnect");
 
     externalAccessConnect = new ExternalAccessConnect(group, mockMessage);
+    client = new ExternalAccessConnectClient(mockMessage);
     relay = {
       envelope: vi.fn().mockResolvedValue(undefined),
       established: vi.fn().mockResolvedValue(undefined),
@@ -189,12 +191,17 @@ describe("ExternalAccessConnect", () => {
     return wsInstances[wsInstances.length - 1];
   }
 
+  // SW 经 Group 下发能力声明，与生产路径一致。
   function declareCapabilities() {
-    (
-      externalAccessConnect as unknown as {
-        sendEnvelope(env: WSEnvelope): void;
-      }
-    ).sendEnvelope({ jsonrpc: "2.0", id: "cap", method: "$session.capabilities", params: {} });
+    return client.send({ jsonrpc: "2.0", id: "cap", method: "$session.capabilities", params: {} });
+  }
+
+  // hello 只在认证完成后才转发给 SW（认证前收到会断开），以此作为握手完成的可观察信号。
+  async function expectHelloRelayed(ws: MockWebSocket) {
+    ws.simulateMessage({ jsonrpc: "2.0", method: "$session.hello", params: { daemonVersion: "1" } });
+    await vi.waitFor(() =>
+      expect(relay.envelope).toHaveBeenCalledWith(expect.objectContaining({ method: "$session.hello" }))
+    );
   }
 
   const sessionParam = (key: string): ExternalAccessConnectParam => ({
@@ -245,11 +252,9 @@ describe("ExternalAccessConnect", () => {
       method: "$session.authenticated",
       params: { hmac: mode === "session" ? vector.sessionDaemonHmac : vector.pairingDaemonHmac, key },
     });
-    await vi.waitFor(() =>
-      expect((externalAccessConnect as unknown as { handshakeComplete: boolean }).handshakeComplete).toBe(true)
-    );
+    await expectHelloRelayed(ws);
     expect(relay.established).not.toHaveBeenCalled();
-    declareCapabilities();
+    await declareCapabilities();
     vi.useFakeTimers();
     ws.simulateMessage({
       jsonrpc: "2.0",
@@ -435,15 +440,31 @@ describe("ExternalAccessConnect", () => {
       const key = nodeEncryptKey(enc, K);
       ws.simulateMessage({ jsonrpc: "2.0", method: "$session.authenticated", params: { hmac: okHmac, key } });
 
-      await vi.waitFor(() =>
-        expect((externalAccessConnect as unknown as { handshakeComplete: boolean }).handshakeComplete).toBe(true)
-      );
-      declareCapabilities();
+      await expectHelloRelayed(ws);
+      await declareCapabilities();
       ws.simulateMessage({ jsonrpc: "2.0", id: "cap", result: {} });
       await vi.waitFor(() => expect(relay.established).toHaveBeenCalledWith(K.toString("hex")));
-      expect((externalAccessConnect as any).handshakeComplete).toBe(true);
-      // 握手后内部凭据切到会话模式，供后续自动重连
-      expect((externalAccessConnect as any).currentParams.auth).toEqual({ mode: "session", key: K.toString("hex") });
+
+      // 之后的自动重连用会话模式与新密钥 K，而不是已被消费的配对码。
+      vi.useFakeTimers();
+      ws.simulateClose();
+      await vi.advanceTimersByTimeAsync(2000);
+      vi.useRealTimers();
+      const next = wsInstances[1];
+      next.simulateOpen();
+      const nextNonceD = randomBytes(32).toString("hex");
+      next.simulateMessage({
+        jsonrpc: "2.0",
+        id: "c2",
+        method: "$session.authenticate",
+        params: { nonceD: nextNonceD },
+      });
+      await vi.waitFor(() => expect(next.sentMessages.length).toBe(1));
+      const nextResp = next.sent(0);
+      expect(nextResp.result.mode).toBe("session");
+      expect(nextResp.result.hmac).toBe(
+        nodeHmacHex(new Uint8Array(K), CTX.sessionExt, nextNonceD, nextResp.result.nonceE)
+      );
     });
 
     it("配对 $session.authenticated 缺少 key 时断开、不上抛 established", async () => {
@@ -492,7 +513,7 @@ describe("ExternalAccessConnect", () => {
       expect(wsInstances).toHaveLength(2);
       await vi.advanceTimersByTimeAsync(1);
       const ws = await completeSessionHandshake(key, wsInstances[2]);
-      declareCapabilities();
+      await declareCapabilities();
       ws.simulateMessage({ jsonrpc: "2.0", id: "cap", result: {} });
       await vi.advanceTimersByTimeAsync(0);
       expect(relay.established).toHaveBeenCalledWith(undefined);
@@ -507,7 +528,7 @@ describe("ExternalAccessConnect", () => {
     it("认证后能力声明迟迟不答复也会超时关闭", async () => {
       vi.useFakeTimers();
       const ws = await completeSessionHandshake();
-      declareCapabilities();
+      await declareCapabilities();
       await vi.advanceTimersByTimeAsync(LIMITS.authTimeoutMs + 1);
       expect(ws.readyState).toBe(MockWebSocket.CLOSED);
       expect(relay.established).not.toHaveBeenCalled();

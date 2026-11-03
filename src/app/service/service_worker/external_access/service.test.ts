@@ -1,4 +1,4 @@
-import { mockIdentityLock } from "./test-locks";
+import { mockWebLocks } from "@Tests/mockWebLocks";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { ExternalAccessUIService } from "./service";
 import { ExternalAccessOperationDAO } from "@App/app/repo/external_access";
@@ -82,7 +82,7 @@ describe("ExternalAccessUIService（外部接入页端点）", () => {
   });
 
   it("stopExternalAccess 废弃密钥但保留实例身份、清本会话授权、停止并关闭开关", async () => {
-    mockIdentityLock();
+    mockWebLocks();
     const identity = await systemConfig.getExternalAccessIdentity();
     systemConfig.setExternalAccessPairing({ key: "test-key" });
     systemConfig.setExternalAccessEnabled(true);

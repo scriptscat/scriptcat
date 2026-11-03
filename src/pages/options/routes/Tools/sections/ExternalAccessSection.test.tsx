@@ -23,6 +23,7 @@ vi.mock("react-router-dom", () => ({ useNavigate: () => navigate }));
 const notify = vi.hoisted(() => ({
   success: vi.fn(),
   info: vi.fn(),
+  error: vi.fn(),
 }));
 vi.mock("@App/pages/components/ui/toast", () => ({ notify }));
 
@@ -181,7 +182,9 @@ describe("ExternalAccessSection（外部接入单卡片）", () => {
     fireEvent.click(await screen.findByTestId("external_access_name_edit"));
     const input = await screen.findByTestId("external_access_name_input");
     fireEvent.change(input, { target: { value: "Bad Name" } });
-    expect(screen.getByTestId("external_access_name_error")).toHaveTextContent("名称需为 1–32 位小写字母、数字或 -。");
+    expect(screen.getByTestId("external_access_name_error")).toHaveTextContent(
+      "名称需为 1–32 位小写字母、数字或 -，且不能是 scriptcat。"
+    );
     expect(screen.getByTestId("external_access_name_save")).toBeDisabled();
 
     fireEvent.change(input, { target: { value: "office" } });
@@ -195,9 +198,11 @@ describe("ExternalAccessSection（外部接入单卡片）", () => {
     await renderSection();
     fireEvent.click(await screen.findByTestId("external_access_name_edit"));
     fireEvent.change(await screen.findByTestId("external_access_name_input"), { target: { value: "office" } });
-    fireEvent.click(screen.getByTestId("external_access_name_save"));
-    await waitFor(() => expect(rename).toHaveBeenCalledWith("office"));
-    await waitFor(() => expect(notify.success).toHaveBeenCalledWith("实例名称已更新"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("external_access_name_save"));
+    });
+    expect(rename).toHaveBeenCalledWith("office");
+    expect(notify.success).toHaveBeenCalledWith("实例名称已更新");
     expect(await screen.findByTestId("external_access_name_value")).toHaveTextContent("office");
     expect(screen.queryByTestId("external_access_name_input")).not.toBeInTheDocument();
   });
@@ -208,9 +213,11 @@ describe("ExternalAccessSection（外部接入单卡片）", () => {
     await renderSection();
     fireEvent.click(await screen.findByTestId("external_access_name_edit"));
     fireEvent.change(await screen.findByTestId("external_access_name_input"), { target: { value: "office" } });
-    fireEvent.click(screen.getByTestId("external_access_name_save"));
-    await waitFor(() => expect(rename).toHaveBeenCalledWith("office"));
-    await waitFor(() => expect(notify.info).toHaveBeenCalledWith("已保存，新名称将在下次连接时生效"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("external_access_name_save"));
+    });
+    expect(rename).toHaveBeenCalledWith("office");
+    expect(notify.info).toHaveBeenCalledWith("已保存，新名称将在下次连接时生效");
     expect(await screen.findByTestId("external_access_name_value")).toHaveTextContent("office");
     expect(notify.success).not.toHaveBeenCalled();
   });
@@ -221,8 +228,10 @@ describe("ExternalAccessSection（外部接入单卡片）", () => {
     await renderSection();
     fireEvent.click(await screen.findByTestId("external_access_name_edit"));
     fireEvent.change(await screen.findByTestId("external_access_name_input"), { target: { value: "taken" } });
-    fireEvent.click(screen.getByTestId("external_access_name_save"));
-    await waitFor(() => expect(rename).toHaveBeenCalledWith("taken"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("external_access_name_save"));
+    });
+    expect(rename).toHaveBeenCalledWith("taken");
     expect(await screen.findByTestId("external_access_name_error")).toHaveTextContent(
       "该名称已被另一个 ScriptCat 实例使用"
     );
@@ -241,7 +250,7 @@ describe("ExternalAccessSection（外部接入单卡片）", () => {
     fireEvent.paste(cell0, { clipboardData: { getData: () => "ABCD1234" } });
     fireEvent.change(nameInput, { target: { value: "Home Browser" } });
     expect(await screen.findByTestId("external_access_enroll_name_error")).toHaveTextContent(
-      "名称需为 1–32 位小写字母、数字或 -。"
+      "名称需为 1–32 位小写字母、数字或 -，且不能是 scriptcat。"
     );
     expect(screen.getByTestId("external_access_enroll_submit")).toBeDisabled();
   });
@@ -264,6 +273,21 @@ describe("ExternalAccessSection（外部接入单卡片）", () => {
     expect(screen.getByTestId("external_access_enroll_code-cell-0")).toHaveValue("");
     expect(screen.getByTestId("external_access_enroll_submit")).toBeDisabled();
     expect(notify.info).not.toHaveBeenCalled();
+  });
+
+  it("接入请求本身失败时提示失败并保留对话框以便重试", async () => {
+    getBridgeStatus.mockResolvedValue({ status: "pending_enrollment", name: "home-browser" });
+    enroll.mockRejectedValue(new Error("offscreen unavailable"));
+    await renderSection();
+    fireEvent.click(await screen.findByTestId("external_access_enroll_open"));
+    const cell0 = await screen.findByTestId("external_access_enroll_code-cell-0");
+    fireEvent.paste(cell0, { clipboardData: { getData: () => "ABCD1234" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("external_access_enroll_submit"));
+    });
+    expect(notify.error).toHaveBeenCalledWith("接入失败，请重试");
+    expect(notify.info).not.toHaveBeenCalled();
+    expect(screen.getByTestId("external_access_enroll_submit")).toBeEnabled();
   });
 
   it("被 sctl 拒绝（refused）时说明原因并可重新接入", async () => {

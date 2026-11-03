@@ -1,5 +1,10 @@
 import { uuidv4 } from "@App/pkg/utils/uuid";
-import { externalAccessProduct, externalAccessProductVersion, type SystemConfig } from "@App/pkg/config/config";
+import {
+  externalAccessProduct,
+  externalAccessProductVersion,
+  isValidExternalAccessName,
+  type SystemConfig,
+} from "@App/pkg/config/config";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { ExternalAccessConnectClient } from "../../offscreen/client";
 import type { ExternalAccessBridge } from "./bridge";
@@ -17,15 +22,6 @@ import {
 } from "./types";
 import type { Group } from "@Packages/message/server";
 import { RPC_METHODS, SCHEMA_VERSION } from "./generated/protocol.generated";
-
-function truncatePeerText(text: string): string {
-  const { read } = new TextEncoder().encodeInto(text, new Uint8Array(64));
-  return text.slice(0, read);
-}
-
-function validName(name: string): boolean {
-  return typeof name === "string" && /^[a-z0-9-]{1,32}$/.test(name);
-}
 
 // Broadcast on every status transition so the Tools settings page updates live.
 export const ExternalAccessStatusChanged = "mcpStatusChanged";
@@ -135,7 +131,7 @@ export class ExternalAccessController {
   // pairing mode with C; on success the daemon ships a fresh long-term key K, which offscreen
   // decrypts and relays back after capabilities acceptance.
   async enroll(code: string, name: string): Promise<ExternalAccessEnrollResult> {
-    if (!validName(name)) return "invalid-name";
+    if (!isValidExternalAccessName(name)) return "invalid-name";
     if (chrome.extension.inIncognitoContext || this.pending) return "not-connected";
     this.active = true;
     const generation = ++this.generation;
@@ -156,7 +152,7 @@ export class ExternalAccessController {
   }
 
   async rename(name: string): Promise<ExternalAccessRenameResult> {
-    if (!validName(name)) return "invalid-name";
+    if (!isValidExternalAccessName(name)) return "invalid-name";
     if (chrome.extension.inIncognitoContext || this.pending) return "not-connected";
     if (this.status !== "connected") {
       await this.systemConfig.setExternalAccessName(name);
@@ -203,10 +199,10 @@ export class ExternalAccessController {
             schemaVersion: SCHEMA_VERSION,
             methods: Object.keys(RPC_METHODS),
             peer: {
-              name: truncatePeerText(name),
+              name,
               ...(product ? { product } : {}),
-              ...(productVersion ? { productVersion: truncatePeerText(productVersion) } : {}),
-              extensionVersion: truncatePeerText(chrome.runtime.getManifest().version),
+              ...(productVersion ? { productVersion } : {}),
+              extensionVersion: chrome.runtime.getManifest().version,
             },
           },
         });
@@ -235,7 +231,10 @@ export class ExternalAccessController {
   }
 
   private async onEstablished(key?: string): Promise<void> {
-    if (!this.active) return;
+    // stop() 之后迟到的通知不能让已废弃的接入复活；但 SW 在配对握手期间重启会丢掉内存里的 active，
+    // 而 daemon 已登记这把新密钥，此时必须落盘并接管这条连接。
+    if (this.status === "disabled") return;
+    this.active = true;
     const pending = this.pending;
     if (key) this.systemConfig.setExternalAccessPairing({ key });
     if (pending?.renameTo) {

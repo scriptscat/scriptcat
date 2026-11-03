@@ -56,6 +56,12 @@ export type ExternalAccessIdentity = {
   name: string;
 };
 
+// 与 sctl 的实例名称规则一致。scriptcat 是 sctl 为旧版 ScriptCat 保留的名称，daemon 必然拒绝；
+// 接入时它会在认证后才被拒，白白消耗一次性配对码，所以在本地就拦下。
+export function isValidExternalAccessName(name: unknown): name is string {
+  return typeof name === "string" && /^[a-z0-9-]{1,32}$/.test(name) && name !== "scriptcat";
+}
+
 export function externalAccessProduct() {
   const browser = getBrowserType();
   if (browser.firefox) return "Firefox";
@@ -66,10 +72,11 @@ export function externalAccessProduct() {
 }
 
 // getBrowserVersion() 只认 Chrome/ 标记；Firefox 与 Safari 的 UA 不带它，各自从品牌版本标记读取。
+// UA 可被用户改写；sctl 限定自报文本不超过 64 字节，超长会被 daemon 断开，而这里的匹配结果只含 ASCII 数字与点。
 export function externalAccessProductVersion(): string | undefined {
   const browser = getBrowserType();
-  if (browser.firefox) return navigator.userAgent.match(/Firefox\/(\d[\d.]*)/)?.[1];
-  if (browser.webkit) return navigator.userAgent.match(/Version\/(\d[\d.]*)/)?.[1];
+  if (browser.firefox) return navigator.userAgent.match(/Firefox\/(\d[\d.]*)/)?.[1]?.slice(0, 64);
+  if (browser.webkit) return navigator.userAgent.match(/Version\/(\d[\d.]*)/)?.[1]?.slice(0, 64);
   if (!browser.chrome) return undefined;
   const version = getBrowserVersion();
   return Number.isFinite(version) && version > 0 ? String(version) : undefined;
@@ -747,7 +754,7 @@ export class SystemConfig {
   }
 
   private async externalAccessIdentity(name?: string): Promise<ExternalAccessIdentity> {
-    // 页面、后台及隐身上下文可能同时首次读取；跨上下文锁保证只生成一份身份。
+    // 扩展页面与后台可能同时首次读取；用 Web Locks 串行化读-生成-写，保证只生成一份身份。
     // 身份没有历史同步数据，不能走普通配置的 sync → local 迁移路径。
     return navigator.locks.request("scriptcat-external-access-identity", async () => {
       const key = "system_external_access_identity";

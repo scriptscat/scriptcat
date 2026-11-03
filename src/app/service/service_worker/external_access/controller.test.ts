@@ -3,7 +3,7 @@ import { ExternalAccessController } from "./controller";
 import { SystemConfig } from "@App/pkg/config/config";
 import { MessageQueue } from "@Packages/message/message_queue";
 import type { WSEnvelope } from "./types";
-import { mockIdentityLock } from "./test-locks";
+import { mockWebLocks } from "@Tests/mockWebLocks";
 import * as browserUtils from "@App/pkg/utils/utils";
 
 // Captures the relay handlers ExternalAccessController registers on its Group so tests can feed decoded
@@ -38,7 +38,7 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
   let fake: ReturnType<typeof makeFakeGroup>;
 
   beforeEach(() => {
-    mockIdentityLock();
+    mockWebLocks();
     vi.spyOn(chrome.runtime, "getManifest").mockReturnValue({ ...chrome.runtime.getManifest(), version: "1.5.0" });
     chrome.storage.local.clear();
     chrome.storage.sync.clear();
@@ -129,16 +129,20 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
     });
   });
 
-  it.each(["", "Bad", " ", "a".repeat(33), "a_b", "工作"])("无效名称 %j 不拨号、不改名", async (invalid) => {
-    const controller = makeController();
-    await controller.initialize();
-    const { name } = await systemConfig.getExternalAccessIdentity();
-    expect(await controller.enroll("code", invalid)).toBe("invalid-name");
-    expect(await controller.rename(invalid)).toBe("invalid-name");
-    expect(connectClient.connect).not.toHaveBeenCalled();
-    expect((await controller.getStatus()).name).toBe(name);
-    expect((await systemConfig.getExternalAccessIdentity()).name).toBe(name);
-  });
+  // scriptcat 是 sctl 为旧版 ScriptCat 保留的名称，daemon 必然拒绝；接入时发出去会白白消耗一次性配对码。
+  it.each(["", "Bad", " ", "a".repeat(33), "a_b", "工作", "scriptcat"])(
+    "无效名称 %j 不拨号、不改名",
+    async (invalid) => {
+      const controller = makeController();
+      await controller.initialize();
+      const { name } = await systemConfig.getExternalAccessIdentity();
+      expect(await controller.enroll("code", invalid)).toBe("invalid-name");
+      expect(await controller.rename(invalid)).toBe("invalid-name");
+      expect(connectClient.connect).not.toHaveBeenCalled();
+      expect((await controller.getStatus()).name).toBe(name);
+      expect((await systemConfig.getExternalAccessIdentity()).name).toBe(name);
+    }
+  );
 
   it("未连接时改名保存到下一次连接", async () => {
     const controller = makeController();
@@ -206,18 +210,22 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
     );
   });
 
-  it.each([63, 64, 65])("能力声明自报文本在 %i UTF-8 字节边界不拆字符", async (bytes) => {
-    const text = "a".repeat(bytes - 4) + "😀";
-    vi.spyOn(chrome.runtime, "getManifest").mockReturnValue({ ...chrome.runtime.getManifest(), version: text });
-    vi.spyOn(browserUtils, "getBrowserVersion").mockReturnValue(Number.NaN);
-    await chrome.storage.local.set({ system_external_access_identity: { instanceId: "ab".repeat(16), name: text } });
+  it.each([64, 65])("能力声明自报的浏览器版本截断到 64 字节（UA 中版本为 %i 字节）", async (length) => {
+    vi.spyOn(browserUtils, "getBrowserType").mockReturnValue({
+      firefox: 1,
+      webkit: 0,
+      chrome: 0,
+      unknown: 0,
+      chromeVersion: 0,
+      device: 0,
+    });
+    const version = "1." + "0".repeat(length - 2);
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(
+      `Mozilla/5.0 (X11; rv:130.0) Gecko/20100101 Firefox/${version}`
+    );
     await initEnrolled();
     await fake.relayEnvelope({ jsonrpc: "2.0", method: "$session.hello", params: { daemonVersion: "1" } });
-    const peer = connectClient.send.mock.calls[0][0].params.peer;
-    const expected = bytes <= 64 ? text : "a".repeat(bytes - 4);
-    expect(peer.name).toBe(expected);
-    expect(peer.extensionVersion).toBe(expected);
-    expect(peer).not.toHaveProperty("productVersion");
+    expect(connectClient.send.mock.calls[0][0].params.peer.productVersion).toBe(version.slice(0, 64));
   });
 
   it("被拒后重新接入时名称冲突要求新配对码，并保留原密钥", async () => {
@@ -239,6 +247,33 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
     await restarted.initialize();
     expect((await restarted.getStatus()).status).toBe("pending_enrollment");
     expect(connectClient.connect).toHaveBeenCalledTimes(2);
+  });
+
+  it("SW 在配对握手期间重启，配对完成时仍保存新密钥并转为已连接", async () => {
+    systemConfig.setExternalAccessEnabled(true);
+    const controller = makeController();
+    await controller.initialize();
+    void controller.enroll("PAIR-CODE", "work");
+    await vi.waitFor(() => expect(connectClient.connect).toHaveBeenCalledTimes(1));
+    // 重启丢掉 SW 内存中的控制器，offscreen 里的配对连接仍在继续。
+    const restarted = makeController();
+    await restarted.initialize();
+    expect((await restarted.getStatus()).status).toBe("pending_enrollment");
+    await fake.established("newkey");
+    expect(await systemConfig.getExternalAccessPairing()).toEqual({ key: "newkey" });
+    expect(await restarted.getStatus()).toMatchObject({ status: "connected", name: "work" });
+  });
+
+  it("停止接入后迟到的 established 不保存密钥", async () => {
+    systemConfig.setExternalAccessEnabled(true);
+    const controller = makeController();
+    await controller.initialize();
+    void controller.enroll("PAIR-CODE", "work");
+    await vi.waitFor(() => expect(connectClient.connect).toHaveBeenCalledTimes(1));
+    controller.stop();
+    await fake.established("newkey");
+    expect(await systemConfig.getExternalAccessPairing()).toEqual({ key: "" });
+    expect((await controller.getStatus()).status).toBe("disabled");
   });
 
   it("停止接入优先于尚未落盘的拒绝通知", async () => {
