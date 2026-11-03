@@ -283,12 +283,22 @@ export type ExternalAccessBridgeStatus =
   | "pending_enrollment"
   | "connecting"
   | "connected"
-  | "host_unreachable";
+  | "host_unreachable"
+  | "rejected";
 
-// getStatus / ExternalAccessStatusChanged payload: the bare status plus the daemon version reported
-// by the hello handshake. daemonVersion is only carried while connected; the status bar renders it
-// as "sctl v{daemonVersion}".
+export type ExternalAccessRejectionReason = "refused" | "name-taken";
+// 接入时 name-taken 表示配对码已被消费，改名后需重新运行 sctl connect。
+// not-connected：连接失败/认证拒绝、操作被停止，或隐身/已有操作进行中而不能开始。
+// ok 在能力声明接受后返回；存储或内部消息错误仍通过 Promise rejection 传递。
+export type ExternalAccessEnrollResult = "ok" | "invalid-name" | "name-taken" | "not-connected";
+// 未连接时只保存名称；已连接时等 daemon 确认，冲突会用原名恢复连接。
+export type ExternalAccessRenameResult = ExternalAccessEnrollResult | "applies-next-connection";
+
+// getStatus / ExternalAccessStatusChanged 共用。name 为当前保存的实例名称，
+// reason 仅在 rejected 时携带；daemonVersion 仅在 connected 时展示。
 export interface ExternalAccessBridgeStatusInfo {
   status: ExternalAccessBridgeStatus;
+  name: string;
+  reason?: ExternalAccessRejectionReason;
   daemonVersion?: string;
 }

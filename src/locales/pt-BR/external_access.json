@@ -3,6 +3,7 @@
   "section_desc": "Permite que programas em execução nesta máquina — a CLI sctl e clientes de IA via MCP — conectem-se e controlem seus scripts.",
   "enable_switch": "Ativar acesso externo",
   "status_off": "Desligado",
+  "status_rejected": "Rejeitado pelo sctl",
   "status_pending_enrollment": "Aguardando vinculação",
   "status_connecting": "Conectando",
   "status_connected": "Conectado",

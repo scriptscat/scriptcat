@@ -728,18 +728,32 @@ export class SystemConfig {
     return this._get<ExternalAccessPairing>("external_access_pairing", { key: "" });
   }
 
-  async getExternalAccessIdentity(): Promise<ExternalAccessIdentity> {
+  getExternalAccessIdentity(): Promise<ExternalAccessIdentity> {
+    return this.externalAccessIdentity();
+  }
+
+  setExternalAccessName(name: string): Promise<ExternalAccessIdentity> {
+    return this.externalAccessIdentity(name);
+  }
+
+  private async externalAccessIdentity(name?: string): Promise<ExternalAccessIdentity> {
     // 页面、后台及隐身上下文可能同时首次读取；跨上下文锁保证只生成一份身份。
     // 身份没有历史同步数据，不能走普通配置的 sync → local 迁移路径。
     return navigator.locks.request("scriptcat-external-access-identity", async () => {
       const key = "system_external_access_identity";
       const stored = await chrome.storage.local.get(key);
-      if (stored[key]) return stored[key] as ExternalAccessIdentity;
+      if (stored[key]) {
+        const identity = stored[key] as ExternalAccessIdentity;
+        if (name === undefined || identity.name === name) return identity;
+        const renamed = { ...identity, name };
+        await chrome.storage.local.set({ [key]: renamed });
+        return renamed;
+      }
       const instanceId = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
         byte.toString(16).padStart(2, "0")
       ).join("");
       const slug = externalAccessProduct()?.toLowerCase() ?? "scriptcat";
-      const identity = { instanceId, name: `${slug}-${instanceId.slice(0, 4)}` };
+      const identity = { instanceId, name: name ?? `${slug}-${instanceId.slice(0, 4)}` };
       await chrome.storage.local.set({ [key]: identity });
       return identity;
     });

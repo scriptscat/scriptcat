@@ -3,6 +3,7 @@
   "section_desc": "让本机运行的程序（命令行 sctl 与经 MCP 的 AI 客户端）接入并控制你的脚本。",
   "enable_switch": "启用外部接入",
   "status_off": "未启用",
+  "status_rejected": "已被 sctl 拒绝",
   "status_pending_enrollment": "待接入",
   "status_connecting": "连接中",
   "status_connected": "已接入",

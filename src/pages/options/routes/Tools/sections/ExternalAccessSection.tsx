@@ -38,6 +38,7 @@ const STATUS_VARIANT: Record<ExternalAccessBridgeStatus, "secondary" | "success"
   connecting: "warning",
   connected: "success",
   host_unreachable: "destructive",
+  rejected: "destructive",
 };
 
 // 深链到日志页并以 component=external-access 预过滤（设计 §4，Logger 路由已支持 ?query=）。
@@ -56,6 +57,7 @@ function StatusPill({ status, t }: { status: ExternalAccessBridgeStatus; t: (key
     connecting: "external_access:status_connecting",
     connected: "external_access:status_connected",
     host_unreachable: "external_access:status_host_unreachable",
+    rejected: "external_access:status_rejected",
   };
   return (
     <Badge variant={STATUS_VARIANT[status]} data-testid="external_access_status_pill">
@@ -122,8 +124,8 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [enabled, setEnabled] = useState(false);
-  const [status, setStatus] = useState<ExternalAccessBridgeStatus>("disabled");
-  const [daemonVersion, setDaemonVersion] = useState<string>();
+  const [statusInfo, setStatusInfo] = useState<ExternalAccessBridgeStatusInfo>();
+  const { status = "disabled", daemonVersion } = statusInfo ?? {};
   const [writePolicy, setWritePolicy] = useState<ExternalAccessWritePolicy>("approval");
   const [sourcePolicy, setSourcePolicy] = useState<ExternalAccessSourceReadPolicy>("approval");
   const [mcpUrl, setExternalAccessUrl] = useState("");
@@ -137,19 +139,13 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
     void systemConfig.getExternalAccessUrl().then(setExternalAccessUrl);
     void externalAccessClient
       .getBridgeStatus()
-      .then((info) => {
-        setStatus(info.status);
-        setDaemonVersion(info.daemonVersion);
-      })
-      .catch(() => setStatus("disabled"));
+      .then(setStatusInfo)
+      .catch(() => setStatusInfo(undefined));
   }, []);
 
   // ExternalAccessController 的状态机在 SW 里推进（接入完成、hello 到达、socket 断开），页面订阅广播以实时更新。
   useEffect(() => {
-    return subscribeMessage<ExternalAccessBridgeStatusInfo>("mcpStatusChanged", (data) => {
-      setStatus(data.status);
-      setDaemonVersion(data.daemonVersion);
-    });
+    return subscribeMessage<ExternalAccessBridgeStatusInfo>("mcpStatusChanged", setStatusInfo);
   }, []);
 
   const handleEnableToggle = (checked: boolean) => {
@@ -174,8 +170,8 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
 
   const handleEnroll = async () => {
     const c = code.trim();
-    if (!c) return;
-    await externalAccessClient.enroll(c);
+    if (!c || !statusInfo) return;
+    await externalAccessClient.enroll(c, statusInfo.name);
     setCode("");
     setShowEnroll(false);
     // 此刻只是把配对码交给 daemon，握手成败未知（码错/sctl 未运行都会转「连接失败」），故是进行中而非成功。
@@ -323,7 +319,7 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
                   data-testid="external_access_retry"
                   size="xs"
                   variant="outline"
-                  onClick={() => void externalAccessClient.getBridgeStatus().then((info) => setStatus(info.status))}
+                  onClick={() => void externalAccessClient.getBridgeStatus().then(setStatusInfo)}
                 >
                   {t("external_access:retry")}
                 </Button>

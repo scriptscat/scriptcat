@@ -3,6 +3,7 @@
   "section_desc": "Let programs running on this machine — the sctl CLI and AI clients over MCP — connect to and control your scripts.",
   "enable_switch": "Enable External Access",
   "status_off": "Off",
+  "status_rejected": "Rejected by sctl",
   "status_pending_enrollment": "Pending enrollment",
   "status_connecting": "Connecting",
   "status_connected": "Connected",

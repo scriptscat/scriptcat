@@ -3,6 +3,7 @@
   "section_desc": "このマシンで動作するプログラム（sctl CLI と MCP 経由の AI クライアント）がスクリプトに接続して制御できるようにします。",
   "enable_switch": "外部アクセスを有効化",
   "status_off": "無効",
+  "status_rejected": "sctl により拒否されました",
   "status_pending_enrollment": "登録待ち",
   "status_connecting": "接続中",
   "status_connected": "接続済み",

@@ -3,6 +3,7 @@
   "section_desc": "Erlaubt auf diesem Rechner laufenden Programmen – der sctl-CLI und KI-Clients über MCP – den Zugriff auf und die Steuerung deiner Skripte.",
   "enable_switch": "Externen Zugriff aktivieren",
   "status_off": "Aus",
+  "status_rejected": "Von sctl abgelehnt",
   "status_pending_enrollment": "Registrierung ausstehend",
   "status_connecting": "Verbinde …",
   "status_connected": "Verbunden",

@@ -14,6 +14,7 @@ describe("ExternalAccessUIService（外部接入页端点）", () => {
   let controller: {
     getStatus: ReturnType<typeof vi.fn>;
     enroll: ReturnType<typeof vi.fn>;
+    rename: ReturnType<typeof vi.fn>;
     stop: ReturnType<typeof vi.fn>;
   };
   let systemConfig: SystemConfig;
@@ -34,8 +35,9 @@ describe("ExternalAccessUIService（外部接入页端点）", () => {
       new TempStorageDAO()
     );
     controller = {
-      getStatus: vi.fn().mockReturnValue({ status: "connected", daemonVersion: "1.0.0" }),
-      enroll: vi.fn(),
+      getStatus: vi.fn().mockResolvedValue({ status: "connected", daemonVersion: "1.0.0" }),
+      enroll: vi.fn().mockResolvedValue("name-taken"),
+      rename: vi.fn().mockResolvedValue("applies-next-connection"),
       stop: vi.fn(),
     };
     systemConfig = new SystemConfig(new MessageQueue());
@@ -53,19 +55,22 @@ describe("ExternalAccessUIService（外部接入页端点）", () => {
         "operationDecision",
         "operationReopen",
         "pendingOperations",
+        "rename",
         "status",
         "stopExternalAccess",
       ].sort()
     );
   });
 
-  it("status 返回控制器状态（含 sctl 版本）", () => {
-    expect(handlers["status"]()).toEqual({ status: "connected", daemonVersion: "1.0.0" });
+  it("status 返回控制器状态（含 sctl 版本）", async () => {
+    expect(await handlers["status"]()).toEqual({ status: "connected", daemonVersion: "1.0.0" });
   });
 
-  it("enroll 转发配对码给控制器", () => {
-    handlers["enroll"]("CODE-1234");
-    expect(controller.enroll).toHaveBeenCalledWith("CODE-1234");
+  it("接入与改名返回控制器的结果", async () => {
+    expect(await handlers["enroll"]({ code: "CODE-1234", name: "work" })).toBe("name-taken");
+    expect(controller.enroll).toHaveBeenCalledWith("CODE-1234", "work");
+    expect(await handlers["rename"]("work")).toBe("applies-next-connection");
+    expect(controller.rename).toHaveBeenCalledWith("work");
   });
 
   it("operationDecision 透传 enable / rememberSession 给 approval.decide", () => {

@@ -3,6 +3,7 @@
   "section_desc": "Bu makinede çalışan programların — sctl CLI ve MCP üzerinden yapay zekâ istemcileri — betiklerinize bağlanmasına ve onları denetlemesine izin verir.",
   "enable_switch": "Harici Erişimi Etkinleştir",
   "status_off": "Kapalı",
+  "status_rejected": "sctl tarafından reddedildi",
   "status_pending_enrollment": "Eşleştirme bekleniyor",
   "status_connecting": "Bağlanıyor",
   "status_connected": "Bağlandı",

@@ -13,8 +13,9 @@ function makeFakeGroup() {
   return {
     group: { on: (name: string, fn: (params: any) => any) => (handlers[name] = fn) } as any,
     relayEnvelope: (env: WSEnvelope) => handlers["envelope"](env),
-    relayPaired: (key: string) => handlers["paired"]({ key }),
-    relayDisconnected: () => handlers["disconnected"](undefined),
+    established: (key?: string) => handlers["established"]({ key }),
+    relayDisconnected: (reason?: "refused" | "name-taken", mode = "session") =>
+      handlers["disconnected"]({ reason, mode }),
   };
 }
 
@@ -78,14 +79,14 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
     const controller = makeController();
     await controller.initialize();
     expect(connectClient.connect).not.toHaveBeenCalled();
-    expect(controller.getStatus().status).toBe("disabled");
+    expect((await controller.getStatus()).status).toBe("disabled");
   });
 
   it("已启用但未接入时不拨号，状态为 pending_enrollment", async () => {
     const controller = makeController();
     await controller.initialize();
     systemConfig.setExternalAccessEnabled(true);
-    await vi.waitFor(() => expect(controller.getStatus().status).toBe("pending_enrollment"));
+    await vi.waitFor(async () => expect((await controller.getStatus()).status).toBe("pending_enrollment"));
     expect(connectClient.connect).not.toHaveBeenCalled();
   });
 
@@ -116,28 +117,58 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
       systemConfig.setExternalAccessEnabled(true);
       const controller = await initEnrolled("abc123");
       expect(connectClient.connect).not.toHaveBeenCalled();
-      expect(controller.getStatus().status).toBe("disabled");
+      expect((await controller.getStatus()).status).toBe("disabled");
     });
 
     it("enroll(code) 不以配对模式拨号", async () => {
       const controller = makeController();
       await controller.initialize();
-      await controller.enroll("PAIR-CODE");
+      await controller.enroll("PAIR-CODE", "private");
       expect(connectClient.connect).not.toHaveBeenCalled();
-      expect(controller.getStatus().status).toBe("disabled");
+      expect((await controller.getStatus()).status).toBe("disabled");
     });
+  });
+
+  it.each(["", "Bad", " ", "a".repeat(33), "a_b", "工作"])("无效名称 %j 不拨号、不改名", async (invalid) => {
+    const controller = makeController();
+    await controller.initialize();
+    const { name } = await systemConfig.getExternalAccessIdentity();
+    expect(await controller.enroll("code", invalid)).toBe("invalid-name");
+    expect(await controller.rename(invalid)).toBe("invalid-name");
+    expect(connectClient.connect).not.toHaveBeenCalled();
+    expect((await controller.getStatus()).name).toBe(name);
+    expect((await systemConfig.getExternalAccessIdentity()).name).toBe(name);
+  });
+
+  it("未连接时改名保存到下一次连接", async () => {
+    const controller = makeController();
+    await controller.initialize();
+    const identity = await systemConfig.getExternalAccessIdentity();
+    expect(await controller.rename("work")).toBe("applies-next-connection");
+    expect(await systemConfig.getExternalAccessIdentity()).toEqual({ ...identity, name: "work" });
+    expect((await controller.getStatus()).name).toBe("work");
+    expect(connectClient.connect).not.toHaveBeenCalled();
+    systemConfig.setExternalAccessPairing({ key: "test-key" });
+    systemConfig.setExternalAccessEnabled(true);
+    await vi.waitFor(() => expect(connectClient.connect).toHaveBeenCalledTimes(1));
+    await fake.relayEnvelope({ jsonrpc: "2.0", method: "$session.hello", params: { daemonVersion: "1" } });
+    expect(connectClient.send.mock.lastCall?.[0].params.peer.name).toBe("work");
   });
 
   it("enroll(code) 以配对模式拨号", async () => {
     const controller = makeController();
     await controller.initialize();
-    await controller.enroll("PAIR-CODE");
+    const result = controller.enroll("PAIR-CODE", "work");
+    await vi.waitFor(() => expect(connectClient.connect).toHaveBeenCalled());
     expect(connectClient.connect).toHaveBeenCalledWith({
       url: DEFAULT_URL,
       auth: { mode: "pairing", code: "PAIR-CODE" },
       instanceId: (await systemConfig.getExternalAccessIdentity()).instanceId,
     });
-    expect(controller.getStatus().status).toBe("connecting");
+    expect(await controller.getStatus()).toMatchObject({ status: "connecting", name: "work" });
+    await fake.established("newkey");
+    expect(await result).toBe("ok");
+    expect(await systemConfig.getExternalAccessPairing()).toEqual({ key: "newkey" });
   });
 
   it.each(["Chrome", "Edge", "Firefox", "Safari", undefined])("能力声明包含名称与 %s 产品信息", async (product) => {
@@ -183,14 +214,85 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
     expect(peer).not.toHaveProperty("productVersion");
   });
 
-  it("接入成功（paired）时持久化长期密钥 K", async () => {
-    const controller = makeController();
-    await controller.initialize();
-    fake.relayPaired("newkey");
-    await vi.waitFor(async () => expect((await systemConfig.getExternalAccessPairing()).key).toBe("newkey"));
+  it("被拒后重新接入时名称冲突要求新配对码，并保留原密钥", async () => {
+    systemConfig.setExternalAccessEnabled(true);
+    const controller = await initEnrolled();
+    const publish = vi.spyOn(mq, "publish");
+    await fake.relayDisconnected("refused");
+    const rejected = await controller.getStatus();
+    expect(rejected).toMatchObject({ status: "rejected", reason: "refused" });
+    await vi.waitFor(() => expect(publish).toHaveBeenCalledWith("mcpStatusChanged", rejected));
+    const result = controller.enroll("CODE", "work");
+    await vi.waitFor(() => expect(connectClient.connect).toHaveBeenCalledTimes(2));
+    expect((await controller.getStatus()).status).toBe("connecting");
+    await fake.relayDisconnected("name-taken", "pairing");
+    expect(await result).toBe("name-taken");
+    expect((await controller.getStatus()).status).toBe("pending_enrollment");
+    expect(await systemConfig.getExternalAccessPairing()).toEqual({ key: "deadbeef" });
+    const restarted = makeController();
+    await restarted.initialize();
+    expect((await restarted.getStatus()).status).toBe("pending_enrollment");
+    expect(connectClient.connect).toHaveBeenCalledTimes(2);
+  });
+
+  it("停止接入优先于尚未落盘的拒绝通知", async () => {
+    systemConfig.setExternalAccessEnabled(true);
+    const controller = await initEnrolled();
+    const disconnected = fake.relayDisconnected("refused");
+    controller.stop();
+    await disconnected;
+    expect((await controller.getStatus()).status).toBe("disabled");
+  });
+
+  it("SW 重新启动不会自动重试已拒绝的实例", async () => {
+    systemConfig.setExternalAccessEnabled(true);
+    await initEnrolled();
+    await fake.relayDisconnected("refused");
+    const restarted = makeController();
+    await restarted.initialize();
+    expect(await restarted.getStatus()).toMatchObject({ status: "rejected", reason: "refused" });
+    expect(connectClient.connect).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["toggle", "rename"])("被拒后 %s 重新拨号", async (action) => {
+    systemConfig.setExternalAccessEnabled(true);
+    const controller = await initEnrolled();
+    await fake.relayDisconnected("name-taken");
+    expect(await controller.getStatus()).toMatchObject({ status: "rejected", reason: "name-taken" });
+    if (action === "toggle") {
+      systemConfig.setExternalAccessEnabled(false);
+      await vi.waitFor(async () => expect((await controller.getStatus()).status).toBe("disabled"));
+      systemConfig.setExternalAccessEnabled(true);
+    } else expect(await controller.rename("work")).toBe("applies-next-connection");
+    await vi.waitFor(() => expect(connectClient.connect).toHaveBeenCalledTimes(2));
+    expect((await controller.getStatus()).status).toBe("connecting");
+  });
+
+  it.each([false, true])("连接时改名以能力声明确认结果，冲突=%s", async (conflict) => {
+    systemConfig.setExternalAccessEnabled(true);
+    const controller = await initEnrolled();
+    await fake.established();
+    const old = (await controller.getStatus()).name;
+    const result = controller.rename("work");
+    await vi.waitFor(() => expect(connectClient.connect).toHaveBeenCalledTimes(2));
+    const hello = { jsonrpc: "2.0", method: "$session.hello", params: { daemonVersion: "1" } } as const;
+    await fake.relayEnvelope(hello);
+    expect(connectClient.send.mock.lastCall?.[0].params.peer.name).toBe("work");
+    expect((await systemConfig.getExternalAccessIdentity()).name).toBe(old);
+    if (conflict) {
+      await fake.relayDisconnected("name-taken");
+      await vi.waitFor(() => expect(connectClient.connect).toHaveBeenCalledTimes(3));
+      await fake.relayEnvelope(hello);
+      expect(connectClient.send.mock.lastCall?.[0].params.peer.name).toBe(old);
+    }
+    await fake.established();
+    expect(await result).toBe(conflict ? "name-taken" : "ok");
+    expect(await controller.getStatus()).toMatchObject({ status: "connected", name: conflict ? old : "work" });
+    expect((await systemConfig.getExternalAccessIdentity()).name).toBe(conflict ? old : "work");
   });
 
   it("hello 只展示 daemon 版本，不按产品版本阻断兼容的 bridge 调用", async () => {
+    systemConfig.setExternalAccessEnabled(true);
     const controller = await initEnrolled();
     await fake.relayEnvelope({
       jsonrpc: "2.0",
@@ -198,14 +300,24 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
       params: { daemonVersion: "0.1.0" },
     });
     // hello 携带 daemonVersion，状态条据此显示「sctl v{daemonVersion}」。
-    expect(controller.getStatus()).toEqual({ status: "connected", daemonVersion: "0.1.0" });
+    await fake.established();
+    expect(await controller.getStatus()).toEqual({
+      status: "connected",
+      daemonVersion: "0.1.0",
+      name: (await systemConfig.getExternalAccessIdentity()).name,
+    });
 
     await fake.relayEnvelope({
       jsonrpc: "2.0",
       method: "$session.hello",
       params: { daemonVersion: "0.0.1" },
     });
-    expect(controller.getStatus()).toEqual({ status: "connected", daemonVersion: "0.0.1" });
+    await fake.established();
+    expect(await controller.getStatus()).toEqual({
+      status: "connected",
+      daemonVersion: "0.0.1",
+      name: (await systemConfig.getExternalAccessIdentity()).name,
+    });
     fake.relayEnvelope({
       jsonrpc: "2.0",
       id: "req",
@@ -262,16 +374,22 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
   });
 
   it("socket 断开时状态转为 host_unreachable 并清除 sctl 版本", async () => {
+    systemConfig.setExternalAccessEnabled(true);
     const controller = await initEnrolled();
     await fake.relayEnvelope({
       jsonrpc: "2.0",
       method: "$session.hello",
       params: { daemonVersion: "0.1.0" },
     });
-    fake.relayDisconnected();
+    await fake.established();
+    await fake.relayDisconnected();
     expect(bridgeCancel).toHaveBeenCalledWith();
-    // 断开后不再连接，之前 hello 报告的版本不应残留。
-    expect(controller.getStatus()).toEqual({ status: "host_unreachable", daemonVersion: undefined });
+    // 重试期间之前 hello 报告的版本不应残留。
+    expect(await controller.getStatus()).toEqual({
+      status: "host_unreachable",
+      daemonVersion: undefined,
+      name: (await systemConfig.getExternalAccessIdentity()).name,
+    });
   });
 
   it("stop() 发送 shutdown、断开并置为 disabled", async () => {
@@ -282,6 +400,6 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
       expect.objectContaining({ jsonrpc: "2.0", method: "$session.shutdown" })
     );
     expect(connectClient.disconnect).toHaveBeenCalled();
-    expect(controller.getStatus().status).toBe("disabled");
+    expect((await controller.getStatus()).status).toBe("disabled");
   });
 });

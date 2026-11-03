@@ -10,6 +10,7 @@ import type {
   AuthMode,
   AuthOkPayload,
   AuthResponsePayload,
+  ExternalAccessRejectionReason,
   WSEnvelope,
 } from "../service_worker/external_access/types";
 
@@ -174,6 +175,10 @@ export class ExternalAccessConnect {
   private epoch = 0;
   private currentParams: ExternalAccessConnectParam | null = null;
   private handshakeComplete = false;
+  private opened = false;
+  private capabilitiesId?: string;
+  private pairedKey?: string;
+  private conflict = false;
   // 已发出认证响应、等待 $session.authenticated 校验期间保留的握手素材。
   private pendingVerify: { verifyKey: Bytes; nonceD: string; nonceE: string; mode: AuthMode; enc?: Bytes } | null =
     null;
@@ -207,7 +212,6 @@ export class ExternalAccessConnect {
   private startSession(params: ExternalAccessConnectParam): void {
     this.dispose();
     this.currentParams = params;
-    this.epoch++;
     this.connect(this.epoch);
   }
 
@@ -226,22 +230,39 @@ export class ExternalAccessConnect {
       }, CONFIG.CONNECT_TIMEOUT);
 
       this.ws.onopen = () => this.handleOpen(sessionEpoch);
-      this.ws.onmessage = (ev) => void this.handleMessage(ev, sessionEpoch);
-      this.ws.onclose = () => this.handleClose(sessionEpoch);
+      // daemon 可连续发 authenticated 与 hello。按线上的顺序完成异步密码校验，再处理后续帧和关闭事件。
+      let frames: Promise<void> | undefined;
+      this.ws.onmessage = (ev) => {
+        const processing = (frames ?? Promise.resolve())
+          .then(() => this.handleMessage(ev, sessionEpoch))
+          .catch((error: unknown) => {
+            this.logger.warn("Failed to process WebSocket frame", Logger.E(error));
+            if (sessionEpoch === this.epoch) this.ws?.close();
+          });
+        frames = processing;
+        void processing.then(() => {
+          if (frames === processing) frames = undefined;
+        });
+      };
+      this.ws.onclose = ({ code }) => {
+        if (frames) void frames.then(() => this.handleClose(sessionEpoch, code));
+        else this.handleClose(sessionEpoch, code);
+      };
       this.ws.onerror = (ev) => this.handleError(ev, sessionEpoch);
     } catch (e) {
       this.logger.error("WebSocket creation failed", Logger.E(e));
-      this.handleError(e, sessionEpoch);
+      this.handleClose(sessionEpoch, 1006);
     }
   }
 
   private handleOpen(sessionEpoch: number): void {
     if (sessionEpoch !== this.epoch) return;
+    this.opened = true;
     this.logger.info("WebSocket connected, awaiting $session.authenticate");
     this.clearTimer("connectTimeoutTimer");
-    // 握手必须在 authTimeoutMs 内完成，否则断开重连（PROTOCOL §3）。
+    // 认证与能力声明必须在 authTimeoutMs 内完成，否则接入/改名调用可能永不返回。
     this.authTimeoutTimer = setTimeout(() => {
-      if (sessionEpoch === this.epoch && !this.handshakeComplete) {
+      if (sessionEpoch === this.epoch) {
         this.logger.warn("Auth handshake timeout");
         this.ws?.close();
       }
@@ -263,6 +284,22 @@ export class ExternalAccessConnect {
 
     if (!this.handshakeComplete) {
       await this.handleHandshakeMessage(envelope, sessionEpoch);
+      return;
+    }
+
+    if (!envelope.method && envelope.id && envelope.id === this.capabilitiesId) {
+      this.capabilitiesId = undefined;
+      if (envelope.error) {
+        this.conflict = envelope.error.data?.code === "CONFLICT";
+        this.ws?.close();
+      } else {
+        const key = this.pairedKey;
+        if (key && this.currentParams) this.currentParams = { ...this.currentParams, auth: { mode: "session", key } };
+        this.pairedKey = undefined;
+        this.reconnectDelay = CONFIG.BASE_RECONNECT_DELAY;
+        this.clearTimer("authTimeoutTimer");
+        await this.relay.established(key);
+      }
       return;
     }
 
@@ -332,7 +369,7 @@ export class ExternalAccessConnect {
       return;
     }
 
-    // 配对模式：解密 daemon 下发的长期密钥 K，持久化交给 SW，并把自身切到会话模式供后续重连。
+    // daemon 在接受名称之前已消费配对码并下发密钥；名称冲突时这把密钥不能落盘。
     if (pending.mode === "pairing") {
       if (!pending.enc || !payload.key) {
         this.logger.warn("pairing $session.authenticated missing key, closing");
@@ -341,14 +378,11 @@ export class ExternalAccessConnect {
       }
       const key = await decryptLongTermKey(pending.enc, payload.key.iv, payload.key.ciphertext);
       if (sessionEpoch !== this.epoch) return;
-      if (this.currentParams) this.currentParams = { ...this.currentParams, auth: { mode: "session", key } };
-      void this.relay.paired(key);
+      this.pairedKey = key;
     }
 
     this.pendingVerify = null;
     this.handshakeComplete = true;
-    this.clearTimer("authTimeoutTimer");
-    this.reconnectDelay = CONFIG.BASE_RECONNECT_DELAY;
     this.logger.info("Auth handshake complete");
   }
 
@@ -359,6 +393,7 @@ export class ExternalAccessConnect {
       this.logger.warn("Dropped outbound JSON-RPC message before handshake", { method: envelope.method });
       return;
     }
+    if (envelope.method === "$session.capabilities") this.capabilitiesId = envelope.id;
     this.rawSend(envelope);
   }
 
@@ -368,16 +403,19 @@ export class ExternalAccessConnect {
     }
   }
 
-  private handleClose(sessionEpoch: number): void {
-    if (sessionEpoch !== this.epoch) return;
-    this.clearTimer("connectTimeoutTimer");
-    this.clearTimer("authTimeoutTimer");
+  private handleClose(sessionEpoch: number, code: number): void {
+    if (sessionEpoch !== this.epoch || !this.currentParams) return;
+    const reason: ExternalAccessRejectionReason | undefined = this.conflict
+      ? "name-taken"
+      : this.opened && !this.handshakeComplete && code === 1008
+        ? "refused"
+        : undefined;
+    const mode = this.currentParams.auth.mode;
     this.ws = null;
-    this.handshakeComplete = false;
-    this.pendingVerify = null;
-    this.logger.debug("WebSocket connection closed");
-    void this.relay.disconnected();
-    this.scheduleReconnect();
+    this.dispose();
+    if (reason) this.currentParams = null;
+    void this.relay.disconnected(reason, mode);
+    if (!reason) this.scheduleReconnect();
   }
 
   private handleError(ev: Event | Error | unknown, sessionEpoch: number): void {
@@ -386,7 +424,7 @@ export class ExternalAccessConnect {
       event: ev instanceof Event ? ev.type : undefined,
       error: ev instanceof Error ? ev.message : String(ev),
     });
-    this.scheduleReconnect();
+    // 浏览器会紧接着发 close，只有 close 才能区分网络错误与 1008 拒绝。
   }
 
   private scheduleReconnect(): void {
@@ -410,6 +448,11 @@ export class ExternalAccessConnect {
   }
 
   private dispose(): void {
+    this.epoch++;
+    this.opened = false;
+    this.capabilitiesId = undefined;
+    this.pairedKey = undefined;
+    this.conflict = false;
     this.clearTimer("reconnectTimer");
     this.clearTimer("connectTimeoutTimer");
     this.clearTimer("authTimeoutTimer");

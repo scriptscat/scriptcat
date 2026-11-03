@@ -3,6 +3,7 @@
   "section_desc": "이 컴퓨터에서 실행되는 프로그램(sctl CLI 및 MCP를 통한 AI 클라이언트)이 스크립트에 연결하여 제어할 수 있도록 합니다.",
   "enable_switch": "외부 접근 사용",
   "status_off": "꺼짐",
+  "status_rejected": "sctl에서 거부됨",
   "status_pending_enrollment": "등록 대기 중",
   "status_connecting": "연결 중",
   "status_connected": "연결됨",

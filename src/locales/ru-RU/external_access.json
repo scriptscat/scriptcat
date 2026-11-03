@@ -3,6 +3,7 @@
   "section_desc": "Позволяет программам на этом компьютере — CLI sctl и ИИ-клиентам через MCP — подключаться к вашим скриптам и управлять ими.",
   "enable_switch": "Включить внешний доступ",
   "status_off": "Выключено",
+  "status_rejected": "Отклонено sctl",
   "status_pending_enrollment": "Ожидает подключения",
   "status_connecting": "Подключение…",
   "status_connected": "Подключено",

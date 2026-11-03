@@ -3,6 +3,7 @@
   "section_desc": "Cho phép các chương trình chạy trên máy này — CLI sctl và ứng dụng AI qua MCP — kết nối và điều khiển các tập lệnh của bạn.",
   "enable_switch": "Bật truy cập bên ngoài",
   "status_off": "Tắt",
+  "status_rejected": "Bị sctl từ chối",
   "status_pending_enrollment": "Đang chờ ghép nối",
   "status_connecting": "Đang kết nối",
   "status_connected": "Đã kết nối",
