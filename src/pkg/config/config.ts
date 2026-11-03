@@ -7,7 +7,7 @@ import { matchLanguage } from "@App/locales/locales";
 import { ExtVersion } from "@App/app/const";
 import defaultTypeDefinition from "@App/template/scriptcat.d.tpl";
 import type { ScriptTemplateOverrides } from "@App/pkg/utils/script_template";
-import { toCamelCase } from "../utils/utils";
+import { BrowserType, getBrowserType, getBrowserVersion, toCamelCase } from "../utils/utils";
 import EventEmitter from "eventemitter3";
 import { STORAGE_LOCAL_KEYS } from "./consts";
 
@@ -46,12 +46,41 @@ export type FaviconService = "none" | "scriptcat" | "google" | "duckduckgo" | "i
 export type ExternalAccessWritePolicy = "approval" | "allow";
 export type ExternalAccessSourceReadPolicy = "approval" | "allow";
 
-// MCP 配对成功后落地的长期共享密钥 K（小写 hex）与本扩展实例的客户端身份。
 // key 为空串表示尚未配对。仅存 chrome.storage.local，绝不跨设备同步。
 export type ExternalAccessPairing = {
   key: string;
-  clientId: string;
 };
+
+export type ExternalAccessIdentity = {
+  instanceId: string;
+  name: string;
+};
+
+// 与 sctl 的实例名称规则一致。scriptcat 是 sctl 为旧版 ScriptCat 保留的名称，daemon 必然拒绝；
+// 接入时它会在认证后才被拒，白白消耗一次性配对码，所以在本地就拦下。
+export function isValidExternalAccessName(name: unknown): name is string {
+  return typeof name === "string" && /^[a-z0-9-]{1,32}$/.test(name) && name !== "scriptcat";
+}
+
+export function externalAccessProduct() {
+  const browser = getBrowserType();
+  if (browser.firefox) return "Firefox";
+  if (browser.webkit) return "Safari";
+  if (browser.chrome & BrowserType.Edge) return "Edge";
+  if (browser.chrome & BrowserType.Chrome) return "Chrome";
+  return undefined;
+}
+
+// getBrowserVersion() 只认 Chrome/ 标记；Firefox 与 Safari 的 UA 不带它，各自从品牌版本标记读取。
+// UA 可被用户改写；sctl 限定自报文本不超过 64 字节，超长会被 daemon 断开，而这里的匹配结果只含 ASCII 数字与点。
+export function externalAccessProductVersion(): string | undefined {
+  const browser = getBrowserType();
+  if (browser.firefox) return navigator.userAgent.match(/Firefox\/(\d[\d.]*)/)?.[1]?.slice(0, 64);
+  if (browser.webkit) return navigator.userAgent.match(/Version\/(\d[\d.]*)/)?.[1]?.slice(0, 64);
+  if (!browser.chrome) return undefined;
+  const version = getBrowserVersion();
+  return Number.isFinite(version) && version > 0 ? String(version) : undefined;
+}
 
 export type CATFileStorage = {
   filesystem: FileSystemType;
@@ -713,7 +742,38 @@ export class SystemConfig {
   }
 
   getExternalAccessPairing() {
-    return this._get<ExternalAccessPairing>("external_access_pairing", { key: "", clientId: "" });
+    return this._get<ExternalAccessPairing>("external_access_pairing", { key: "" });
+  }
+
+  getExternalAccessIdentity(): Promise<ExternalAccessIdentity> {
+    return this.externalAccessIdentity();
+  }
+
+  setExternalAccessName(name: string): Promise<ExternalAccessIdentity> {
+    return this.externalAccessIdentity(name);
+  }
+
+  private async externalAccessIdentity(name?: string): Promise<ExternalAccessIdentity> {
+    // 扩展页面与后台可能同时首次读取；用 Web Locks 串行化读-生成-写，保证只生成一份身份。
+    // 身份没有历史同步数据，不能走普通配置的 sync → local 迁移路径。
+    return navigator.locks.request("scriptcat-external-access-identity", async () => {
+      const key = "system_external_access_identity";
+      const stored = await chrome.storage.local.get(key);
+      if (stored[key]) {
+        const identity = stored[key] as ExternalAccessIdentity;
+        if (name === undefined || identity.name === name) return identity;
+        const renamed = { ...identity, name };
+        await chrome.storage.local.set({ [key]: renamed });
+        return renamed;
+      }
+      const instanceId = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+        byte.toString(16).padStart(2, "0")
+      ).join("");
+      const slug = externalAccessProduct()?.toLowerCase() ?? "scriptcat";
+      const identity = { instanceId, name: name ?? `${slug}-${instanceId.slice(0, 4)}` };
+      await chrome.storage.local.set({ [key]: identity });
+      return identity;
+    });
   }
 
   setBlacklist(blacklist: string) {

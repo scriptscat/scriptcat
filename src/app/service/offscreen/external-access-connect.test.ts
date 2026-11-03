@@ -18,12 +18,32 @@ import { Server } from "@Packages/message/server";
 import EventEmitter from "eventemitter3";
 import { createCipheriv, createHmac, hkdfSync, randomBytes } from "node:crypto";
 import { CRYPTO, LIMITS } from "../service_worker/external_access/generated/protocol.generated";
+import { ExternalAccessConnectClient } from "./client";
 
 initTestEnv();
 
-const CTX = CRYPTO.context;
+// sctl Go Crypto.ScriptCat{Ext,Daemon}HMAC 生成的固定互操作向量。
+const vector = {
+  instanceId: "0123456789abcdef0123456789abcdef",
+  sessionKeyHex: "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+  nonceD: "aa11111111111111111111111111111111111111111111111111111111111111",
+  nonceE: "bb22222222222222222222222222222222222222222222222222222222222222",
+  pairingCode: "ABCD-EFGH",
+  sessionExtHmac: "044bb6d6f20efdd664e5c86e6c97127e1628784723b119149a93e7d0184ffa5c",
+  sessionDaemonHmac: "50bfad50a876b61b357ebfd9702feb1717fe7302acb08fbc87c588bf6d2c762d",
+  pairingExtHmac: "dd6e5d75790912cc8d530ac5cd7fef6d56b026ec48baa24d18a05c1f34a4848e",
+  pairingDaemonHmac: "f9954343b576e9388ea515635102cf74fb63db503c5a6cf08155ee6aa00fe037",
+  legacySessionExtHmac: "e522fd7aaa35892f1bbb76081e79946a8f8142d1c83c1dbc8804fe33dae99359",
+};
 
 // ────────────────────────────────────────────────
+const CTX = {
+  sessionExt: CRYPTO.context.scriptcatSessionExt + vector.instanceId,
+  sessionDaemon: CRYPTO.context.scriptcatSessionDaemon + vector.instanceId,
+  pairExt: CRYPTO.context.scriptcatPairExt + vector.instanceId,
+  pairDaemon: CRYPTO.context.scriptcatPairDaemon + vector.instanceId,
+};
+
 // 独立参照实现（node:crypto）——同时充当 daemon 模拟器，钉住线格式与 sctl 互操作
 // ────────────────────────────────────────────────
 
@@ -35,9 +55,9 @@ function nodeHmacHex(keyBytes: Uint8Array, context: string, a: string, b: string
 
 function nodePairingKeys(code: string): { mac: Buffer; enc: Buffer } {
   const ikm = Buffer.from(normalizePairingCode(code), "utf8");
-  const salt = Buffer.from(CTX.pairKdfSalt, "utf8");
-  const mac = Buffer.from(hkdfSync("sha256", ikm, salt, Buffer.from(CTX.pairKdfInfoMac, "utf8"), 32));
-  const enc = Buffer.from(hkdfSync("sha256", ikm, salt, Buffer.from(CTX.pairKdfInfoEnc, "utf8"), 32));
+  const salt = Buffer.from(CRYPTO.context.pairKdfSalt, "utf8");
+  const mac = Buffer.from(hkdfSync("sha256", ikm, salt, Buffer.from(CRYPTO.context.pairKdfInfoMac, "utf8"), 32));
+  const enc = Buffer.from(hkdfSync("sha256", ikm, salt, Buffer.from(CRYPTO.context.pairKdfInfoEnc, "utf8"), 32));
   return { mac, enc };
 }
 
@@ -92,9 +112,9 @@ class MockWebSocket {
     this.onmessage?.(new MessageEvent("message", { data: JSON.stringify(data) }));
   }
 
-  simulateClose() {
+  simulateClose(code = 1000) {
     this.readyState = MockWebSocket.CLOSED;
-    this.onclose?.(new CloseEvent("close"));
+    this.onclose?.(new CloseEvent("close", { code }));
   }
 
   simulateError() {
@@ -131,9 +151,10 @@ describe("ExternalAccessConnect", () => {
   beforeAll(() => vi.setConfig({ testTimeout: 5000 }));
 
   let externalAccessConnect: ExternalAccessConnect;
+  let client: ExternalAccessConnectClient;
   let relay: {
     envelope: ReturnType<typeof vi.fn>;
-    paired: ReturnType<typeof vi.fn>;
+    established: ReturnType<typeof vi.fn>;
     disconnected: ReturnType<typeof vi.fn>;
   };
 
@@ -147,9 +168,10 @@ describe("ExternalAccessConnect", () => {
     const group = server.group("externalAccessConnect");
 
     externalAccessConnect = new ExternalAccessConnect(group, mockMessage);
+    client = new ExternalAccessConnectClient(mockMessage);
     relay = {
       envelope: vi.fn().mockResolvedValue(undefined),
-      paired: vi.fn().mockResolvedValue(undefined),
+      established: vi.fn().mockResolvedValue(undefined),
       disconnected: vi.fn().mockResolvedValue(undefined),
     };
     (externalAccessConnect as any).relay = relay;
@@ -161,14 +183,116 @@ describe("ExternalAccessConnect", () => {
     vi.useRealTimers();
   });
 
-  function triggerConnect(param: ExternalAccessConnectParam): MockWebSocket {
-    (externalAccessConnect as any).startSession(param);
+  function triggerConnect(param: Omit<ExternalAccessConnectParam, "instanceId">): MockWebSocket {
+    (externalAccessConnect as unknown as { startSession(params: ExternalAccessConnectParam): void }).startSession({
+      ...param,
+      instanceId: vector.instanceId,
+    });
     return wsInstances[wsInstances.length - 1];
+  }
+
+  // SW 经 Group 下发能力声明，与生产路径一致。
+  function declareCapabilities() {
+    return client.send({ jsonrpc: "2.0", id: "cap", method: "$session.capabilities", params: {} });
+  }
+
+  // hello 只在认证完成后才转发给 SW（认证前收到会断开），以此作为握手完成的可观察信号。
+  async function expectHelloRelayed(ws: MockWebSocket) {
+    ws.simulateMessage({ jsonrpc: "2.0", method: "$session.hello", params: { daemonVersion: "1" } });
+    await vi.waitFor(() =>
+      expect(relay.envelope).toHaveBeenCalledWith(expect.objectContaining({ method: "$session.hello" }))
+    );
   }
 
   const sessionParam = (key: string): ExternalAccessConnectParam => ({
     url: "ws://127.0.0.1:8643",
+    instanceId: vector.instanceId,
     auth: { mode: "session", key },
+  });
+
+  it("打开后认证前的 1008 拒绝停止所有自动重连", async () => {
+    vi.useFakeTimers();
+    const ws = triggerConnect(sessionParam(vector.sessionKeyHex));
+    ws.simulateOpen();
+    ws.simulateClose(1008);
+    expect(relay.disconnected).toHaveBeenCalledWith("refused", "session");
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(wsInstances).toHaveLength(1);
+  });
+
+  it.each(["session", "pairing"] as const)("%s 身份握手匹配 Go 向量；名称冲突不提交密钥且不重试", async (mode) => {
+    vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
+      if (!(array instanceof Uint8Array)) throw new Error("Expected nonce bytes");
+      array.set(hexToBytes(vector.nonceE));
+      return array;
+    });
+    const auth = mode === "session" ? { mode, key: vector.sessionKeyHex } : { mode, code: vector.pairingCode };
+    const ws = triggerConnect({ url: "ws://localhost:8643", auth });
+    ws.simulateOpen();
+    ws.simulateMessage({
+      jsonrpc: "2.0",
+      id: "golden",
+      method: "$session.authenticate",
+      params: { nonceD: vector.nonceD },
+    });
+    await vi.waitFor(() => expect(ws.sentMessages).toHaveLength(1));
+    expect(ws.sent(0).result).toEqual({
+      mode,
+      nonceE: vector.nonceE,
+      hmac: mode === "session" ? vector.sessionExtHmac : vector.pairingExtHmac,
+      peer: { kind: "scriptcat", instanceId: vector.instanceId },
+    });
+    expect(ws.sent(0).result.hmac).not.toBe(vector.legacySessionExtHmac);
+    const key =
+      mode === "pairing"
+        ? nodeEncryptKey(nodePairingKeys(vector.pairingCode).enc, Buffer.from(vector.sessionKeyHex, "hex"))
+        : undefined;
+    ws.simulateMessage({
+      jsonrpc: "2.0",
+      method: "$session.authenticated",
+      params: { hmac: mode === "session" ? vector.sessionDaemonHmac : vector.pairingDaemonHmac, key },
+    });
+    await expectHelloRelayed(ws);
+    expect(relay.established).not.toHaveBeenCalled();
+    await declareCapabilities();
+    vi.useFakeTimers();
+    ws.simulateMessage({
+      jsonrpc: "2.0",
+      id: "cap",
+      error: { code: -32000, message: "conflict", data: { code: "CONFLICT" } },
+    });
+    ws.simulateClose();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(relay.disconnected).toHaveBeenCalledWith("name-taken", mode);
+    expect(relay.established).not.toHaveBeenCalled();
+    expect(wsInstances).toHaveLength(1);
+  });
+
+  it.each(["session", "pairing"] as const)("%s 拒绝未绑定实例的旧 daemon MAC", async (mode) => {
+    const auth = mode === "session" ? { mode, key: vector.sessionKeyHex } : { mode, code: vector.pairingCode };
+    const ws = triggerConnect({ url: "ws://localhost:8643", auth });
+    ws.simulateOpen();
+    ws.simulateMessage({
+      jsonrpc: "2.0",
+      id: "legacy",
+      method: "$session.authenticate",
+      params: { nonceD: vector.nonceD },
+    });
+    await vi.waitFor(() => expect(ws.sentMessages).toHaveLength(1));
+    const macKey = mode === "session" ? hexToBytes(vector.sessionKeyHex) : nodePairingKeys(vector.pairingCode).mac;
+    const hmac = nodeHmacHex(
+      macKey,
+      mode === "session" ? CRYPTO.context.sessionDaemon : CRYPTO.context.pairDaemon,
+      ws.sent(0).result.nonceE,
+      vector.nonceD
+    );
+    const key =
+      mode === "pairing"
+        ? nodeEncryptKey(nodePairingKeys(vector.pairingCode).enc, Buffer.from(vector.sessionKeyHex, "hex"))
+        : undefined;
+    ws.simulateMessage({ jsonrpc: "2.0", method: "$session.authenticated", params: { hmac, key } });
+    await vi.waitFor(() => expect(ws.readyState).toBe(MockWebSocket.CLOSED));
+    expect(relay.established).not.toHaveBeenCalled();
   });
 
   it("按配置原样连接 WebSocket URL，不限定回环地址或 ws 协议", () => {
@@ -238,7 +362,6 @@ describe("ExternalAccessConnect", () => {
       const resp = ws.sent(0);
       expect(resp).toMatchObject({ jsonrpc: "2.0", id: "c1" });
       expect(resp.result.mode).toBe("session");
-      // 扩展侧 HMAC 用 sessionExt || nonceD || nonceE，参照实现逐字节复核
       expect(resp.result.hmac).toBe(nodeHmacHex(new Uint8Array(K), CTX.sessionExt, nonceD, resp.result.nonceE));
 
       const okHmac = nodeHmacHex(new Uint8Array(K), CTX.sessionDaemon, resp.result.nonceE, nonceD);
@@ -297,7 +420,7 @@ describe("ExternalAccessConnect", () => {
 
   // ────────────────────────────────────────────────
   describe("配对握手（首次配对）", () => {
-    it("校验 daemon、解密新长期密钥 K 并上抛 paired，随后切换为会话模式", async () => {
+    it("校验 daemon、解密新长期密钥 K，能力声明接受后上抛 established 并切换为会话模式", async () => {
       const code = "MNBV-3456";
       const { mac, enc } = nodePairingKeys(code);
       const K = randomBytes(32);
@@ -310,7 +433,6 @@ describe("ExternalAccessConnect", () => {
       await vi.waitFor(() => expect(ws.sentMessages.length).toBe(1));
       const resp = ws.sent(0);
       expect(resp.result.mode).toBe("pairing");
-      // 配对模式用 pairExt 上下文 + Kp_mac；认证响应不含配对码本身
       expect(resp.result.hmac).toBe(nodeHmacHex(new Uint8Array(mac), CTX.pairExt, nonceD, resp.result.nonceE));
       expect(resp.result.code).toBeUndefined();
 
@@ -318,14 +440,34 @@ describe("ExternalAccessConnect", () => {
       const key = nodeEncryptKey(enc, K);
       ws.simulateMessage({ jsonrpc: "2.0", method: "$session.authenticated", params: { hmac: okHmac, key } });
 
-      await vi.waitFor(() => expect(relay.paired).toHaveBeenCalledTimes(1));
-      expect(relay.paired.mock.calls[0][0]).toBe(K.toString("hex"));
-      expect((externalAccessConnect as any).handshakeComplete).toBe(true);
-      // 握手后内部凭据切到会话模式，供后续自动重连
-      expect((externalAccessConnect as any).currentParams.auth).toEqual({ mode: "session", key: K.toString("hex") });
+      await expectHelloRelayed(ws);
+      await declareCapabilities();
+      ws.simulateMessage({ jsonrpc: "2.0", id: "cap", result: {} });
+      await vi.waitFor(() => expect(relay.established).toHaveBeenCalledWith(K.toString("hex")));
+
+      // 之后的自动重连用会话模式与新密钥 K，而不是已被消费的配对码。
+      vi.useFakeTimers();
+      ws.simulateClose();
+      await vi.advanceTimersByTimeAsync(2000);
+      vi.useRealTimers();
+      const next = wsInstances[1];
+      next.simulateOpen();
+      const nextNonceD = randomBytes(32).toString("hex");
+      next.simulateMessage({
+        jsonrpc: "2.0",
+        id: "c2",
+        method: "$session.authenticate",
+        params: { nonceD: nextNonceD },
+      });
+      await vi.waitFor(() => expect(next.sentMessages.length).toBe(1));
+      const nextResp = next.sent(0);
+      expect(nextResp.result.mode).toBe("session");
+      expect(nextResp.result.hmac).toBe(
+        nodeHmacHex(new Uint8Array(K), CTX.sessionExt, nextNonceD, nextResp.result.nonceE)
+      );
     });
 
-    it("配对 $session.authenticated 缺少 key 时断开、不上抛 paired", async () => {
+    it("配对 $session.authenticated 缺少 key 时断开、不上抛 established", async () => {
       const code = "MNBV-3456";
       const { mac } = nodePairingKeys(code);
       const ws = triggerConnect({ url: "ws://127.0.0.1:8643", auth: { mode: "pairing", code } });
@@ -339,15 +481,16 @@ describe("ExternalAccessConnect", () => {
       const closeSpy = vi.spyOn(ws, "close");
       ws.simulateMessage({ jsonrpc: "2.0", method: "$session.authenticated", params: { hmac: okHmac } });
       await vi.waitFor(() => expect(closeSpy).toHaveBeenCalled());
-      expect(relay.paired).not.toHaveBeenCalled();
+      expect(relay.established).not.toHaveBeenCalled();
     });
   });
 
   // ────────────────────────────────────────────────
   describe("握手后信封路由与心跳", () => {
-    async function completeSessionHandshake(): Promise<MockWebSocket> {
-      const K = randomBytes(32);
-      const ws = triggerConnect(sessionParam(K.toString("hex")));
+    async function completeSessionHandshake(
+      K = randomBytes(32),
+      ws = triggerConnect(sessionParam(K.toString("hex")))
+    ): Promise<MockWebSocket> {
       ws.simulateOpen();
       const nonceD = randomBytes(32).toString("hex");
       ws.simulateMessage({ jsonrpc: "2.0", id: "c1", method: "$session.authenticate", params: { nonceD } });
@@ -358,6 +501,38 @@ describe("ExternalAccessConnect", () => {
       await vi.waitFor(() => expect((externalAccessConnect as any).handshakeComplete).toBe(true));
       return ws;
     }
+
+    it("能力声明前不重置退避，接受后普通关闭从 2 秒重试", async () => {
+      vi.useFakeTimers();
+      const key = randomBytes(32);
+      triggerConnect(sessionParam(key.toString("hex"))).simulateClose();
+      await vi.advanceTimersByTimeAsync(2000);
+      const beforeCapabilities = await completeSessionHandshake(key, wsInstances[1]);
+      beforeCapabilities.simulateClose();
+      await vi.advanceTimersByTimeAsync(3999);
+      expect(wsInstances).toHaveLength(2);
+      await vi.advanceTimersByTimeAsync(1);
+      const ws = await completeSessionHandshake(key, wsInstances[2]);
+      await declareCapabilities();
+      ws.simulateMessage({ jsonrpc: "2.0", id: "cap", result: {} });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(relay.established).toHaveBeenCalledWith(undefined);
+      ws.simulateClose(1008);
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(wsInstances).toHaveLength(3);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(wsInstances).toHaveLength(4);
+      expect(relay.disconnected).toHaveBeenCalledWith(undefined, "session");
+    });
+
+    it("认证后能力声明迟迟不答复也会超时关闭", async () => {
+      vi.useFakeTimers();
+      const ws = await completeSessionHandshake();
+      await declareCapabilities();
+      await vi.advanceTimersByTimeAsync(LIMITS.authTimeoutMs + 1);
+      expect(ws.readyState).toBe(MockWebSocket.CLOSED);
+      expect(relay.established).not.toHaveBeenCalled();
+    });
 
     it("业务请求和 $/cancelRequest 转发给 SW", async () => {
       const ws = await completeSessionHandshake();

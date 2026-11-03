@@ -1,5 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { SystemConfig } from "./config";
+import * as browserUtils from "../utils/utils";
+import { mockWebLocks } from "@Tests/mockWebLocks";
 import { MessageQueue } from "@Packages/message/message_queue";
 
 describe("SystemConfig 双 storage 与懒迁移", () => {
@@ -7,6 +9,7 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
   let config: SystemConfig;
 
   beforeEach(() => {
+    mockWebLocks();
     // 清空 storage 数据
     chrome.storage.sync.clear();
     chrome.storage.local.clear();
@@ -19,6 +22,34 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
   });
 
   describe("local key 读写", () => {
+    it.each(["chrome", "edge", "firefox", "safari", "scriptcat"])(
+      "首次读取创建 %s 身份且跨配置对象保持稳定、不参与同步",
+      async (slug) => {
+        vi.spyOn(browserUtils, "getBrowserType").mockReturnValue({
+          firefox: Number(slug === "firefox"),
+          webkit: Number(slug === "safari"),
+          chrome: slug === "edge" ? browserUtils.BrowserType.Edge : Number(slug === "chrome"),
+          unknown: Number(slug === "scriptcat"),
+          chromeVersion: 0,
+          device: 0,
+        });
+        expect(await chrome.storage.local.get("system_external_access_identity")).toEqual({});
+        const other = new SystemConfig(mq);
+        const [identity, concurrent] = await Promise.all([
+          config.getExternalAccessIdentity(),
+          other.getExternalAccessIdentity(),
+        ]);
+        expect(identity.instanceId).toMatch(/^[0-9a-f]{32}$/);
+        expect(identity.name).toBe(`${slug}-${identity.instanceId.slice(0, 4)}`);
+        expect(concurrent).toEqual(identity);
+        expect(await new SystemConfig(mq).getExternalAccessIdentity()).toEqual(identity);
+        expect(await config.getExternalAccessIdentity()).toEqual(identity);
+        expect(await chrome.storage.local.get("system_external_access_identity")).toEqual({
+          system_external_access_identity: identity,
+        });
+        expect(await chrome.storage.sync.get("system_external_access_identity")).toEqual({});
+      }
+    );
     it("cloud_sync 应写入 local storage 而非 sync", async () => {
       const cloudSync = {
         enable: true,
@@ -148,11 +179,11 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
     });
 
     it("external_access_pairing 默认未配对，写入后落 local storage 且不入 sync", async () => {
-      expect(await config.getExternalAccessPairing()).toEqual({ key: "", clientId: "" });
-      config.setExternalAccessPairing({ key: "deadbeef", clientId: "cid-1" });
-      expect(await config.getExternalAccessPairing()).toEqual({ key: "deadbeef", clientId: "cid-1" });
+      expect(await config.getExternalAccessPairing()).toEqual({ key: "" });
+      config.setExternalAccessPairing({ key: "deadbeef" });
+      expect(await config.getExternalAccessPairing()).toEqual({ key: "deadbeef" });
       const localData = await chrome.storage.local.get("system_external_access_pairing");
-      expect(localData["system_external_access_pairing"]).toEqual({ key: "deadbeef", clientId: "cid-1" });
+      expect(localData["system_external_access_pairing"]).toEqual({ key: "deadbeef" });
       const syncData = await chrome.storage.sync.get("system_external_access_pairing");
       expect(syncData["system_external_access_pairing"]).toBeUndefined();
     });

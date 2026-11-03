@@ -34,6 +34,20 @@ afterEach(() => {
   }
 });
 
+// fast 项目共享模块环境。切换平台时重载了 LoggerCore，也要重建它的单例，
+// 否则随后运行的测试无法创建 Server 或发布 MessageQueue 消息。
+const resetPlatformModules = async () => {
+  vi.resetModules();
+  const loggerModule = await import("../../logger/core.js");
+  const LoggerCore = loggerModule.default as unknown as typeof LoggerCoreType;
+  new LoggerCore({
+    level: "trace",
+    consoleLevel: "trace",
+    writer: new loggerModule.EmptyWriter(),
+    labels: { env: "test" },
+  });
+};
+
 const loadKeepAliveEnabledManager = async () => {
   vi.stubGlobal("scheduler", {
     postTask: vi.fn(),
@@ -52,22 +66,13 @@ const loadKeepAliveEnabledManager = async () => {
       }
     }
   );
-  vi.resetModules();
-  const loggerModule = await import("../../logger/core.js");
-  const LoggerCore = loggerModule.default as unknown as typeof LoggerCoreType;
-  const logger = new LoggerCore({
-    level: "trace",
-    consoleLevel: "trace",
-    writer: new loggerModule.EmptyWriter(),
-    labels: { env: "test" },
-  });
-  logger.logger().debug("test start");
+  await resetPlatformModules();
   return { ...(await import("./event_page_manager.js")), ...(await import("./keep_alive.js")), probeImages };
 };
 
 const loadChromeKeepAlive = async () => {
   isFirefoxMock.mockReturnValue(false);
-  vi.resetModules();
+  await resetPlatformModules();
   return await import("./keep_alive.js");
 };
 

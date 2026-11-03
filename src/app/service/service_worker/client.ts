@@ -47,7 +47,7 @@ import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
 import type { LocalBackupExport } from "./synchronize";
 import type { ExternalAccessUIService } from "./external_access/service";
-import type { WSEnvelope } from "./external_access/types";
+import type { AuthMode, ExternalAccessRejectionReason, WSEnvelope } from "./external_access/types";
 import type {
   NetworkRuleMutationResult,
   NetworkRuleCreateInput,
@@ -662,13 +662,17 @@ export class ExternalAccessClient extends Client {
     super(msgSender, "serviceWorker/externalAccess");
   }
 
-  getBridgeStatus(): Promise<ReturnType<ExternalAccessUIService["getStatus"]>> {
+  getBridgeStatus(): ReturnType<ExternalAccessUIService["getStatus"]> {
     return this.doThrow("status");
   }
 
   // Enrollment (接入): dial the daemon with the one-time code the user read from `sctl connect`.
-  enroll(code: string) {
-    return this.do("enroll", code);
+  enroll(code: string, name: string): ReturnType<ExternalAccessUIService["enroll"]> {
+    return this.doThrow("enroll", { code, name });
+  }
+
+  rename(name: string): ReturnType<ExternalAccessUIService["rename"]> {
+    return this.doThrow("rename", name);
   }
 
   getOperation(operationId: string): ReturnType<ExternalAccessUIService["getOperation"]> {
@@ -714,11 +718,11 @@ export class ExternalAccessConnectRelayClient extends Client {
     return this.do("envelope", envelope);
   }
 
-  paired(key: string): Promise<void> {
-    return this.do("paired", { key });
+  established(key?: string): Promise<void> {
+    return this.do("established", { key });
   }
 
-  disconnected(): Promise<void> {
-    return this.do("disconnected");
+  disconnected(reason: ExternalAccessRejectionReason | undefined, mode: AuthMode): Promise<void> {
+    return this.do("disconnected", { reason, mode });
   }
 }

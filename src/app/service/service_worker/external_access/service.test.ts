@@ -1,25 +1,27 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { mockWebLocks } from "@Tests/mockWebLocks";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { ExternalAccessUIService } from "./service";
 import { ExternalAccessOperationDAO } from "@App/app/repo/external_access";
 import { ExternalAccessApprovalService } from "./approval";
 import { ScriptDAO, ScriptCodeDAO } from "@App/app/repo/scripts";
 import { TempStorageDAO } from "@App/app/repo/tempStorage";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
-import type { SystemConfig } from "@App/pkg/config/config";
+import { SystemConfig } from "@App/pkg/config/config";
+import { MessageQueue } from "@Packages/message/message_queue";
 
 describe("ExternalAccessUIService（外部接入页端点）", () => {
   let approval: ExternalAccessApprovalService;
   let controller: {
     getStatus: ReturnType<typeof vi.fn>;
     enroll: ReturnType<typeof vi.fn>;
+    rename: ReturnType<typeof vi.fn>;
     stop: ReturnType<typeof vi.fn>;
   };
-  let systemConfig: {
-    setExternalAccessPairing: ReturnType<typeof vi.fn>;
-    setExternalAccessEnabled: ReturnType<typeof vi.fn>;
-  };
+  let systemConfig: SystemConfig;
   let handlers: Record<string, (...args: any[]) => any>;
   let service: ExternalAccessUIService;
+
+  afterEach(() => vi.restoreAllMocks());
 
   beforeEach(() => {
     chrome.storage.local.clear();
@@ -33,14 +35,15 @@ describe("ExternalAccessUIService（外部接入页端点）", () => {
       new TempStorageDAO()
     );
     controller = {
-      getStatus: vi.fn().mockReturnValue({ status: "connected", daemonVersion: "1.0.0" }),
-      enroll: vi.fn(),
+      getStatus: vi.fn().mockResolvedValue({ status: "connected", daemonVersion: "1.0.0" }),
+      enroll: vi.fn().mockResolvedValue("name-taken"),
+      rename: vi.fn().mockResolvedValue("applies-next-connection"),
       stop: vi.fn(),
     };
-    systemConfig = { setExternalAccessPairing: vi.fn(), setExternalAccessEnabled: vi.fn() };
+    systemConfig = new SystemConfig(new MessageQueue());
     handlers = {};
     const group = { on: (name: string, fn: (...args: any[]) => any) => (handlers[name] = fn) } as any;
-    service = new ExternalAccessUIService(group, controller as any, approval, systemConfig as unknown as SystemConfig);
+    service = new ExternalAccessUIService(group, controller as any, approval, systemConfig);
     service.init();
   });
 
@@ -52,19 +55,22 @@ describe("ExternalAccessUIService（外部接入页端点）", () => {
         "operationDecision",
         "operationReopen",
         "pendingOperations",
+        "rename",
         "status",
         "stopExternalAccess",
       ].sort()
     );
   });
 
-  it("status 返回控制器状态（含 sctl 版本）", () => {
-    expect(handlers["status"]()).toEqual({ status: "connected", daemonVersion: "1.0.0" });
+  it("status 返回控制器状态（含 sctl 版本）", async () => {
+    expect(await handlers["status"]()).toEqual({ status: "connected", daemonVersion: "1.0.0" });
   });
 
-  it("enroll 转发配对码给控制器", () => {
-    handlers["enroll"]("CODE-1234");
-    expect(controller.enroll).toHaveBeenCalledWith("CODE-1234");
+  it("接入与改名返回控制器的结果", async () => {
+    expect(await handlers["enroll"]({ code: "CODE-1234", name: "work" })).toBe("name-taken");
+    expect(controller.enroll).toHaveBeenCalledWith("CODE-1234", "work");
+    expect(await handlers["rename"]("work")).toBe("applies-next-connection");
+    expect(controller.rename).toHaveBeenCalledWith("work");
   });
 
   it("operationDecision 透传 enable / rememberSession 给 approval.decide", () => {
@@ -75,12 +81,17 @@ describe("ExternalAccessUIService（外部接入页端点）", () => {
     expect(decide).toHaveBeenCalledWith("op", true, { enable: true, rememberSession: true });
   });
 
-  it("stopExternalAccess 废弃密钥 K、清本会话授权、停止并关闭开关", async () => {
+  it("stopExternalAccess 废弃密钥但保留实例身份、清本会话授权、停止并关闭开关", async () => {
+    mockWebLocks();
+    const identity = await systemConfig.getExternalAccessIdentity();
+    systemConfig.setExternalAccessPairing({ key: "test-key" });
+    systemConfig.setExternalAccessEnabled(true);
     const clear = vi.spyOn(approval, "clearSessionAllow").mockResolvedValue(undefined);
     await handlers["stopExternalAccess"]();
-    expect(systemConfig.setExternalAccessPairing).toHaveBeenCalledWith(undefined);
+    expect(await systemConfig.getExternalAccessPairing()).toEqual({ key: "" });
+    expect(await new SystemConfig(new MessageQueue()).getExternalAccessIdentity()).toEqual(identity);
     expect(clear).toHaveBeenCalled();
     expect(controller.stop).toHaveBeenCalled();
-    expect(systemConfig.setExternalAccessEnabled).toHaveBeenCalledWith(false);
+    expect(await systemConfig.getExternalAccessEnabled()).toBe(false);
   });
 });

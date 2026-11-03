@@ -2,14 +2,21 @@ import type { Group } from "@Packages/message/server";
 import type { SystemConfig } from "@App/pkg/config/config";
 import type { ExternalAccessOperation } from "@App/app/repo/external_access";
 import type { ExternalAccessApprovalService } from "./approval";
-import type { OperationStatusResult, ExternalAccessBridgeStatusInfo, PendingOperationSummary } from "./types";
+import type {
+  ExternalAccessEnrollResult,
+  ExternalAccessRenameResult,
+  OperationStatusResult,
+  ExternalAccessBridgeStatusInfo,
+  PendingOperationSummary,
+} from "./types";
 
-// Narrow surface ExternalAccessUIService needs from ExternalAccessController — flat trust leaves only the status read and
-// the enrollment dial; the settings page reads/writes the two policies + external_access_enabled directly via
-// the generic SystemConfig plumbing.
+// Narrow surface ExternalAccessUIService needs from ExternalAccessController — flat trust leaves only the status read,
+// the enrollment dial and the instance rename; the settings page reads/writes the two policies +
+// external_access_enabled directly via the generic SystemConfig plumbing.
 export interface ExternalAccessControllerFacade {
-  getStatus(): ExternalAccessBridgeStatusInfo;
-  enroll(code: string): void;
+  getStatus(): Promise<ExternalAccessBridgeStatusInfo>;
+  enroll(code: string, name: string): Promise<ExternalAccessEnrollResult>;
+  rename(name: string): Promise<ExternalAccessRenameResult>;
   stop(): void;
 }
 
@@ -30,6 +37,7 @@ export class ExternalAccessUIService {
   init(): void {
     this.group.on("status", this.getStatus.bind(this));
     this.group.on("enroll", this.enroll.bind(this));
+    this.group.on("rename", this.rename.bind(this));
     this.group.on("operation", this.getOperation.bind(this));
     this.group.on("operationDecision", this.decideOperation.bind(this));
     this.group.on("operationReopen", this.reopenOperation.bind(this));
@@ -40,11 +48,15 @@ export class ExternalAccessUIService {
   // Enrollment (接入): the user ran `sctl connect` and typed its one-time terminal code into the
   // dialog. Dials the daemon in pairing mode; on success the daemon ships the long-term key K and
   // the controller persists it — CLI + every MCP client then inherit that single enrollment.
-  enroll(code: string): void {
-    this.controller.enroll(code);
+  enroll({ code, name }: { code: string; name: string }): Promise<ExternalAccessEnrollResult> {
+    return this.controller.enroll(code, name);
   }
 
-  getStatus(): ExternalAccessBridgeStatusInfo {
+  rename(name: string): Promise<ExternalAccessRenameResult> {
+    return this.controller.rename(name);
+  }
+
+  getStatus(): Promise<ExternalAccessBridgeStatusInfo> {
     return this.controller.getStatus();
   }
 

@@ -1,7 +1,19 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { BookOpen, ShieldAlert, ScrollText, Terminal, PlugZap, Check, Download, Eye, Power } from "lucide-react";
+import {
+  BookOpen,
+  ShieldAlert,
+  ScrollText,
+  Terminal,
+  PlugZap,
+  Check,
+  Download,
+  Eye,
+  Loader2,
+  Pencil,
+  Power,
+} from "lucide-react";
 import { SettingCard } from "../../../components/SettingCard";
 import { SettingRow } from "../../../components/SettingRow";
 import { Switch } from "@App/pages/components/ui/switch";
@@ -25,7 +37,11 @@ import type {
   ExternalAccessBridgeStatus,
   ExternalAccessBridgeStatusInfo,
 } from "@App/app/service/service_worker/external_access/types";
-import type { ExternalAccessWritePolicy, ExternalAccessSourceReadPolicy } from "@App/pkg/config/config";
+import {
+  isValidExternalAccessName,
+  type ExternalAccessWritePolicy,
+  type ExternalAccessSourceReadPolicy,
+} from "@App/pkg/config/config";
 import { notify } from "@App/pages/components/ui/toast";
 import { DocumentationSite } from "@App/app/const";
 import { localePath } from "@App/locales/locales";
@@ -38,6 +54,7 @@ const STATUS_VARIANT: Record<ExternalAccessBridgeStatus, "secondary" | "success"
   connecting: "warning",
   connected: "success",
   host_unreachable: "destructive",
+  rejected: "destructive",
 };
 
 // 深链到日志页并以 component=external-access 预过滤（设计 §4，Logger 路由已支持 ?query=）。
@@ -56,9 +73,14 @@ function StatusPill({ status, t }: { status: ExternalAccessBridgeStatus; t: (key
     connecting: "external_access:status_connecting",
     connected: "external_access:status_connected",
     host_unreachable: "external_access:status_host_unreachable",
+    rejected: "external_access:status_rejected",
   };
   return (
-    <Badge variant={STATUS_VARIANT[status]} data-testid="external_access_status_pill">
+    <Badge
+      variant={STATUS_VARIANT[status]}
+      className="shrink-0 whitespace-nowrap"
+      data-testid="external_access_status_pill"
+    >
       {t(labelKey[status])}
     </Badge>
   );
@@ -122,13 +144,20 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [enabled, setEnabled] = useState(false);
-  const [status, setStatus] = useState<ExternalAccessBridgeStatus>("disabled");
-  const [daemonVersion, setDaemonVersion] = useState<string>();
+  const [statusInfo, setStatusInfo] = useState<ExternalAccessBridgeStatusInfo>();
+  const { status = "disabled", daemonVersion } = statusInfo ?? {};
   const [writePolicy, setWritePolicy] = useState<ExternalAccessWritePolicy>("approval");
   const [sourcePolicy, setSourcePolicy] = useState<ExternalAccessSourceReadPolicy>("approval");
   const [mcpUrl, setExternalAccessUrl] = useState("");
   const [showEnroll, setShowEnroll] = useState(false);
   const [code, setCode] = useState("");
+  const [enrollName, setEnrollName] = useState("");
+  const [enrollNameError, setEnrollNameError] = useState<string>();
+  const [enrolling, setEnrolling] = useState(false);
+  const [nameEditing, setNameEditing] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [nameError, setNameError] = useState<string>();
+  const [savingName, setSavingName] = useState(false);
 
   useEffect(() => {
     void Promise.resolve(systemConfig.get("external_access_enabled")).then((v) => setEnabled(Boolean(v)));
@@ -137,19 +166,13 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
     void systemConfig.getExternalAccessUrl().then(setExternalAccessUrl);
     void externalAccessClient
       .getBridgeStatus()
-      .then((info) => {
-        setStatus(info.status);
-        setDaemonVersion(info.daemonVersion);
-      })
-      .catch(() => setStatus("disabled"));
+      .then(setStatusInfo)
+      .catch(() => setStatusInfo(undefined));
   }, []);
 
   // ExternalAccessController 的状态机在 SW 里推进（接入完成、hello 到达、socket 断开），页面订阅广播以实时更新。
   useEffect(() => {
-    return subscribeMessage<ExternalAccessBridgeStatusInfo>("mcpStatusChanged", (data) => {
-      setStatus(data.status);
-      setDaemonVersion(data.daemonVersion);
-    });
+    return subscribeMessage<ExternalAccessBridgeStatusInfo>("mcpStatusChanged", setStatusInfo);
   }, []);
 
   const handleEnableToggle = (checked: boolean) => {
@@ -172,14 +195,84 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
     if (trimmed) systemConfig.setExternalAccessUrl(trimmed);
   };
 
+  const nameInvalid = !isValidExternalAccessName(nameDraft);
+  const enrollNameInvalid = !isValidExternalAccessName(enrollName);
+
+  // 对话框可能从待接入态或拒绝态的「重新接入」打开；两处都用当前名称预填并清掉上一轮的码与提示。
+  const openEnroll = () => {
+    setCode("");
+    setEnrollName(statusInfo?.name ?? "");
+    setEnrollNameError(undefined);
+    setShowEnroll(true);
+  };
+
+  const startNameEdit = () => {
+    setNameDraft(statusInfo?.name ?? "");
+    setNameError(undefined);
+    setNameEditing(true);
+  };
+
+  const cancelNameEdit = () => {
+    setNameDraft(statusInfo?.name ?? "");
+    setNameError(undefined);
+    setNameEditing(false);
+  };
+
   const handleEnroll = async () => {
     const c = code.trim();
-    if (!c) return;
-    await externalAccessClient.enroll(c);
-    setCode("");
-    setShowEnroll(false);
-    // 此刻只是把配对码交给 daemon，握手成败未知（码错/sctl 未运行都会转「连接失败」），故是进行中而非成功。
-    notify.info(t("external_access:enroll_started"));
+    if (!c || !statusInfo || enrollNameInvalid || enrolling) return;
+    setEnrolling(true);
+    setEnrollNameError(undefined);
+    try {
+      const result = await externalAccessClient.enroll(c, enrollName);
+      if (result === "name-taken") {
+        // sctl 在认证通过即消费配对码；冲突后旧码不可再用，必须改名并重新运行 sctl connect。
+        setCode("");
+        setEnrollNameError(t("external_access:enroll_name_taken"));
+        return;
+      }
+      if (result === "invalid-name") {
+        setEnrollNameError(t("external_access:name_invalid_hint"));
+        return;
+      }
+      setCode("");
+      setShowEnroll(false);
+      // 名称问题之外的结果沿用原有的进行中提示：sctl 未运行时 offscreen 仍在重连，最终成败以状态胶囊为准。
+      notify.info(t("external_access:enroll_started"));
+    } catch {
+      notify.error(t("external_access:enroll_failed"));
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
+  const handleRename = async () => {
+    if (nameInvalid || savingName) return;
+    setSavingName(true);
+    setNameError(undefined);
+    try {
+      const result = await externalAccessClient.rename(nameDraft);
+      if (result === "ok" || result === "applies-next-connection") {
+        setStatusInfo((info) => (info ? { ...info, name: nameDraft } : info));
+        setNameEditing(false);
+        if (result === "ok") notify.success(t("external_access:rename_success"));
+        else notify.info(t("external_access:rename_next_connection"));
+        return;
+      }
+      if (result === "name-taken") {
+        setNameError(t("external_access:name_taken"));
+        return;
+      }
+      if (result === "invalid-name") {
+        setNameError(t("external_access:name_invalid_hint"));
+        return;
+      }
+      setNameError(t("external_access:rename_not_connected"));
+    } catch {
+      setNameError(t("external_access:rename_failed"));
+    } finally {
+      setSavingName(false);
+    }
   };
 
   const handleStop = async () => {
@@ -286,7 +379,7 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
           </div>
 
           <div className="flex items-center gap-3">
-            <Button data-testid="external_access_enroll_open" className="gap-1.5" onClick={() => setShowEnroll(true)}>
+            <Button data-testid="external_access_enroll_open" className="gap-1.5" onClick={openEnroll}>
               <PlugZap className="size-4" />
               {t("external_access:enroll_button")}
             </Button>
@@ -323,22 +416,136 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
                   data-testid="external_access_retry"
                   size="xs"
                   variant="outline"
-                  onClick={() => void externalAccessClient.getBridgeStatus().then((info) => setStatus(info.status))}
+                  onClick={() => void externalAccessClient.getBridgeStatus().then(setStatusInfo)}
                 >
                   {t("external_access:retry")}
                 </Button>
               )}
-              <Button
-                data-testid="external_access_reenroll"
-                size="xs"
-                variant="ghost"
-                className="text-primary"
-                onClick={() => setShowEnroll(true)}
-              >
-                {t("external_access:reenroll")}
-              </Button>
+              {status !== "rejected" && (
+                <Button
+                  data-testid="external_access_reenroll"
+                  size="xs"
+                  variant="ghost"
+                  className="text-primary"
+                  onClick={openEnroll}
+                >
+                  {t("external_access:reenroll")}
+                </Button>
+              )}
             </div>
           </div>
+
+          {status === "rejected" && (
+            <div
+              data-testid="external_access_rejected_notice"
+              className="flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-3.5 py-3 md:flex-row md:items-center md:justify-between"
+            >
+              <div className="flex items-start gap-2">
+                <ShieldAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
+                <p data-testid="external_access_rejected_reason" className="text-xs text-foreground">
+                  {statusInfo?.reason === "name-taken"
+                    ? t("external_access:rejected_name_taken_reason")
+                    : t("external_access:rejected_refused_reason")}
+                </p>
+              </div>
+              {statusInfo?.reason === "name-taken" ? (
+                <Button
+                  data-testid="external_access_edit_name"
+                  size="xs"
+                  variant="outline"
+                  className="self-start md:self-auto"
+                  onClick={startNameEdit}
+                >
+                  {t("external_access:name_edit_action")}
+                </Button>
+              ) : (
+                <Button
+                  data-testid="external_access_reenroll"
+                  size="xs"
+                  variant="outline"
+                  className="self-start md:self-auto"
+                  onClick={openEnroll}
+                >
+                  {t("external_access:reenroll")}
+                </Button>
+              )}
+            </div>
+          )}
+
+          {nameEditing ? (
+            <div className="flex flex-col gap-2">
+              <span className="text-[13px] font-medium text-foreground">
+                {t("external_access:instance_name_label")}
+              </span>
+              <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                <Input
+                  data-testid="external_access_name_input"
+                  aria-label={t("external_access:instance_name_label")}
+                  aria-invalid={nameInvalid || Boolean(nameError)}
+                  value={nameDraft}
+                  onChange={(e) => {
+                    setNameDraft(e.target.value);
+                    setNameError(undefined);
+                  }}
+                  disabled={savingName}
+                  autoFocus
+                  className="w-full font-mono text-xs md:max-w-xs"
+                />
+                <div className="flex items-center gap-2">
+                  <Button
+                    data-testid="external_access_name_save"
+                    size="sm"
+                    disabled={nameInvalid || savingName}
+                    onClick={() => void handleRename()}
+                  >
+                    {savingName && <Loader2 className="size-4 animate-spin" />}
+                    {savingName ? t("external_access:rename_saving") : t("external_access:name_save")}
+                  </Button>
+                  <Button
+                    data-testid="external_access_name_cancel"
+                    size="sm"
+                    variant="outline"
+                    disabled={savingName}
+                    onClick={cancelNameEdit}
+                  >
+                    {t("external_access:cancel")}
+                  </Button>
+                </div>
+              </div>
+              {(nameInvalid || nameError) && (
+                <p data-testid="external_access_name_error" role="alert" className="text-xs text-destructive">
+                  {nameError ?? t("external_access:name_invalid_hint")}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div
+              data-testid="external_access_name_row"
+              className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
+            >
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="text-[13px] font-medium text-foreground">
+                  {t("external_access:instance_name_label")}
+                </span>
+                <code
+                  data-testid="external_access_name_value"
+                  className="truncate rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground"
+                >
+                  {statusInfo?.name ?? "—"}
+                </code>
+              </div>
+              <Button
+                data-testid="external_access_name_edit"
+                size="xs"
+                variant="ghost"
+                className="self-start text-primary md:self-auto"
+                onClick={startNameEdit}
+              >
+                <Pencil className="size-3.5" />
+                {t("external_access:name_edit")}
+              </Button>
+            </div>
+          )}
 
           {renderPolicies()}
 
@@ -396,8 +603,30 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
                 aria-label={t("external_access:enroll_dialog_title")}
                 value={code}
                 onChange={setCode}
+                disabled={enrolling}
                 autoFocus
               />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-medium text-foreground">{t("external_access:instance_name_label")}</span>
+              <Input
+                data-testid="external_access_enroll_name_input"
+                aria-label={t("external_access:instance_name_label")}
+                aria-invalid={enrollNameInvalid || Boolean(enrollNameError)}
+                value={enrollName}
+                onChange={(e) => {
+                  setEnrollName(e.target.value);
+                  setEnrollNameError(undefined);
+                }}
+                disabled={enrolling}
+                className="font-mono text-xs"
+              />
+              {(enrollNameInvalid || enrollNameError) && (
+                <p data-testid="external_access_enroll_name_error" role="alert" className="text-xs text-destructive">
+                  {enrollNameError ?? t("external_access:name_invalid_hint")}
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col gap-2 rounded-md bg-muted p-3.5 text-xs">
@@ -416,15 +645,21 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
           </div>
 
           <DialogFooter>
-            <Button variant="outline" data-testid="external_access_enroll_cancel" onClick={() => setShowEnroll(false)}>
+            <Button
+              variant="outline"
+              data-testid="external_access_enroll_cancel"
+              disabled={enrolling}
+              onClick={() => setShowEnroll(false)}
+            >
               {t("external_access:cancel")}
             </Button>
             <Button
               data-testid="external_access_enroll_submit"
-              disabled={code.length < 8}
+              disabled={code.length < 8 || enrollNameInvalid || enrolling}
               onClick={() => void handleEnroll()}
             >
-              {t("external_access:enroll_submit")}
+              {enrolling && <Loader2 className="size-4 animate-spin" />}
+              {enrolling ? t("external_access:enroll_submitting") : t("external_access:enroll_submit")}
             </Button>
           </DialogFooter>
         </DialogContent>
