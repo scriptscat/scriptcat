@@ -249,6 +249,19 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
     expect(connectClient.connect).toHaveBeenCalledTimes(2);
   });
 
+  it("接入时名称冲突恢复接入前的实例名称", async () => {
+    systemConfig.setExternalAccessEnabled(true);
+    const controller = await initEnrolled();
+    await fake.relayDisconnected("refused");
+    const before = (await systemConfig.getExternalAccessIdentity()).name;
+    const result = controller.enroll("CODE", "work");
+    await vi.waitFor(() => expect(connectClient.connect).toHaveBeenCalledTimes(2));
+    await fake.relayDisconnected("name-taken", "pairing");
+    expect(await result).toBe("name-taken");
+    expect((await systemConfig.getExternalAccessIdentity()).name).toBe(before);
+    expect((await controller.getStatus()).name).toBe(before);
+  });
+
   it("SW 在配对握手期间重启，配对完成时仍保存新密钥并转为已连接", async () => {
     systemConfig.setExternalAccessEnabled(true);
     const controller = makeController();

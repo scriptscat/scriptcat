@@ -32,6 +32,14 @@ const REJECTION_KEY = "externalAccessRejection";
 // backoff, live in offscreen (src/app/service/offscreen/external-access-connect.ts).
 type ConnectDriver = Pick<ExternalAccessConnectClient, "connect" | "disconnect" | "send">;
 
+type PendingOperation = {
+  resolve: (result: ExternalAccessEnrollResult) => void;
+  renameTo?: string;
+  rollback?: boolean;
+  // 接入前的名称：配对时名称冲突要恢复它，否则下次接入会预填一个已知被占用的名称。
+  restoreName?: string;
+};
+
 /**
  * SW-side coordinator for 外部接入 (External Access). Owns the status machine and drives the
  * offscreen WS client for transport. Trust is flat (design §2.3): a single enrollment establishes
@@ -51,7 +59,7 @@ export class ExternalAccessController {
   private connecting?: Promise<void>;
   private generation = 0;
   private reason?: ExternalAccessRejectionReason;
-  private pending?: { resolve: (result: ExternalAccessEnrollResult) => void; renameTo?: string; rollback?: boolean };
+  private pending?: PendingOperation;
 
   constructor(
     private readonly systemConfig: SystemConfig,
@@ -135,9 +143,10 @@ export class ExternalAccessController {
     if (chrome.extension.inIncognitoContext || this.pending) return "not-connected";
     this.active = true;
     const generation = ++this.generation;
-    const result = this.beginOperation();
+    const { result, op } = this.beginOperation();
     try {
       await chrome.storage.session.remove(REJECTION_KEY);
+      op.restoreName = (await this.systemConfig.getExternalAccessIdentity()).name;
       const { instanceId } = await this.systemConfig.setExternalAccessName(name);
       const url = await this.systemConfig.getExternalAccessUrl();
       if (generation === this.generation) {
@@ -160,7 +169,7 @@ export class ExternalAccessController {
       else this.setStatus(this.status);
       return "applies-next-connection";
     }
-    const result = this.beginOperation(name);
+    const { result } = this.beginOperation(name);
     this.active = false;
     void this.bridge.cancel();
     try {
@@ -172,10 +181,13 @@ export class ExternalAccessController {
     return result;
   }
 
-  private beginOperation(renameTo?: string): Promise<ExternalAccessEnrollResult> {
-    return new Promise((resolve) => {
-      this.pending = { resolve, renameTo };
+  private beginOperation(renameTo?: string): { result: Promise<ExternalAccessEnrollResult>; op: PendingOperation } {
+    const op: PendingOperation = { resolve: () => undefined, renameTo };
+    const result = new Promise<ExternalAccessEnrollResult>((resolve) => {
+      op.resolve = resolve;
     });
+    this.pending = op;
+    return { result, op };
   }
 
   private finishOperation(result: ExternalAccessEnrollResult): void {
@@ -268,6 +280,9 @@ export class ExternalAccessController {
     }
     const pairingConflict = mode === "pairing" && reason === "name-taken";
     const generation = this.generation;
+    if (pairingConflict && this.pending?.restoreName) {
+      await this.systemConfig.setExternalAccessName(this.pending.restoreName);
+    }
     await chrome.storage.session.set({ [REJECTION_KEY]: pairingConflict ? "pending_enrollment" : reason });
     if (generation !== this.generation) return;
     this.setStatus(pairingConflict ? "pending_enrollment" : "rejected", pairingConflict ? undefined : reason);
