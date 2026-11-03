@@ -6,7 +6,7 @@ import { RuntimeClient } from "../service_worker/client";
 import { getStorageName, makeBlobURL } from "@App/pkg/utils/utils";
 import type { Logger } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
-import type { ValueUpdateDataEncoded } from "./types";
+import type { ValueUpdateSendData } from "./types";
 
 const PageOrContent = {
   PAGE: 1,
@@ -73,7 +73,7 @@ export default class ScriptingRuntime {
     deliveryStorage.onChanged.addListener((changes) => {
       const record = changes["valueUpdateDelivery"];
       if (record?.newValue) {
-        const sendData = (record.newValue as { sendData: ValueUpdateDataEncoded }).sendData;
+        const sendData = (record.newValue as { sendData: ValueUpdateSendData }).sendData;
         const activeOn =
           this.activeStorageNames === null
             ? PageOrContent.PAGE_AND_CONTENT

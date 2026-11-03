@@ -3,7 +3,7 @@ import type { Message } from "@Packages/message/types";
 import { initEnvInfo, type ScriptExecutor } from "./script_executor";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import type { EmitEventRequest } from "../service_worker/types";
-import type { GMInfoEnv, ValueUpdateDataEncoded } from "./types";
+import type { GMInfoEnv, ValueUpdateSendData } from "./types";
 import type { ScriptEnvTag } from "@Packages/message/consts";
 import { onInjectPageLoaded } from "./external";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
@@ -59,7 +59,7 @@ export class ScriptRuntime {
       // 转发给脚本
       this.scriptExecutor.emitEvent(data);
     });
-    this.server.on("runtime/valueUpdate", (data: ValueUpdateDataEncoded) => {
+    this.server.on("runtime/valueUpdate", (data: ValueUpdateSendData) => {
       this.scriptExecutor.valueUpdate(data);
     });
 

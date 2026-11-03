@@ -15,11 +15,10 @@ import { base64ToBlob, randNum, randomMessageFlag, strToBase64 } from "@App/pkg/
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import GMContext from "./gm_context";
-import { type ScriptRunResource } from "@App/app/repo/scripts";
+import type { ScriptRunResource, ValueStore } from "@App/app/repo/scripts";
 import type { ValueUpdateDataEncoded } from "../types";
 import { connect, sendMessage } from "@Packages/message/client";
 import { ScriptEnvTag } from "@Packages/message/consts";
-import { getStorageName } from "@App/pkg/utils/utils";
 import { ListenerManager } from "../listener_manager";
 import { decodeRValue, encodeRValue, type REncoded } from "@App/pkg/utils/message_value";
 import { type TGMKeyValue } from "@App/app/repo/value";
@@ -44,7 +43,7 @@ void CATAgentOPFSApi;
 export interface IGM_Base {
   sendMessage(api: string, params: any[]): Promise<any>;
   connect(api: string, params: any[]): Promise<any>;
-  valueUpdate(data: ValueUpdateDataEncoded): void;
+  valueStoreUpdate(valueStore: ValueStore, responses: ValueUpdateDataEncoded[]): void;
   emitEvent(event: string, eventId: string, data: any): void;
 }
 
@@ -60,6 +59,15 @@ let valChangeCounterId = 0;
 let valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
 
 const valueChangePromiseMap = new Map<string, any>();
+
+const generateValChangeId = () => {
+  if (valChangeCounterId > 1e8) {
+    // 防止 valChangeCounterId 过大导致无法正常工作
+    valChangeCounterId = 0;
+    valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
+  }
+  return `${valChangeRandomId}::${++valChangeCounterId}`;
+};
 
 const execEnvInit = (execEnv: GMApi) => {
   if (!execEnv.contentEnvKey) {
@@ -168,12 +176,13 @@ class GM_Base implements IGM_Base {
   }
 
   @GMContext.protected()
-  public valueUpdate(data: ValueUpdateDataEncoded) {
-    if (!this.scriptRes || !this.valueChangeListener) return;
-    const scriptRes = this.scriptRes;
-    const { id, uuid, entries, storageName, sender, valueUpdated } = data;
-    if (uuid === scriptRes.uuid || storageName === getStorageName(scriptRes)) {
-      const valueStore = scriptRes.value;
+  public extValueStoreCopy?: ValueStore; // 以 SW 确认顺序为准的 store 快照，使各页面 valueStore 的 key 顺序一致
+
+  @GMContext.protected()
+  public valueStoreUpdate(valueStore: ValueStore, responses: ValueUpdateDataEncoded[]) {
+    // 同步更新 valueStore；监听器回调延后到下一个 microTask，避免阻塞更新流程
+    for (const response of responses) {
+      const { id, valueChanges, sender } = response;
       const remote = sender.runFlag !== this.runFlag;
       if (!remote && id) {
         const fn = valueChangePromiseMap.get(id);
@@ -182,21 +191,18 @@ class GM_Base implements IGM_Base {
           fn();
         }
       }
-      if (valueUpdated) {
-        const valueChanges = entries;
-        for (const [key, rTyped1, rTyped2] of valueChanges) {
-          const value = decodeRValue(rTyped1);
-          const oldValue = decodeRValue(rTyped2);
-          // 触发,并更新值
-          if (value === undefined) {
-            if (valueStore[key] !== undefined) {
-              delete valueStore[key];
-            }
-          } else {
-            valueStore[key] = value;
-          }
-          this.valueChangeListener.execute(key, oldValue, value, remote, sender.tabId);
+      for (const [key, rTyped1, rTyped2] of valueChanges) {
+        const value = decodeRValue(rTyped1);
+        const oldValue = decodeRValue(rTyped2);
+        // 触发,并更新值
+        if (value !== undefined) {
+          valueStore[key] = value;
+        } else if (valueStore[key] !== undefined) {
+          delete valueStore[key];
         }
+        Promise.resolve().then(() => {
+          this.valueChangeListener?.execute(key, oldValue, value, remote, sender.tabId);
+        });
       }
     }
   }
@@ -283,17 +289,17 @@ export default class GMApi extends GM_Base {
   static _GM_setValue(a: GMApi, promise: any, key: string, value: any) {
     key = `${key}`;
     if (!a.scriptRes) return;
-    if (valChangeCounterId > 1e8) {
-      // 防止 valChangeCounterId 过大导致无法正常工作
-      valChangeCounterId = 0;
-      valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
-    }
-    const id = `${valChangeRandomId}::${++valChangeCounterId}`;
+    const id = generateValChangeId();
     if (promise) {
       valueChangePromiseMap.set(id, promise);
     }
+    const valueStore = a.scriptRes.value;
+    if (!a.extValueStoreCopy) {
+      // 本地乐观写入前记下快照；快照只随 SW 确认的更新演进，key 顺序以 SW 为准
+      a.extValueStoreCopy = { ...valueStore };
+    }
     if (value === undefined) {
-      delete a.scriptRes.value[key];
+      delete valueStore[key];
       a.sendMessage("GM_setValue", [id, key]);
     } else {
       // 对object的value进行一次转化
@@ -301,7 +307,7 @@ export default class GMApi extends GM_Base {
         value = customClone(value);
       }
       // customClone 可能返回 undefined
-      a.scriptRes.value[key] = value;
+      valueStore[key] = value;
       if (value === undefined) {
         a.sendMessage("GM_setValue", [id, key]);
       } else {
@@ -313,16 +319,15 @@ export default class GMApi extends GM_Base {
 
   static _GM_setValues(a: GMApi, promise: any, values: TGMKeyValue) {
     if (!a.scriptRes) return;
-    if (valChangeCounterId > 1e8) {
-      // 防止 valChangeCounterId 过大导致无法正常工作
-      valChangeCounterId = 0;
-      valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
-    }
-    const id = `${valChangeRandomId}::${++valChangeCounterId}`;
+    const id = generateValChangeId();
     if (promise) {
       valueChangePromiseMap.set(id, promise);
     }
     const valueStore = a.scriptRes.value;
+    if (!a.extValueStoreCopy) {
+      // 本地乐观写入前记下快照；快照只随 SW 确认的更新演进，key 顺序以 SW 为准
+      a.extValueStoreCopy = { ...valueStore };
+    }
     const keyValuePairs = [] as [string, REncoded<unknown>][];
     for (const [key, value] of Object.entries(values)) {
       let value_ = value;
