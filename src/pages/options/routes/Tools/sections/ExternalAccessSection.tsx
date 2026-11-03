@@ -232,7 +232,7 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
       }
       setCode("");
       setShowEnroll(false);
-      // 此刻只是把配对码交给 daemon，握手成败未知（码错/sctl 未运行都会转「连接失败」），故是进行中而非成功。
+      // 名称问题之外的结果沿用原有的进行中提示：sctl 未运行时 offscreen 仍在重连，最终成败以状态胶囊为准。
       notify.info(t("external_access:enroll_started"));
     } finally {
       setEnrolling(false);

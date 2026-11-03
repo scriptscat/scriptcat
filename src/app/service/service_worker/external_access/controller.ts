@@ -1,6 +1,5 @@
 import { uuidv4 } from "@App/pkg/utils/uuid";
-import { getBrowserVersion } from "@App/pkg/utils/utils";
-import { externalAccessProduct, type SystemConfig } from "@App/pkg/config/config";
+import { externalAccessProduct, externalAccessProductVersion, type SystemConfig } from "@App/pkg/config/config";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { ExternalAccessConnectClient } from "../../offscreen/client";
 import type { ExternalAccessBridge } from "./bridge";
@@ -195,7 +194,7 @@ export class ExternalAccessController {
         this.daemonVersion = daemonVersion;
         const name = this.pending?.renameTo ?? (await this.systemConfig.getExternalAccessIdentity()).name;
         const product = externalAccessProduct();
-        const version = getBrowserVersion();
+        const productVersion = externalAccessProductVersion();
         void this.connectClient.send({
           jsonrpc: "2.0",
           id: uuidv4(),
@@ -206,7 +205,7 @@ export class ExternalAccessController {
             peer: {
               name: truncatePeerText(name),
               ...(product ? { product } : {}),
-              ...(Number.isFinite(version) && version > 0 ? { productVersion: String(version) } : {}),
+              ...(productVersion ? { productVersion: truncatePeerText(productVersion) } : {}),
               extensionVersion: truncatePeerText(chrome.runtime.getManifest().version),
             },
           },

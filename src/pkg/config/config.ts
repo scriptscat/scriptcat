@@ -7,7 +7,7 @@ import { matchLanguage } from "@App/locales/locales";
 import { ExtVersion } from "@App/app/const";
 import defaultTypeDefinition from "@App/template/scriptcat.d.tpl";
 import type { ScriptTemplateOverrides } from "@App/pkg/utils/script_template";
-import { BrowserType, getBrowserType, toCamelCase } from "../utils/utils";
+import { BrowserType, getBrowserType, getBrowserVersion, toCamelCase } from "../utils/utils";
 import EventEmitter from "eventemitter3";
 import { STORAGE_LOCAL_KEYS } from "./consts";
 
@@ -63,6 +63,16 @@ export function externalAccessProduct() {
   if (browser.chrome & BrowserType.Edge) return "Edge";
   if (browser.chrome & BrowserType.Chrome) return "Chrome";
   return undefined;
+}
+
+// getBrowserVersion() 只认 Chrome/ 标记；Firefox 与 Safari 的 UA 不带它，各自从品牌版本标记读取。
+export function externalAccessProductVersion(): string | undefined {
+  const browser = getBrowserType();
+  if (browser.firefox) return navigator.userAgent.match(/Firefox\/(\d[\d.]*)/)?.[1];
+  if (browser.webkit) return navigator.userAgent.match(/Version\/(\d[\d.]*)/)?.[1];
+  if (!browser.chrome) return undefined;
+  const version = getBrowserVersion();
+  return Number.isFinite(version) && version > 0 ? String(version) : undefined;
 }
 
 export type CATFileStorage = {

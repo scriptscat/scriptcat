@@ -10,9 +10,9 @@ import type {
   PendingOperationSummary,
 } from "./types";
 
-// Narrow surface ExternalAccessUIService needs from ExternalAccessController — flat trust leaves only the status read and
-// the enrollment dial; the settings page reads/writes the two policies + external_access_enabled directly via
-// the generic SystemConfig plumbing.
+// Narrow surface ExternalAccessUIService needs from ExternalAccessController — flat trust leaves only the status read,
+// the enrollment dial and the instance rename; the settings page reads/writes the two policies +
+// external_access_enabled directly via the generic SystemConfig plumbing.
 export interface ExternalAccessControllerFacade {
   getStatus(): Promise<ExternalAccessBridgeStatusInfo>;
   enroll(code: string, name: string): Promise<ExternalAccessEnrollResult>;

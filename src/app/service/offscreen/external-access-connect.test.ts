@@ -415,7 +415,7 @@ describe("ExternalAccessConnect", () => {
 
   // ────────────────────────────────────────────────
   describe("配对握手（首次配对）", () => {
-    it("校验 daemon、解密新长期密钥 K 并上抛 paired，随后切换为会话模式", async () => {
+    it("校验 daemon、解密新长期密钥 K，能力声明接受后上抛 established 并切换为会话模式", async () => {
       const code = "MNBV-3456";
       const { mac, enc } = nodePairingKeys(code);
       const K = randomBytes(32);
@@ -446,7 +446,7 @@ describe("ExternalAccessConnect", () => {
       expect((externalAccessConnect as any).currentParams.auth).toEqual({ mode: "session", key: K.toString("hex") });
     });
 
-    it("配对 $session.authenticated 缺少 key 时断开、不上抛 paired", async () => {
+    it("配对 $session.authenticated 缺少 key 时断开、不上抛 established", async () => {
       const code = "MNBV-3456";
       const { mac } = nodePairingKeys(code);
       const ws = triggerConnect({ url: "ws://127.0.0.1:8643", auth: { mode: "pairing", code } });

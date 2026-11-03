@@ -171,7 +171,13 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
     expect(await systemConfig.getExternalAccessPairing()).toEqual({ key: "newkey" });
   });
 
-  it.each(["Chrome", "Edge", "Firefox", "Safari", undefined])("能力声明包含名称与 %s 产品信息", async (product) => {
+  it.each([
+    ["Chrome", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/129.0.0.0 Safari/537.36", "129"],
+    ["Edge", "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0", "129"],
+    ["Firefox", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:130.0) Gecko/20100101 Firefox/130.0", "130.0"],
+    ["Safari", "Mozilla/5.0 (Macintosh) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15", "17.4"],
+    [undefined, "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/129.0.0.0 Safari/537.36", undefined],
+  ])("能力声明包含名称与 %s 产品信息及浏览器版本", async (product, userAgent, productVersion) => {
     vi.spyOn(browserUtils, "getBrowserType").mockReturnValue({
       firefox: Number(product === "Firefox"),
       webkit: Number(product === "Safari"),
@@ -180,7 +186,7 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
       chromeVersion: 0,
       device: 0,
     });
-    vi.spyOn(browserUtils, "getBrowserVersion").mockReturnValue(product ? 129 : 0);
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(userAgent);
     await initEnrolled();
     await fake.relayEnvelope({ jsonrpc: "2.0", method: "$session.hello", params: { daemonVersion: "1" } });
     const identity = await systemConfig.getExternalAccessIdentity();
@@ -192,7 +198,7 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
           methods: expect.any(Array),
           peer: {
             name: identity.name,
-            ...(product ? { product, productVersion: "129" } : {}),
+            ...(product ? { product, productVersion } : {}),
             extensionVersion: chrome.runtime.getManifest().version,
           },
         }),
