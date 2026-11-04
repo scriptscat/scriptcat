@@ -143,6 +143,44 @@ export interface ScriptsListResult {
     version?: string;
   }>;
 }
+export interface ScriptsLogsParams {
+  limit?: number;
+  severity?: "debug" | "info" | "warn" | "error";
+  since?: number;
+  text?: string;
+  uuid: string;
+}
+export interface ScriptsLogsResult {
+  contentTrust: "untrusted-user-script-log";
+  logs: Array<{
+    component?: string;
+    fields?: Array<{ name: string; value: string }>;
+    message: string;
+    severity: "debug" | "info" | "warn" | "error";
+    time: number;
+  }>;
+  truncated: boolean;
+}
+export interface ScriptsRunParams {
+  timeoutMs?: number;
+  uuid: string;
+  wait?: boolean;
+}
+export interface ScriptsRunResult {
+  contentTrust: "untrusted-user-script-log";
+  endedAt?: number;
+  error?: string;
+  logs: Array<{
+    component?: string;
+    fields?: Array<{ name: string; value: string }>;
+    message: string;
+    severity: "debug" | "info" | "warn" | "error";
+    time: number;
+  }>;
+  startedAt: number;
+  status: "complete" | "error" | "running";
+  truncated?: boolean;
+}
 export interface ScriptsSourceGetParams {
   endLine?: number;
   maxBytes?: number;
@@ -170,7 +208,9 @@ export interface RpcMethodMap {
   "scripts.edit.request": { params: ScriptsEditParams; result: ScriptMutationResult };
   "scripts.install.request": { params: ScriptsInstallParams; result: ScriptMutationResult };
   "scripts.list": { params: ScriptsListParams; result: ScriptsListResult };
+  "scripts.logs": { params: ScriptsLogsParams; result: ScriptsLogsResult };
   "scripts.metadata.get": { params: ScriptUUIDParams; result: ScriptMetadata };
+  "scripts.run": { params: ScriptsRunParams; result: ScriptsRunResult };
   "scripts.source.get": { params: ScriptsSourceGetParams; result: ScriptSource };
   "scripts.source.grep": { params: ScriptsSourceGrepParams; result: ScriptSourceGrepResult };
   "scripts.toggle.request": { params: ScriptsToggleParams; result: ScriptsToggleResult };
@@ -207,10 +247,24 @@ export const RPC_METHODS = {
     effect: "read",
     blocking: "none",
   },
+  "scripts.logs": {
+    params: "ScriptsLogsParams",
+    result: "ScriptsLogsResult",
+    scope: "scripts:logs:read",
+    effect: "read",
+    blocking: "none",
+  },
   "scripts.metadata.get": {
     params: "ScriptUUIDParams",
     result: "ScriptMetadata",
     scope: "scripts:metadata:read",
+    effect: "read",
+    blocking: "none",
+  },
+  "scripts.run": {
+    params: "ScriptsRunParams",
+    result: "ScriptsRunResult",
+    scope: "scripts:run",
     effect: "read",
     blocking: "none",
   },

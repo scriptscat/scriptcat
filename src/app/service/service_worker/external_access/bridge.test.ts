@@ -2,11 +2,23 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { ExternalAccessBridge, type ExternalAccessWriteNotice } from "./bridge";
 import { ExternalAccessApprovalService, type ExternalAccessScriptMutator } from "./approval";
 import { ExternalAccessOperationDAO } from "@App/app/repo/external_access";
-import { ScriptDAO, ScriptCodeDAO, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
+import {
+  ScriptDAO,
+  ScriptCodeDAO,
+  SCRIPT_STATUS_DISABLE,
+  SCRIPT_STATUS_ENABLE,
+  SCRIPT_TYPE_BACKGROUND,
+  SCRIPT_TYPE_CRONTAB,
+  SCRIPT_TYPE_NORMAL,
+} from "@App/app/repo/scripts";
 import { TempStorageDAO } from "@App/app/repo/tempStorage";
 import { type BridgeAction, type ExternalAccessBridgeRequest, type ExternalAccessBridgeResponse } from "./types";
 import type { ExternalAccessWritePolicy, ExternalAccessSourceReadPolicy } from "@App/pkg/config/config";
-import type { ExternalAccessAuditEvent } from "./audit";
+import { EXTERNAL_ACCESS_COMPONENT, type ExternalAccessAuditEvent } from "./audit";
+import { ExternalAccessRunLogs } from "./run_logs";
+import type { Logger, LoggerDAO } from "@App/app/repo/logger";
+import type { LogLabel, LogLevel } from "@App/app/logger/core";
+import { MessageQueue } from "@Packages/message/message_queue";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { sha256OfText } from "@App/pkg/utils/crypto";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
@@ -24,6 +36,14 @@ const SRC_UUID = "11111111-1111-4111-8111-111111111111";
 function expectResponse(r: ExternalAccessBridgeResponse | null): ExternalAccessBridgeResponse {
   expect(r).not.toBeNull();
   return r as ExternalAccessBridgeResponse;
+}
+
+// 与 LoggerDAO.queryLogs 同一契约：createtime ∈ [start, end)，newest first。
+function memoryLoggerDAO(rows: Logger[]): Pick<LoggerDAO, "queryLogs"> {
+  return {
+    queryLogs: async (start, end) =>
+      rows.filter((row) => row.createtime >= start && row.createtime < end).sort((a, b) => b.createtime - a.createtime),
+  };
 }
 
 function makeRequest(
@@ -44,6 +64,13 @@ describe("ExternalAccessBridge（扁平信任 + 双策略）", () => {
   let sourcePolicy: ExternalAccessSourceReadPolicy;
   let notifyWrite: ReturnType<typeof vi.fn>;
   let audit: ReturnType<typeof vi.fn>;
+  let mq: MessageQueue;
+  let runScript: ReturnType<typeof vi.fn<(uuid: string) => Promise<unknown>>>;
+  let logRows: Logger[];
+
+  function pushLog(level: LogLevel, message: string, label: LogLabel, createtime = Date.now()) {
+    logRows.push({ id: logRows.length + 1, level, message, label, createtime });
+  }
 
   beforeEach(async () => {
     chrome.storage.local.clear();
@@ -63,10 +90,14 @@ describe("ExternalAccessBridge（扁平信任 + 双策略）", () => {
       deleteScript: vi.fn().mockResolvedValue(undefined),
     };
     approval = new ExternalAccessApprovalService(mutator, scriptDAO, scriptCodeDAO, operationDAO, new TempStorageDAO());
+    mq = new MessageQueue();
+    runScript = vi.fn<(uuid: string) => Promise<unknown>>().mockResolvedValue(undefined);
+    logRows = [];
     bridge = new ExternalAccessBridge(
       scriptDAO,
       scriptCodeDAO,
       approval,
+      new ExternalAccessRunLogs(scriptDAO, { runScript }, mq, memoryLoggerDAO(logRows)),
       async () => writePolicy,
       async () => sourcePolicy,
       notifyWrite as (n: ExternalAccessWriteNotice) => void,
@@ -458,5 +489,297 @@ console.log('v1');`;
       })
     );
     expect(audit).toHaveBeenCalledWith(expect.objectContaining({ client: "session-1", decision: "denied" }));
+  });
+
+  describe("scripts.run 运行一次后台/定时脚本", () => {
+    const RUN_UUID = "22222222-2222-4222-8222-222222222222";
+
+    function publishRunStatus(runStatus: string, error?: unknown) {
+      mq.publish("scriptRunStatus", { uuid: RUN_UUID, runStatus, ...(error === undefined ? {} : { error }) });
+    }
+
+    it("等待本次 RUNNING 之后的终态：忽略重跑前旧运行的 complete，返回本次 error（对象转字符串）与本次日志", async () => {
+      await seedScript(RUN_UUID, { type: SCRIPT_TYPE_BACKGROUND });
+      pushLog("info", "previous run output", { uuid: RUN_UUID, component: "GM_log" }, Date.now() - 10_000);
+      runScript.mockImplementation(async () => {
+        // 重跑时 sandbox 先停旧运行（发 complete），再开始新运行（发 running）。
+        publishRunStatus("complete");
+        pushLog("info", "first line", { uuid: RUN_UUID, component: "GM_log" });
+        publishRunStatus("running");
+        pushLog("error", "second line", { uuid: RUN_UUID, component: "GM_log" });
+        publishRunStatus("error", { error: "boom" });
+      });
+
+      const response = expectResponse(await bridge.handle(makeRequest("scripts.run", { uuid: RUN_UUID })));
+
+      expect(runScript).toHaveBeenCalledWith(RUN_UUID);
+      expect(response.ok).toBe(true);
+      if (!response.ok) return;
+      const result = response.result as Record<string, unknown>;
+      expect(result).toMatchObject({ status: "error", error: "boom", contentTrust: "untrusted-user-script-log" });
+      expect(typeof result.startedAt).toBe("number");
+      expect(result.endedAt as number).toBeGreaterThanOrEqual(result.startedAt as number);
+      expect((result.logs as Array<{ message: string; severity: string }>).map((l) => [l.message, l.severity])).toEqual(
+        [
+          ["first line", "info"],
+          ["second line", "error"],
+        ]
+      );
+    });
+
+    it("定时脚本未启用也可运行，正常结束返回 complete 且不带 error", async () => {
+      await seedScript(RUN_UUID, { type: SCRIPT_TYPE_CRONTAB, status: SCRIPT_STATUS_DISABLE });
+      runScript.mockImplementation(async () => {
+        publishRunStatus("running");
+        publishRunStatus("complete");
+      });
+
+      const response = expectResponse(await bridge.handle(makeRequest("scripts.run", { uuid: RUN_UUID })));
+
+      expect(response.ok).toBe(true);
+      if (!response.ok) return;
+      expect(response.result).toMatchObject({ status: "complete", logs: [] });
+      expect(response.result).not.toHaveProperty("error");
+      expect(response.result).toHaveProperty("endedAt");
+    });
+
+    it("到 timeoutMs 仍未见本次运行结束返回 running（run-in 不匹配时只有旧运行的 complete、没有 RUNNING）", async () => {
+      await seedScript(RUN_UUID, { type: SCRIPT_TYPE_BACKGROUND });
+      let triggered!: () => void;
+      const started = new Promise<void>((resolve) => (triggered = resolve));
+      runScript.mockImplementation(async () => {
+        publishRunStatus("complete");
+        triggered();
+      });
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        let settled = false;
+        const pending = bridge.handle(makeRequest("scripts.run", { uuid: RUN_UUID, timeoutMs: 5000 })).then((r) => {
+          settled = true;
+          return r;
+        });
+        await started;
+        await vi.advanceTimersByTimeAsync(4999);
+        expect(settled).toBe(false);
+        await vi.advanceTimersByTimeAsync(1);
+
+        const response = expectResponse(await pending);
+        expect(response.ok).toBe(true);
+        if (!response.ok) return;
+        expect(response.result).toMatchObject({ status: "running" });
+        expect(response.result).not.toHaveProperty("endedAt");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("wait=false 触发即返回 running，不等待终态", async () => {
+      await seedScript(RUN_UUID, { type: SCRIPT_TYPE_BACKGROUND });
+
+      const response = expectResponse(await bridge.handle(makeRequest("scripts.run", { uuid: RUN_UUID, wait: false })));
+
+      expect(runScript).toHaveBeenCalledWith(RUN_UUID);
+      expect(response.ok).toBe(true);
+      if (!response.ok) return;
+      expect(response.result).toMatchObject({ status: "running", logs: [], contentTrust: "untrusted-user-script-log" });
+      expect(typeof (response.result as { startedAt: unknown }).startedAt).toBe("number");
+    });
+
+    it("页面脚本返回 INVALID_REQUEST（只有后台/定时脚本可以运行），不触发运行", async () => {
+      await seedScript(RUN_UUID, { type: SCRIPT_TYPE_NORMAL });
+
+      const response = expectResponse(await bridge.handle(makeRequest("scripts.run", { uuid: RUN_UUID })));
+
+      expect(response.ok).toBe(false);
+      if (!response.ok) {
+        expect(response.error.code).toBe("INVALID_REQUEST");
+        expect(response.error.message).toMatch(/only background.*scheduled scripts can run/i);
+      }
+      expect(runScript).not.toHaveBeenCalled();
+    });
+
+    it("脚本不存在返回 NOT_FOUND，不触发运行", async () => {
+      const response = expectResponse(await bridge.handle(makeRequest("scripts.run", { uuid: RUN_UUID })));
+
+      expect(response.ok).toBe(false);
+      if (!response.ok) expect(response.error.code).toBe("NOT_FOUND");
+      expect(runScript).not.toHaveBeenCalled();
+    });
+
+    it("timeoutMs 越界、wait 非布尔或含未知字段返回 INVALID_REQUEST", async () => {
+      await seedScript(RUN_UUID, { type: SCRIPT_TYPE_BACKGROUND });
+      const invalid = [
+        { uuid: RUN_UUID, timeoutMs: 240001 },
+        { uuid: RUN_UUID, timeoutMs: 0 },
+        { uuid: RUN_UUID, timeoutMs: 1.5 },
+        { uuid: RUN_UUID, wait: "no" },
+        { uuid: RUN_UUID, unexpected: true },
+      ];
+      for (const input of invalid) {
+        const response = expectResponse(await bridge.handle(makeRequest("scripts.run", input)));
+        expect(response.ok, JSON.stringify(input)).toBe(false);
+        if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
+      }
+      expect(runScript).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("scripts.logs 读取脚本日志", () => {
+    const LOG_UUID = "33333333-3333-4333-8333-333333333333";
+    const OTHER_UUID = "44444444-4444-4444-8444-444444444444";
+
+    async function readLogs(input: Record<string, unknown>) {
+      const response = expectResponse(await bridge.handle(makeRequest("scripts.logs", { uuid: LOG_UUID, ...input })));
+      expect(response.ok).toBe(true);
+      return (response.ok ? response.result : undefined) as {
+        logs: Array<{ time: number; severity: string; message: string; component?: string }>;
+        truncated: boolean;
+        contentTrust: string;
+      };
+    }
+
+    it("页面脚本的日志同样可读：只含该脚本、排除外部接入审计，oldest first，trace→debug、丢弃 none，非字符串字段 JSON 编码", async () => {
+      await seedScript(LOG_UUID, { type: SCRIPT_TYPE_NORMAL });
+      const t = Date.now();
+      pushLog("debug", "sandbox trace", { uuid: LOG_UUID }, t - 1000);
+      pushLog("trace", "older trace", { uuid: LOG_UUID, name: "S", env: "sandbox" }, t - 3000);
+      pushLog("info", "gm log", { uuid: LOG_UUID, name: "S", component: "GM_log", extra: { a: 1 } }, t - 2000);
+      pushLog("none", "silent", { uuid: LOG_UUID }, t - 1500);
+      pushLog("info", "other script", { uuid: OTHER_UUID, component: "GM_log" }, t - 1200);
+      pushLog("info", "scripts.logs allowed", { uuid: LOG_UUID, component: EXTERNAL_ACCESS_COMPONENT }, t - 1100);
+
+      const result = await readLogs({});
+
+      expect(result).toEqual({
+        logs: [
+          {
+            time: t - 3000,
+            severity: "debug",
+            message: "older trace",
+            fields: [
+              { name: "name", value: "S" },
+              { name: "env", value: "sandbox" },
+            ],
+          },
+          {
+            time: t - 2000,
+            severity: "info",
+            message: "gm log",
+            component: "GM_log",
+            fields: [
+              { name: "name", value: "S" },
+              { name: "extra", value: '{"a":1}' },
+            ],
+          },
+          { time: t - 1000, severity: "debug", message: "sandbox trace" },
+        ],
+        truncated: false,
+        contentTrust: "untrusted-user-script-log",
+      });
+    });
+
+    it("since 缺省只看最近 1 小时，显式 since 取其后的记录", async () => {
+      await seedScript(LOG_UUID);
+      const t = Date.now();
+      pushLog("info", "two hours ago", { uuid: LOG_UUID }, t - 2 * 3600_000);
+      pushLog("info", "half hour ago", { uuid: LOG_UUID }, t - 1800_000);
+
+      expect((await readLogs({})).logs.map((l) => l.message)).toEqual(["half hour ago"]);
+      expect((await readLogs({ since: t - 3 * 3600_000 })).logs.map((l) => l.message)).toEqual([
+        "two hours ago",
+        "half hour ago",
+      ]);
+    });
+
+    it("severity 取该级别及以上，text 按不区分大小写的子串匹配", async () => {
+      await seedScript(LOG_UUID);
+      const t = Date.now();
+      pushLog("debug", "debug hello", { uuid: LOG_UUID }, t - 4000);
+      pushLog("info", "info hello", { uuid: LOG_UUID }, t - 3000);
+      pushLog("warn", "warn Hello world", { uuid: LOG_UUID }, t - 2000);
+      pushLog("error", "error bye", { uuid: LOG_UUID }, t - 1000);
+
+      expect((await readLogs({ severity: "warn" })).logs.map((l) => l.message)).toEqual([
+        "warn Hello world",
+        "error bye",
+      ]);
+      expect((await readLogs({ text: "HELLO" })).logs.map((l) => l.message)).toEqual([
+        "debug hello",
+        "info hello",
+        "warn Hello world",
+      ]);
+    });
+
+    it("超出 limit 时返回最新的 N 条（仍 oldest first）并标注 truncated；limit=1000 可用", async () => {
+      await seedScript(LOG_UUID);
+      const t = Date.now();
+      for (let i = 1; i <= 5; i++) pushLog("info", `line ${i}`, { uuid: LOG_UUID }, t - (6 - i) * 1000);
+
+      const limited = await readLogs({ limit: 2 });
+      expect(limited.logs.map((l) => l.message)).toEqual(["line 4", "line 5"]);
+      expect(limited.truncated).toBe(true);
+
+      const all = await readLogs({ limit: 1000 });
+      expect(all.logs).toHaveLength(5);
+      expect(all.truncated).toBe(false);
+    });
+
+    it("响应超出帧预算时按条丢弃最旧的记录并标注 truncated，而不是报错", async () => {
+      await seedScript(LOG_UUID);
+      const t = Date.now();
+      const big = "x".repeat(1536 * 1024);
+      pushLog("info", `a${big}`, { uuid: LOG_UUID }, t - 3000);
+      pushLog("info", `b${big}`, { uuid: LOG_UUID }, t - 2000);
+      pushLog("info", `c${big}`, { uuid: LOG_UUID }, t - 1000);
+
+      const result = await readLogs({});
+
+      expect(result.logs.map((l) => l.message[0])).toEqual(["b", "c"]);
+      expect(result.truncated).toBe(true);
+    });
+
+    it("脚本不存在返回 NOT_FOUND", async () => {
+      const response = expectResponse(await bridge.handle(makeRequest("scripts.logs", { uuid: LOG_UUID })));
+      expect(response.ok).toBe(false);
+      if (!response.ok) expect(response.error.code).toBe("NOT_FOUND");
+    });
+
+    it("limit 越界、severity 非法、since 为负或 text 非字符串返回 INVALID_REQUEST", async () => {
+      await seedScript(LOG_UUID);
+      const invalid = [
+        { uuid: LOG_UUID, limit: 1001 },
+        { uuid: LOG_UUID, limit: 0 },
+        { uuid: LOG_UUID, severity: "trace" },
+        { uuid: LOG_UUID, since: -1 },
+        { uuid: LOG_UUID, text: 1 },
+        { uuid: LOG_UUID, unexpected: true },
+      ];
+      for (const input of invalid) {
+        const response = expectResponse(await bridge.handle(makeRequest("scripts.logs", input)));
+        expect(response.ok, JSON.stringify(input)).toBe(false);
+        if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
+      }
+    });
+  });
+
+  it("scripts.run 与 scripts.logs 都写入审计：记录 clientId 与脚本 uuid，不含日志正文", async () => {
+    const uuid = "55555555-5555-4555-8555-555555555555";
+    await seedScript(uuid, { type: SCRIPT_TYPE_BACKGROUND });
+    runScript.mockImplementation(async () => {
+      mq.publish("scriptRunStatus", { uuid, runStatus: "running" });
+      pushLog("info", "secret-log-body", { uuid, component: "GM_log" });
+      mq.publish("scriptRunStatus", { uuid, runStatus: "complete" });
+    });
+
+    const run = expectResponse(await bridge.handle(makeRequest("scripts.run", { uuid })));
+    const logs = expectResponse(await bridge.handle(makeRequest("scripts.logs", { uuid })));
+
+    expect(run.ok && logs.ok).toBe(true);
+    for (const action of ["scripts.run", "scripts.logs"]) {
+      expect(audit).toHaveBeenCalledWith(
+        expect.objectContaining({ client: "session-1", action, uuid, decision: "allowed", result: "success" })
+      );
+    }
+    expect(JSON.stringify(audit.mock.calls)).not.toContain("secret-log-body");
   });
 });
