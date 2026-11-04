@@ -107,6 +107,14 @@ the file you are editing, and an empty body.
 // ==/UserScript==
 ```
 
+Generate the stub instead of writing it by hand — it copies the header and any `==UserConfig==` block (the
+settings form is built from the installed code) and appends the `@require` with the absolute path:
+
+```sh
+node scripts/stub.mjs my-script.user.js -o my-script.stub.user.js   # scripts/ of this skill
+sctl install ./my-script.stub.user.js -o json
+```
+
 ScriptCat reads a `file:///` `@require` again on every page load. When the file has changed, it re-registers
 the script during that load, so the new code runs from the next load at the latest: after saving, reload, and if
 the old code still ran, reload once more. Logging a revision marker (`console.log("[my-script] r7")`) makes it

@@ -156,6 +156,18 @@ background run with retry.
 
 Writing the file is half the job; the other half is seeing it run.
 
+First run the static check bundled with this skill (Node 18+, no dependencies; paths are relative to this
+skill's directory):
+
+```sh
+node scripts/check.mjs my-script.user.js   # exit 1 = errors that will break the script at runtime
+```
+
+It reports `error|warn <rule> <file>:<line> <message>`: APIs used without their `@grant`, GM APIs or
+`unsafeWindow` under `@grant none`, a page script without `@match`, invalid `@crontab` expressions, request hosts
+missing from `@connect`, and similar. Fix every error; read each warning and fix it or say why it does not apply.
+It is a static check — it cannot tell whether the script does what the user asked.
+
 - **sctl is available** (`sctl status` shows ScriptCat connected): install it into the user's ScriptCat and
   verify it in their browser, following [references/dev-loop.md](references/dev-loop.md). It also covers
   scouting the target page before you write code, iterating on a local file without an approval per change, and
