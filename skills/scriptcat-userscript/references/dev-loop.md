@@ -27,6 +27,37 @@ and block until the user decides (exit 1 = rejected, 2 = timed out or cancelled)
 browser each time; do not retry in a loop. ScriptCat's approval page can allow the rest of the session, which
 makes iteration much smoother — mention it once.
 
+## Scout the page before writing
+
+Look at the real page before you write selectors or scraping code; guesses from memory are the commonest cause of
+a script that installs fine and does nothing. These commands need no approval.
+
+```sh
+TAB=$(sctl tabs open 'https://example.com/target' --background -o json | jq .tabId)
+sctl page snapshot --tab $TAB                                   # structure, names, refs such as e5
+sctl page eval 'document.querySelectorAll(".item a").length' --tab $TAB   # try a selector
+sctl page eval 'el => el.outerHTML' e5 --tab $TAB               # inspect one element by ref
+```
+
+- Prefer selectors that survive redesigns — ids, `data-*`, ARIA roles and names — over generated class names.
+- Prototype the DOM logic with `page eval` first; paste it into the script only once it returns what you expect.
+  `page eval` runs in the page itself, so it sees what `unsafeWindow` (or `window` under `@grant none`) sees.
+- When the page renders data it loads itself, find the request instead of scraping the DOM: requests are
+  recorded only while the debugger is attached, so start recording, then reload or use the page.
+
+  ```sh
+  sctl debug start --tab $TAB
+  sctl page reload --tab $TAB
+  sctl debug network --tab $TAB --type fetch       # also try --type xhr, or --url api
+  sctl debug request <ID> --body --tab $TAB        # headers, request body and response body of one request
+  ```
+
+  Calling that endpoint with `GM_xmlhttpRequest` (and `@connect` for its host) is usually sturdier than parsing
+  the rendered page. Unless `anonymous: true` is set, the request carries the browser's own cookies for that
+  site, so the script does not need to know them.
+- `debug request` and `sctl cookies` show `Cookie`, `Authorization` and cookie values unmasked. Use them only to
+  learn *how* the site authenticates; never copy a value into the script, a file, or your reply.
+
 ## First install
 
 ```sh
@@ -59,6 +90,39 @@ Edit the local file first — it stays the source of truth — then push it to t
 Both are re-parsed like a fresh install, so header changes (`@match`, `@grant`, `@connect`) take effect — and
 show up on the approval page as a permission change. Bump `@version` with each change.
 
+## Faster iteration: run the code from a local file
+
+Every reinstall or `sctl edit` waits for an approval. For a page script you can approve once and then iterate on a
+local file: install a **stub** — the script's header plus one extra line, `@require file:///<absolute path>` to
+the file you are editing, and an empty body.
+
+```js
+// ==UserScript==
+// @name         My script            (same @name/@namespace as the real script)
+// @namespace    https://example.com/your-namespace
+// @version      0.1.0
+// @match        https://example.com/*
+// @grant        GM_xmlhttpRequest
+// @require      file:///Users/me/project/my-script.user.js
+// ==/UserScript==
+```
+
+ScriptCat reads a `file:///` `@require` again on every page load. When the file has changed, it re-registers
+the script during that load, so the new code runs from the next load at the latest: after saving, reload, and if
+the old code still ran, reload once more. Logging a revision marker (`console.log("[my-script] r7")`) makes it
+obvious which version ran.
+
+- The user must turn on **Allow access to file URLs** for ScriptCat on the browser's extension details page;
+  without it the file cannot be read.
+- Only the code comes from the file. The header (`@match`, `@grant`, `@connect`, …) is the stub's, so a header
+  change means updating the stub and installing it again.
+- Required code runs outside ScriptCat's `async` wrapper: no top-level `await` in the file.
+- Because the stub keeps the real `@name` and `@namespace`, installing the finished script at the end replaces
+  the stub in place (same uuid, values kept). Do that before handing over — the stub depends on a file on this
+  machine.
+- A background or scheduled script re-reads its local `@require` only when ScriptCat (re)loads the script, for
+  example on `sctl disable` + `sctl enable`; each of those is an approval, so the stub saves less there.
+
 ## Verifying a page script
 
 ```sh
@@ -79,15 +143,51 @@ not need it.
 
 ## Verifying background and scheduled scripts
 
-sctl cannot observe them: they run in ScriptCat's background sandbox, which is not a web page, and sctl has no
-command to trigger a run or read ScriptCat's run log. After installing:
+They run in ScriptCat's background sandbox, which is not a web page: sctl cannot attach to it, cannot open
+ScriptCat's own pages (extension pages are not automatable), and has no command to start a run or read the run
+log. What you can do:
 
-- Hand over to the user: in ScriptCat's script list the run-status column shows running / complete / error and
-  the next run time of a scheduled script; clicking it shows the `GM_log` output.
-- Make the script observable: `GM_log` at start, at each step and before settling; resolve with a value that
-  summarises the result; `reject` with a real reason.
-- When the logic can be tested on a page, verify that part with a temporary page script first, then move it into
-  the background script.
+**Make a run happen.**
+
+- A `@background` script starts whenever ScriptCat enables it, and installing an update of an enabled script does
+  that — so every reinstall (or `sctl disable` + `sctl enable`) is a fresh run.
+- A scheduled script only runs when its cron fires. While testing, set `@crontab * * * * *` (every minute,
+  without `once`, so earlier runs do not suppress it), reinstall, and wait up to a minute. Restore the real
+  expression before handing over and say that you did.
+
+**Watch it from a page.** A page script that shares the background script's `@storageName` sees its value
+writes, and its console is something sctl can read. Write progress from the background script (it needs
+`@grant GM_setValue`), for example `await GM.setValue("debug", { step: "fetched", count, at: Date.now() })`, and
+install a temporary probe:
+
+```js
+// ==UserScript==
+// @name         my-script probe
+// @namespace    https://example.com/your-namespace
+// @version      0.1.0
+// @match        https://example.com/
+// @storageName  my-script-store
+// @grant        GM_getValue
+// @grant        GM_addValueChangeListener
+// ==/UserScript==
+
+console.log("[probe] initial", JSON.stringify(GM_getValue("debug")));
+GM_addValueChangeListener("debug", (name, oldValue, newValue) =>
+  console.log("[probe]", name, JSON.stringify(newValue))
+);
+```
+
+The background script declares the same `@storageName my-script-store`. Open the probe's page, `sctl debug start`
+on it, trigger a run, then `sctl debug console --tab $TAB --text "[probe]"`. Ask the user before deleting the
+probe (and before removing the debug writes from the real script).
+
+**Hand over what you cannot see.** In ScriptCat's script list the run-status column shows running / complete /
+error and the next run time of a scheduled script; clicking it shows the `GM_log` output. Make that output
+useful: `GM_log` at start, at each step and before settling; resolve with a value that summarises the result;
+`reject` with a real reason.
+
+When the logic can be tested on a page, verify that part with a temporary page script first, then move it into
+the background script.
 
 ## Cleaning up
 

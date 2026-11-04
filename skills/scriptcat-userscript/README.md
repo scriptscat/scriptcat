@@ -12,7 +12,8 @@
 | `references/api.md` | 脚本猫实现的全部 GM / CAT API（按 grant 分组），以及与 Tampermonkey 的差异 |
 | `references/background.md` | 后台/定时脚本：Promise 生命周期、`CATRetryError` 重试、cron 与 `once` 扩展、日志 |
 | `references/userconfig.md` | `==UserConfig==` 用户配置格式 |
-| `references/dev-loop.md` | 用 sctl 安装 → 打开页面 → 看控制台 → 重装或 `sctl edit` 迭代的流程 |
+| `references/patterns.md` | 常用写法：等待元素、SPA 路由切换、带记忆的菜单开关、跨域请求、样式、多语言、带重试的后台运行 |
+| `references/dev-loop.md` | 用 sctl 侦察页面 → 安装 → 看控制台 → 重装或 `sctl edit` 迭代；本地文件热重载（`@require file:///` 壳脚本）；用探针脚本观察后台脚本 |
 
 API 以 `src/types/scriptcat.d.ts` 和 `src/pkg/utils/script_compat.ts`（支持的指令与 grant 白名单）为准；
 修改这两处时同步检查本 Skill。sctl 本身的操作规范在 sctl 仓库的 `skills/sctl`，这里只引用、不重复。
@@ -26,5 +27,6 @@ ln -s "$(pwd)/skills/scriptcat-userscript" ~/.codex/skills/scriptcat-userscript
 
 ## 已知限制
 
-- sctl 无法触发后台/定时脚本运行，也读不到脚本猫的运行日志，这两类脚本只能由用户在脚本列表查看运行状态与
-  `GM_log` 输出。
+- sctl 没有触发后台/定时脚本运行、读取脚本猫运行日志的命令。`references/dev-loop.md` 给出了间接办法（重装即重跑
+  `@background`、测试时临时改成每分钟的 cron、用共享 `@storageName` 的探针页面脚本把进度打到控制台），完整的运行状态与
+  `GM_log` 输出仍需用户在脚本列表查看。

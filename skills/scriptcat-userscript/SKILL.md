@@ -148,13 +148,19 @@ is legal there.
 cases where ScriptCat differs from Tampermonkey, and which APIs are unavailable in the background. Read it
 before using an API you are unsure about, then check the exact signature in `scriptcat.d.ts`.
 
+[references/patterns.md](references/patterns.md) has ready-made building blocks: waiting for an element,
+single-page-app route changes, a persistent menu switch, cross-origin requests, styles, localisation, and a
+background run with retry.
+
 ## 5. Install and verify
 
 Writing the file is half the job; the other half is seeing it run.
 
 - **sctl is available** (`sctl status` shows ScriptCat connected): install it into the user's ScriptCat and
-  verify it in their browser, following [references/dev-loop.md](references/dev-loop.md). That loop runs inside
-  the user's real browser, so the sctl skill's rules apply too — read it first if it is installed.
+  verify it in their browser, following [references/dev-loop.md](references/dev-loop.md). It also covers
+  scouting the target page before you write code, iterating on a local file without an approval per change, and
+  observing background scripts. That loop runs inside the user's real browser, so the sctl skill's rules apply
+  too — read it first if it is installed.
 - **No sctl:** save the code as `<name>.user.js` and tell the user to install it — drag the file onto the
   ScriptCat dashboard, or create a new script in ScriptCat and paste the code. Say which page to open (page
   script) or where to look (background: the script list's run status and its log).
