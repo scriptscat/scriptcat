@@ -79,10 +79,13 @@ is legal there.
 **Permissions**
 
 - Every API needs a `@grant` line (`@grant GM_xmlhttpRequest`, …). An ungranted API is simply undefined at
-  runtime. Granting `GM_foo` also exposes `GM.foo` and vice versa.
-- `GM_info` and `unsafeWindow` are always available without a grant; `@grant unsafeWindow` is harmless.
-- `@grant none` runs the script without the sandbox and without any GM API. Use it only for scripts that need
-  nothing but the page.
+  runtime. Granting `GM_foo` also exposes `GM.foo` and vice versa — only when the names match exactly:
+  `GM.xmlHttpRequest` needs its own `@grant GM.xmlHttpRequest` (`@grant GM_xmlhttpRequest` does not expose it).
+- `GM_info` needs no grant. `unsafeWindow` needs no grant either, but only exists in the sandbox (any grant
+  other than `none`); `@grant unsafeWindow` is harmless.
+- `@grant none` runs the script without the sandbox: `window` is the page's own window, and the only API is
+  `GM_info` / `GM.info` — no other GM API and **no `unsafeWindow`** (referencing it throws a `ReferenceError`).
+  Use it only for scripts that need nothing but the page.
 - With any other grant the script is sandboxed: its `window` is not the page's. Reach page globals (a site's
   own JS objects, variables it defines) through `unsafeWindow`.
 - `GM_xmlhttpRequest`, `GM_cookie` and `GM_download` (native mode) ask the user before touching a host that is
@@ -117,16 +120,20 @@ is legal there.
 **Background and scheduled scripts**
 
 - Return a `Promise` and settle it **after** the last asynchronous step. Once it resolves or rejects, ScriptCat
-  treats the run as finished and later GM calls from that run are not guaranteed to work. A script that
-  returns something else gets a "return not promise" warning in its log and no completion status.
+  treats the run as finished and later GM calls from that run are not guaranteed to work. ScriptCat wraps the
+  body in an `async` function, so a body that returns nothing is marked complete as soon as its synchronous part
+  (and any top-level `await`) finishes — pending callbacks and timers do not keep the run open.
 - `resolve(value)` is logged as success, `reject(err)` as an error with the error shown in the script list.
 - To retry, `reject(new CATRetryError("reason", seconds))` (or a `Date`). The retry queue is checked every 5
   seconds, so a retry fires up to 5 seconds late; keep run time plus retry delay shorter than the cron interval
   so runs do not overlap.
-- Only the first `@crontab` line counts. Use 5 fields (`min hour day month weekday`); a 6-field form with seconds
-  exists but is not recommended. The `once` extension limits a field's period to one successful run:
-  `* * once * *` = at most once a day, `* once * * *` = at most once an hour, `* once(9-17) * * *` = once in each
-  hour from 9 to 17. Full cron and `once` rules: [references/background.md](references/background.md).
+- Write exactly one `@crontab` line. Every line is scheduled at runtime, but installation validates and the script
+  list shows only the first, and one invalid extra line stops all of the script's jobs. Use 5 fields (`min hour
+  day month weekday`); a 6-field form with seconds exists but is not recommended. The `once` extension limits a
+  field's period to one run, counted when the run **starts** — a failed run uses up the period too, so retry
+  failures with `CATRetryError`: `* * once * *` = at most once a day, `* once * * *` = at most once an hour,
+  `* once(9-17) * * *` = once in each hour from 9 to 17. Full cron and `once` rules:
+  [references/background.md](references/background.md).
 - Log with `GM_log(message, "debug" | "info" | "warn" | "error")`: it lands in ScriptCat's run log, which is the
   only place a background script's output shows up.
 

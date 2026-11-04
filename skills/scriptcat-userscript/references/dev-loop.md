@@ -12,7 +12,7 @@ sctl scriptcats -o json # more than one online (ScriptCat in two browsers) → p
 sctl browsers -o json   # at least one sctl Browser "online": true, needed for the page checks below
 ```
 
-With several ScriptCat instances online, `install`, `edit`, `enable`, `disable` and `delete` fail with
+With several ScriptCat instances online, `install`, `edit`, `grep`, `enable`, `disable` and `delete` fail with
 `SCRIPTCAT_AMBIGUOUS` (exit 3) until you pass `--scriptcat <name>` or set `SCTL_SCRIPTCAT`. Set it once for the
 session so every command below goes to the same instance.
 
@@ -64,8 +64,7 @@ show up on the approval page as a permission change. Bump `@version` with each c
 ```sh
 TAB=$(sctl tabs open 'https://example.com/target' --background -o json | jq .tabId)
 sctl debug start --tab $TAB                 # record console + exceptions from now on
-sctl page reload --tab $TAB                 # scripts inject on load: reload after every install/edit
-sctl page wait --load load --tab $TAB
+sctl page reload --tab $TAB                 # scripts inject on load: reload after every install/edit (waits for load)
 sctl debug console --tab $TAB --level warning     # errors from the script show up here
 sctl page eval 'document.querySelector("#my-button") !== null' --tab $TAB   # check the script's effect
 sctl page snapshot --tab $TAB               # or look at the structure / take a screenshot

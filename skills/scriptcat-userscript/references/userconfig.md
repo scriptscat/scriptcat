@@ -52,7 +52,7 @@ the block into several YAML documents (as above); each is parsed the same way. F
 | `title`, `description` | all | Label and help text |
 | `type` | all | `text`, `textarea`, `number`, `checkbox`, `switch`, `select`, `mult-select`. When omitted: boolean `default` → `checkbox`, any `values` → `mult-select`, number `default` → `number`, else `text` — so write `type: select` explicitly for a single choice |
 | `default` | all | Initial value (`mult-select`: an array) |
-| `min` / `max` | `text` (length), `number` (value) | Bounds |
+| `min` / `max` | `number` (value bounds); `text` uses only `max`, as the maximum length | Bounds |
 | `password: true` | `text` | Mask the input |
 | `unit` | `number` | Unit shown after the field |
 | `values` | `select`, `mult-select` | Fixed options |

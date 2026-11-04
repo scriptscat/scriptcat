@@ -5,7 +5,7 @@ is enabled and when the browser starts. A scheduled script (`@crontab`) runs whe
 
 ## Lifecycle
 
-The body is wrapped in a function. Return a `Promise` and settle it when the work is truly done:
+The body is wrapped in an `async` function. Return a `Promise` and settle it when the work is truly done:
 
 ```js
 return new Promise((resolve, reject) => {
@@ -19,10 +19,11 @@ return new Promise((resolve, reject) => {
 
 - `resolve(value)` → run status *complete*, the value goes to the log.
 - `reject(err)` → run status *error*, the error is shown in the script list and logged.
-- No `Promise` returned → a "return not promise" warning in the log and no completion status.
+- Nothing returned → the run is *complete* as soon as the synchronous part of the body (and any top-level
+  `await`) finishes; callbacks and timers still pending do not keep it open.
 - Settling early ends the run as far as ScriptCat is concerned; GM calls made afterwards may not take effect.
   `await` every `GM.setValue` before resolving.
-- `async` is fine: `return (async () => { …; return result; })();`
+- Top-level `await` works, and so does `return (async () => { …; return result; })();`
 
 A long-lived background script (listeners, menus, intervals) can simply never resolve while it is working.
 
@@ -39,7 +40,9 @@ cron interval, or runs overlap.
 
 ## Cron expressions
 
-Only the first `@crontab` line counts. Implemented on node-cron with one extension (`once`).
+Write exactly one `@crontab` line: every line is scheduled at runtime, but installation validates and the script
+list shows only the first, and if any line fails to parse, all of the script's jobs are stopped. Parsed by the npm
+package `cron` with one ScriptCat extension (`once`).
 
 - 5 fields: `minute hour day month weekday` — recommended.
 - 6 fields: `second minute hour day month weekday` — possible, not recommended: background timing is not
@@ -48,8 +51,9 @@ Only the first `@crontab` line counts. Implemented on node-cron with one extensi
 
 ### `once`
 
-`once` in a field means "at most one successful run per period of that field"; the field itself matches any value.
-`once(expr)` does the same but only `expr` values are candidates.
+`once` in a field means "at most one run per period of that field"; the field itself matches any value.
+`once(expr)` does the same but only `expr` values are candidates. A run counts when it **starts**, so a failed run
+also uses up the period — `reject(new CATRetryError(...))` is the way to try again within it (see [Retry](#retry)).
 
 | Expression | Meaning |
 |---|---|

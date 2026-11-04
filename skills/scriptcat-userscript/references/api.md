@@ -4,8 +4,9 @@ Everything ScriptCat implements, by grant. Exact signatures: `scriptcat.d.ts` (`
 repository, or <https://raw.githubusercontent.com/scriptscat/scriptcat/main/src/types/scriptcat.d.ts>). A grant
 that is not listed here does nothing in ScriptCat.
 
-`@grant GM_foo` also exposes `GM.foo` (and the reverse). `GM.*` variants return Promises; prefer them in new
-code and `await` them. `GM_info` and `unsafeWindow` need no grant.
+`@grant GM_foo` also exposes `GM.foo` (and the reverse) when the rest of the name is identical, case included. `GM.*` variants return Promises; prefer them in new
+code and `await` them. `GM_info` needs no grant; `unsafeWindow` needs none either but does not exist under
+`@grant none`.
 
 ## Storage
 
@@ -19,7 +20,7 @@ code and `await` them. `GM_info` and `unsafeWindow` need no grant.
 
 | Grant | Notes |
 |---|---|
-| `GM_xmlhttpRequest` (`GM.xmlHttpRequest`) | Cross-origin, bypasses CSP, can set `user-agent`, `origin`, `referer`, `cookie`, `host`. Hosts not in `@connect` require user approval. `anonymous: true` with `cookie` sends only that cookie. `responseType: "stream"` is basic. `redirect` replaces the old `maxRedirects` |
+| `GM_xmlhttpRequest` / `GM.xmlHttpRequest` (two separate grants) | Cross-origin, bypasses CSP, can set `user-agent`, `origin`, `referer`, `cookie`, `host`. Hosts not in `@connect` require user approval. `anonymous: true` with `cookie` sends only that cookie. `responseType: "stream"` is basic. `redirect` replaces the old `maxRedirects` |
 | `GM_download` | Returns a handle with `abort()`. **Differs from Tampermonkey:** the default `native` mode honours `@connect` (undeclared hosts prompt the user); `downloadMode: "browser"` does not. A blob URL downloads directly — background scripts can produce files this way |
 | `GM_cookie` (`GM.cookie.list/set/delete`) | Requires `@connect <host>` and user approval. Uses the cookie store of the window the script runs in (normal or incognito). `sameSite` unsupported |
 | `CAT_fetchBlob(url)` | Fetch a blob URL into a `Blob` (pairs with stream responses) |
