@@ -16,6 +16,7 @@ import { type BridgeAction, type ExternalAccessBridgeRequest, type ExternalAcces
 import type { ExternalAccessWritePolicy, ExternalAccessSourceReadPolicy } from "@App/pkg/config/config";
 import { EXTERNAL_ACCESS_COMPONENT, type ExternalAccessAuditEvent } from "./audit";
 import { ExternalAccessRunLogs } from "./run_logs";
+import { LIMITS } from "./generated/protocol.generated";
 import type { Logger, LoggerDAO } from "@App/app/repo/logger";
 import type { LogLabel, LogLevel } from "@App/app/logger/core";
 import { MessageQueue } from "@Packages/message/message_queue";
@@ -571,6 +572,55 @@ console.log('v1');`;
       } finally {
         vi.useRealTimers();
       }
+    });
+
+    it("脚本抛出超大错误信息时截断错误文本，整个应答帧仍在 daemon 的帧上限内，日志照常返回", async () => {
+      await seedScript(RUN_UUID, { type: SCRIPT_TYPE_BACKGROUND });
+      runScript.mockImplementation(async () => {
+        publishRunStatus("running");
+        pushLog("info", "y".repeat(2 * 1024 * 1024), { uuid: RUN_UUID, component: "GM_log" });
+        publishRunStatus("error", { error: "e".repeat(LIMITS.maxFrameBytes) });
+      });
+
+      const response = expectResponse(await bridge.handle(makeRequest("scripts.run", { uuid: RUN_UUID })));
+
+      expect(response.ok).toBe(true);
+      if (!response.ok) return;
+      const result = response.result as { status: string; error: string; logs: unknown[] };
+      const frame = JSON.stringify({ jsonrpc: "2.0", id: uuidv4(), result });
+      expect(new TextEncoder().encode(frame).length).toBeLessThanOrEqual(LIMITS.maxFrameBytes);
+      expect(result.status).toBe("error");
+      expect(result.error.startsWith("eeee")).toBe(true);
+      expect(result.logs).toHaveLength(1);
+    });
+
+    it("同一脚本并发两次等待运行：后一次不把前一次的 RUNNING 与被停止时的 complete 当成自己的终态", async () => {
+      await seedScript(RUN_UUID, { type: SCRIPT_TYPE_BACKGROUND });
+      // 模拟 sandbox：RUNNING 经 offscreen→SW 异步到达；已有运行时先停旧运行（发 complete）再开始新运行。
+      let active = false;
+      let starts = 0;
+      let secondStarted!: () => void;
+      const second = new Promise<void>((resolve) => (secondStarted = resolve));
+      runScript.mockImplementation(async () => {
+        setTimeout(() => {
+          if (active) publishRunStatus("complete");
+          active = true;
+          publishRunStatus("running");
+          if (++starts === 2) secondStarted();
+        }, 0);
+      });
+
+      const first = bridge.handle(makeRequest("scripts.run", { uuid: RUN_UUID }));
+      const later = bridge.handle(makeRequest("scripts.run", { uuid: RUN_UUID }));
+      await second;
+      publishRunStatus("error", { error: "second run failed" });
+
+      const [a, b] = [expectResponse(await first), expectResponse(await later)];
+      expect(runScript).toHaveBeenCalledTimes(2);
+      expect(a.ok && b.ok).toBe(true);
+      if (!a.ok || !b.ok) return;
+      expect(a.result).toMatchObject({ status: "complete" });
+      expect(b.result).toMatchObject({ status: "error", error: "second run failed" });
     });
 
     it("wait=false 触发即返回 running，不等待终态", async () => {

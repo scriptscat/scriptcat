@@ -18,12 +18,14 @@ type LogEntry = ScriptsLogsResult["logs"][number];
 
 export const RUN_DEFAULT_TIMEOUT_MS = 60_000;
 export const RUN_MAX_TIMEOUT_MS = 240_000;
-export const LOGS_DEFAULT_LIMIT = 100;
+const LOGS_DEFAULT_LIMIT = 100;
 export const LOGS_MAX_LIMIT = 1000;
 const LOGS_DEFAULT_WINDOW_MS = 3600_000;
 // 日志正文由脚本控制、单条可能很大；按条丢弃最旧记录，让整个 JSON-RPC 帧不超过 daemon 的读上限。
 // 预留 64 KiB 给信封与结果中的其他字段。
 const LOGS_BYTE_BUDGET = LIMITS.maxFrameBytes - 64 * 1024;
+// 运行的错误信息同样由脚本控制（throw 任意长度的文本）；截到这么多 UTF-16 单元，剩余预算留给日志。
+const RUN_ERROR_MAX_LENGTH = 16 * 1024;
 
 const SEVERITY_RANK: Record<LogSeverity, number> = { debug: 0, info: 1, warn: 2, error: 3 };
 
@@ -64,6 +66,20 @@ function errorText(error: unknown): string | undefined {
   return JSON.stringify(error);
 }
 
+function truncateError(text: string): string {
+  if (text.length <= RUN_ERROR_MAX_LENGTH) return text;
+  let end = RUN_ERROR_MAX_LENGTH;
+  const last = text.charCodeAt(end - 1);
+  if (last >= 0xd800 && last <= 0xdbff) end--;
+  return `${text.slice(0, end)}…`;
+}
+
+const encoder = new TextEncoder();
+
+function jsonBytes(value: unknown): number {
+  return encoder.encode(JSON.stringify(value)).length;
+}
+
 function toEntry(row: Logger, severity: LogSeverity): LogEntry {
   const { component, uuid: _uuid, ...rest } = row.label;
   const fields = Object.entries(rest)
@@ -90,29 +106,57 @@ export class ExternalAccessRunLogs {
     private readonly loggerDAO: Pick<LoggerDAO, "queryLogs">
   ) {}
 
+  /**
+   * 每个脚本最近一次外部触发的「已开始」信号：见到它的 RUNNING、或它的等待结束时兑现。scriptRunStatus 不带
+   * 运行 id，同一脚本的两次外部运行若同时在等，后一次会把前一次的 RUNNING 当成自己的，再把前一次被停止时的
+   * COMPLETE 当成本次终态；所以下一次外部运行要等这个信号后才订阅并触发。这只覆盖外部运行之间的交错：编辑器
+   * 「运行」或 cron 恰好与外部运行交错时仍可能误判，根治需要 sandbox 在运行状态里带上运行 id。
+   */
+  private readonly lastStart = new Map<string, Promise<void>>();
+
   async run(uuid: string, options: { wait: boolean; timeoutMs: number }): Promise<ScriptsRunResult> {
     const script = await this.scriptDAO.get(uuid);
     if (!script) throw new ExternalAccessBridgeError("NOT_FOUND", "script not found");
     if (script.type !== SCRIPT_TYPE_BACKGROUND && script.type !== SCRIPT_TYPE_CRONTAB) {
       throw new ExternalAccessBridgeError("INVALID_REQUEST", "only background or scheduled scripts can run");
     }
+    const previous = this.lastStart.get(uuid);
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => (markStarted = resolve));
+    this.lastStart.set(uuid, started);
+    void started.then(() => {
+      if (this.lastStart.get(uuid) === started) this.lastStart.delete(uuid);
+    });
+    await previous;
+
     const startedAt = Date.now();
-    if (!options.wait) {
-      await this.runner.runScript(uuid);
-      return { status: "running", startedAt, logs: [], contentTrust: "untrusted-user-script-log" };
-    }
     // 先订阅再触发，避免错过本次的 RUNNING。
-    const waiter = this.waitForRunEnd(uuid, options.timeoutMs);
+    const waiter = this.waitForRunEnd(uuid, options.timeoutMs, markStarted);
     try {
       await this.runner.runScript(uuid);
+    } catch (e) {
+      waiter.dispose();
+      throw e;
+    }
+    if (!options.wait) {
+      // 不等终态，但订阅保留到本次 RUNNING 到达（或超时），让随后的外部运行不会认错 RUNNING。
+      void started.then(waiter.dispose);
+      return { status: "running", startedAt, logs: [], contentTrust: "untrusted-user-script-log" };
+    }
+    try {
       const end = await waiter.ended;
+      const error = end?.error === undefined ? undefined : truncateError(end.error);
       // 终态（COMPLETE/ERROR）先于 sandbox 的 "exec script complete/error" 日志发布，这条收尾日志可能
       // 尚未落库；脚本运行期间写下的日志（GM_log 等）此时已在库中。
-      const { logs, truncated } = await this.queryLogs(uuid, { since: startedAt });
+      const { logs, truncated } = await this.queryLogs(
+        uuid,
+        { since: startedAt },
+        LOGS_BYTE_BUDGET - (error === undefined ? 0 : jsonBytes(error))
+      );
       if (!end) return { status: "running", startedAt, logs, truncated, contentTrust: "untrusted-user-script-log" };
       return {
         status: end.status,
-        ...(end.error !== undefined ? { error: end.error } : {}),
+        ...(error !== undefined ? { error } : {}),
         startedAt,
         endedAt: end.endedAt,
         logs,
@@ -127,26 +171,30 @@ export class ExternalAccessRunLogs {
   async logs(uuid: string, query: ScriptLogsQuery): Promise<ScriptsLogsResult> {
     const script = await this.scriptDAO.get(uuid);
     if (!script) throw new ExternalAccessBridgeError("NOT_FOUND", "script not found");
-    const { logs, truncated } = await this.queryLogs(uuid, {
-      ...query,
-      since: query.since ?? Date.now() - LOGS_DEFAULT_WINDOW_MS,
-    });
+    const { logs, truncated } = await this.queryLogs(
+      uuid,
+      { ...query, since: query.since ?? Date.now() - LOGS_DEFAULT_WINDOW_MS },
+      LOGS_BYTE_BUDGET
+    );
     return { logs, truncated, contentTrust: "untrusted-user-script-log" };
   }
 
   /**
    * scriptRunStatus 不带运行 id：重跑时 sandbox 先为旧运行发 COMPLETE 再为本次发 RUNNING，因此只有
    * 见到本次 RUNNING 之后的第一个非 RUNNING 状态才是本次运行的终态。run-in 与当前环境不匹配时 sandbox
-   * 不运行也不发 RUNNING，这种情况按超时返回 running。超时 resolve undefined。
+   * 不运行也不发 RUNNING，这种情况按超时返回 running。超时 resolve undefined。见到 RUNNING、超时或 dispose
+   * 时调用 onStarted。
    */
-  private waitForRunEnd(uuid: string, timeoutMs: number) {
+  private waitForRunEnd(uuid: string, timeoutMs: number, onStarted: () => void) {
     let resolveEnd!: (end: RunEnd | undefined) => void;
     const ended = new Promise<RunEnd | undefined>((resolve) => (resolveEnd = resolve));
+    void ended.then(onStarted);
     let sawRunning = false;
     const unsubscribe = this.mq.subscribe<RunStatusMessage>("scriptRunStatus", (message) => {
       if (message.uuid !== uuid) return;
       if (message.runStatus === SCRIPT_RUN_STATUS_RUNNING) {
         sawRunning = true;
+        onStarted();
         return;
       }
       if (!sawRunning) return;
@@ -162,13 +210,15 @@ export class ExternalAccessRunLogs {
       dispose() {
         clearTimeout(timer);
         unsubscribe();
+        onStarted();
       },
     };
   }
 
   private async queryLogs(
     uuid: string,
-    query: ScriptLogsQuery & { since: number }
+    query: ScriptLogsQuery & { since: number },
+    byteBudget: number
   ): Promise<{ logs: LogEntry[]; truncated: boolean }> {
     const minRank = SEVERITY_RANK[query.severity ?? "debug"];
     const needle = query.text?.toLowerCase();
@@ -179,7 +229,6 @@ export class ExternalAccessRunLogs {
       (a, b) => b.createtime - a.createtime || b.id - a.id
     );
     const newestFirst: LogEntry[] = [];
-    const encoder = new TextEncoder();
     let bytes = 0;
     let truncated = false;
     for (const row of rows) {
@@ -192,8 +241,8 @@ export class ExternalAccessRunLogs {
         break;
       }
       const entry = toEntry(row, severity);
-      bytes += encoder.encode(JSON.stringify(entry)).length + 1;
-      if (bytes > LOGS_BYTE_BUDGET) {
+      bytes += jsonBytes(entry) + 1;
+      if (bytes > byteBudget) {
         truncated = true;
         break;
       }
