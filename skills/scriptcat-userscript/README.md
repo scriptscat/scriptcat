@@ -23,6 +23,24 @@ API 以 `src/types/scriptcat.d.ts` 和 `src/pkg/utils/script_compat.ts`（支持
 
 ## 安装
 
+通过 [scriptscat/skills](https://github.com/scriptscat/skills) 插件市场安装，之后可以检查更新（更新方式见该仓库的 README）。
+建议同时安装 `sctl`。
+
+```text
+# Claude Code
+/plugin marketplace add scriptscat/skills
+/plugin install scriptcat-userscript@scriptcat
+
+# Codex
+codex plugin marketplace add scriptscat/skills
+codex plugin add scriptcat-userscript@scriptcat
+```
+
+插件市场从本仓库 `main` 分支的 `skills/` 目录取文件。Codex 要求插件根下有清单，所以 `skills/.codex-plugin/plugin.json`
+指向本目录；目录改名或移动时同步修改它和插件市场的目录文件。
+
+开发本 Skill 时改用软链，改动立即生效：
+
 ```sh
 ln -s "$(pwd)/skills/scriptcat-userscript" ~/.claude/skills/scriptcat-userscript
 ln -s "$(pwd)/skills/scriptcat-userscript" ~/.codex/skills/scriptcat-userscript
