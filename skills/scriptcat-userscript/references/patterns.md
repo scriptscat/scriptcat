@@ -43,13 +43,12 @@ function onRoute(url) {
   if (new URL(url).pathname.startsWith("/watch")) enhanceWatchPage();
 }
 onRoute(location.href);
-if (window.onurlchange === null) {
-  window.addEventListener("urlchange", (e) => onRoute(e.url));
-}
+window.addEventListener("urlchange", (e) => onRoute(e.url));
 ```
 
-`window.onurlchange === null` means the feature is available (it relies on the browser's Navigation API). Combine
-with `waitFor`: the new view's DOM usually arrives after the URL changes.
+The event is driven by the browser's Navigation API (Chrome 102+, Firefox 147+); where that API is missing it
+silently never fires. `window.onurlchange === null` only shows that the grant was applied, not that the event
+will arrive. Combine with `waitFor`: the new view's DOM usually arrives after the URL changes.
 
 ## A menu switch that remembers its state
 
@@ -96,8 +95,9 @@ const res = await request({ url: "https://api.example.com/items", responseType: 
 const items = res.response;
 ```
 
-The browser's cookies for the target site are sent unless `anonymous: true`. Requests to the page's own host
-need no `@connect`.
+The browser's cookies for the target site are sent unless `anonymous: true`. Requests to exactly the page's own
+host need no `@connect`; a subdomain of it needs `@connect self` or its own entry. Once the script has any
+`@connect` line, a request to an undeclared host is refused rather than asked.
 
 ## Styles
 
@@ -129,7 +129,7 @@ const t = (key) => (MESSAGES[lang] ?? MESSAGES[lang.split("-")[0]] ?? MESSAGES.e
 ## Background or scheduled run with retry
 
 Grants: `GM_xmlhttpRequest`, `GM_setValue`, `GM_log`, plus `@connect` for the host. `CATRetryError` needs no
-grant.
+grant of its own, but does not exist under `@grant none`.
 
 ```js
 return (async () => {

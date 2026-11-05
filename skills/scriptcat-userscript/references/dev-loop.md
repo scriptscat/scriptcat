@@ -12,9 +12,10 @@ sctl scriptcats -o json # more than one online (ScriptCat in two browsers) → p
 sctl browsers -o json   # at least one sctl Browser "online": true, needed for the page checks below
 ```
 
-With several ScriptCat instances online, `install`, `edit`, `grep`, `enable`, `disable` and `delete` fail with
-`SCRIPTCAT_AMBIGUOUS` (exit 3) until you pass `--scriptcat <name>` or set `SCTL_SCRIPTCAT`. Set it once for the
-session so every command below goes to the same instance.
+With several ScriptCat instances online, `install`, `edit`, `grep`, `enable`, `disable`, `delete` (and `run` /
+`logs` where they exist) fail with `SCRIPTCAT_AMBIGUOUS` (exit 3) until you pass `--scriptcat <name>` or set
+`SCTL_SCRIPTCAT`; `get` does not fail but lists scripts from every online instance, with a `SCRIPTCAT` column. Set
+`SCTL_SCRIPTCAT` once for the session so every command below goes to the same instance.
 
 ScriptCat not connected: the user enables external access in ScriptCat and pairs it with a code from
 `sctl connect`. No browser online: page checks are unavailable; you can still install, and the user verifies by
@@ -68,7 +69,9 @@ Keep the `uuid`; every later command needs it. `sctl get <uuid> -o json` shows t
 that `type` is what you meant (`normal` for page scripts) and that the grants and matches came through.
 
 Installing again with the same `@name` and `@namespace` **updates that script in place**: same `uuid`, stored
-values kept. Changing either one installs a separate script instead, so keep them fixed while iterating.
+values kept. Changing either one installs a separate script instead, so keep them fixed while iterating. The
+update is rejected (script type mismatch) if it turns a page script into a background or scheduled script, or the
+reverse.
 
 ## Applying a change
 
@@ -98,7 +101,8 @@ the file you are editing, and an empty body.
 
 ```js
 // ==UserScript==
-// @name         My script            (same @name/@namespace as the real script)
+// Same @name and @namespace as the real script:
+// @name         My script
 // @namespace    https://example.com/your-namespace
 // @version      0.1.0
 // @match        https://example.com/*
@@ -128,8 +132,11 @@ obvious which version ran.
 - Because the stub keeps the real `@name` and `@namespace`, installing the finished script at the end replaces
   the stub in place (same uuid, values kept). Do that before handing over — the stub depends on a file on this
   machine.
-- A background or scheduled script re-reads its local `@require` only when ScriptCat (re)loads the script, for
-  example on `sctl disable` + `sctl enable`; each of those is an approval, so the stub saves less there.
+- A background or scheduled script re-reads its local `@require` whenever it is run by hand: `sctl run <uuid>`
+  (where your sctl and ScriptCat have it, see below) or the editor's Run button reads the file again for that run,
+  with no approval — so the stub works for these scripts too. Without `sctl run`, the file is re-read only when
+  ScriptCat (re)loads the script, for example on `sctl disable` + `sctl enable`; each of those is an approval, and
+  scheduled runs keep using the code loaded then.
 
 ## Verifying a page script
 
@@ -167,9 +174,13 @@ sctl logs <uuid> --since 10m --level warn --text "[my-script]" --limit 50
 
 - `run` works for `@background` and `@crontab` scripts only (a page script fails with `INVALID_REQUEST`), whether
   or not the script is enabled. It is what the editor's Run button does: the same body, the same grants.
-- The status line reads `complete` (resolved), `error: <message>` (rejected or threw) or `still running` (not
-  settled when the wait ended — normal for a long-lived `@background` script). The command exits 0 in all three
-  cases; read the status, not the exit code. `-o json` gives `status`, `error`, `startedAt`, `endedAt` and `logs`.
+- The status line reads `complete in 1.2s` (resolved), `error in 1.2s: <message>` (rejected or threw) or
+  `still running (started 15:04:05)` (not settled when the wait ended — normal for a long-lived `@background`
+  script). The command exits 0 in all three cases; read the status, not the exit code. `-o json` gives `status`
+  (`complete` / `error` / `running`), `error`, `startedAt`, `endedAt` (absent while running), `logs` and
+  `truncated` (true when log records were left out — narrow them with `sctl logs --since/--level/--text`).
+- A background script whose `@run-in` (normal or incognito) does not match the ScriptCat instance's context
+  fails with `INVALID_REQUEST` and is not run; ScriptCat would not run it there either.
 - Neither command opens an approval page, but `run` really runs the script: its requests, notifications and value
   writes happen. Run scripts you are writing; ask before running one of the user's existing scripts.
 - A manual run does not schedule a `CATRetryError` retry; the error shows up as `error` instead. Test retry
@@ -221,13 +232,15 @@ The background script declares the same `@storageName my-script-store`. Open the
 on it, trigger a run, then `sctl debug console --tab $TAB --text "[probe]"`. Ask the user before deleting the
 probe (and before removing the debug writes from the real script).
 
-**Hand over what you cannot see.** In ScriptCat's script list the run-status column shows running / complete /
-error and the next run time of a scheduled script; clicking it shows the `GM_log` output. Make that output
-useful: `GM_log` at start, at each step and before settling; resolve with a value that summarises the result;
-`reject` with a real reason.
+**Hand over what you cannot see.** ScriptCat's script list shows only the run status (running / error /
+stopped) and the next run time of a scheduled script; the `GM_log` output and the error message are on
+ScriptCat's Logs page (filter by the script's `name` or `uuid`). Make that output useful: `GM_log` at start, at
+each step and before settling; resolve with a value that summarises the result; `reject` with a real reason.
 
 When the logic can be tested on a page, verify that part with a temporary page script first, then move it into
-the background script.
+the background script. Give the temporary page script a different `@name` (for example `my-script page test`):
+installing a page script under the background script's `@name` + `@namespace`, or the reverse, is rejected as a
+script type mismatch.
 
 ## Cleaning up
 

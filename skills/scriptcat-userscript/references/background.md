@@ -18,7 +18,7 @@ return new Promise((resolve, reject) => {
 ```
 
 - `resolve(value)` → run status *complete*, the value goes to the log.
-- `reject(err)` → run status *error*, the error is shown in the script list and logged.
+- `reject(err)` → run status *error* in the script list; the error message is in the log.
 - Nothing returned → the run is *complete* as soon as the synchronous part of the body (and any top-level
   `await`) finishes; callbacks and timers still pending do not keep it open.
 - Settling early ends the run as far as ScriptCat is concerned; GM calls made afterwards may not take effect.
@@ -34,7 +34,8 @@ reject(new CATRetryError("server busy", 30));          // retry in 30 seconds
 reject(new CATRetryError("try again later", new Date(Date.now() + 3600e3)));
 ```
 
-`CATRetryError` is a global in background scripts; no grant needed. The retry queue is checked every 5
+`CATRetryError` is a global in background scripts and needs no grant of its own, but it is undefined under
+`@grant none` (that mode skips everything ScriptCat injects); any other grant, or no `@grant` line, has it. The retry queue is checked every 5
 seconds, so a retry fires up to 5 seconds after the requested time. Keep run time plus retry delay shorter than the
 cron interval, or runs overlap.
 
@@ -73,13 +74,14 @@ To test an expression in an external cron tool, replace `once` with `*` and `onc
 
 ## Debugging and logs
 
-- `GM_log(msg, level)` writes to ScriptCat's run log: hover/click the run-status column in the script list, or
-  `sctl logs <uuid>`. This is where background output goes; plain `console.log` is not shown there. Release
-  builds do not store `debug`-level entries.
+- `GM_log(msg, level)` writes to ScriptCat's log: open ScriptCat's Logs page and filter by the script's `name` or
+  `uuid`, or run `sctl logs <uuid>`. This is where background output goes; plain `console.log` is not shown there.
+  Release builds do not store `debug`-level entries.
 - The script editor's Run button runs a background or scheduled script once, through the same path as
   `sctl run` (see [dev-loop.md](dev-loop.md#verifying-background-and-scheduled-scripts)). A manual run does not
   schedule `CATRetryError` retries.
-- The script list also shows the next run time of a scheduled script.
+- The script list shows only the run status (running / error / stopped) and, for a scheduled script, the next
+  run time — not the result or the log.
 
 ## What is not available
 

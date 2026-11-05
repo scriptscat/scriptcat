@@ -75,6 +75,9 @@ is legal there.
 
 - `@name` + `@namespace` identify a script. Keep both stable once the user has installed it; changing either
   makes a different script. Bump `@version` on every change you hand back.
+- A page script cannot become a background or scheduled script (or the reverse) under the same `@name` +
+  `@namespace`: ScriptCat rejects that install with a script type mismatch. Give a temporary script of the other
+  type its own `@name`.
 
 **Permissions**
 
@@ -82,14 +85,19 @@ is legal there.
   runtime. Granting `GM_foo` also exposes `GM.foo` and vice versa — only when the names match exactly:
   `GM.xmlHttpRequest` needs its own `@grant GM.xmlHttpRequest` (`@grant GM_xmlhttpRequest` does not expose it).
 - `GM_info` needs no grant. `unsafeWindow` needs no grant either, but only exists in the sandbox (any grant
-  other than `none`); `@grant unsafeWindow` is harmless.
+  other than `none`, or no `@grant` line at all); `@grant unsafeWindow` is harmless.
 - `@grant none` runs the script without the sandbox: `window` is the page's own window, and the only API is
   `GM_info` / `GM.info` — no other GM API and **no `unsafeWindow`** (referencing it throws a `ReferenceError`).
   Use it only for scripts that need nothing but the page.
-- With any other grant the script is sandboxed: its `window` is not the page's. Reach page globals (a site's
-  own JS objects, variables it defines) through `unsafeWindow`.
-- `GM_xmlhttpRequest`, `GM_cookie` and `GM_download` (native mode) ask the user before touching a host that is
-  not declared with `@connect <host>`. Declare every host you request; `GM_cookie` requires it.
+- With any other grant — and also with no `@grant` line at all, unlike Tampermonkey — the script is sandboxed:
+  its `window` is not the page's. Reach page globals (a site's own JS objects, variables it defines) through
+  `unsafeWindow`.
+- Declare every host you request with `@connect <host>` (it also covers the host's subdomains; `@connect self`
+  covers subdomains of the page's host; requests to exactly the page's host need nothing). For a host that is not
+  covered, `GM_xmlhttpRequest` is **refused** ("This domain is not a part of the @connect list") as soon as the
+  script has any `@connect` line, unless the user allowed that host before; only a script with no `@connect` at
+  all asks the user instead. `GM_download` in native mode always asks, and `GM_cookie` throws for a host outside
+  `@connect`.
 
 **Page timing and SPAs**
 
@@ -106,7 +114,8 @@ is legal there.
 - `@noframes` keeps the script out of iframes; without it, a `*://*/*` match also runs inside every iframe.
 - `@inject-into content` runs in the content-script world: unaffected by the page's CSP, but `unsafeWindow`
   is then not the page's `window`. The default is `page`.
-- `GM_addStyle` and `GM_addElement` bypass CSP; prefer them over creating `<style>`/`<script>` by hand.
+- `GM_addStyle` and `GM_addElement` bypass the page's CSP; prefer them over creating `<style>`/`<script>` by
+  hand. Exception: on Firefox a `<script>` injected with `GM_addElement` is still subject to the page's CSP.
 
 **Storage**
 
@@ -123,8 +132,10 @@ is legal there.
   treats the run as finished and later GM calls from that run are not guaranteed to work. ScriptCat wraps the
   body in an `async` function, so a body that returns nothing is marked complete as soon as its synchronous part
   (and any top-level `await`) finishes — pending callbacks and timers do not keep the run open.
-- `resolve(value)` is logged as success, `reject(err)` as an error with the error shown in the script list.
-- To retry, `reject(new CATRetryError("reason", seconds))` (or a `Date`). The retry queue is checked every 5
+- `resolve(value)` is logged as success, `reject(err)` as an error; the script list then shows the run status
+  as error, and the message is in the log.
+- To retry, `reject(new CATRetryError("reason", seconds))` (or a `Date`). `CATRetryError` is undefined under
+  `@grant none`; it exists with any other grant or with no `@grant` line. The retry queue is checked every 5
   seconds, so a retry fires up to 5 seconds late; keep run time plus retry delay shorter than the cron interval
   so runs do not overlap.
 - Write exactly one `@crontab` line. Every line is scheduled at runtime, but installation validates and the script
@@ -134,9 +145,10 @@ is legal there.
   failures with `CATRetryError`: `* * once * *` = at most once a day, `* once * * *` = at most once an hour,
   `* once(9-17) * * *` = once in each hour from 9 to 17. Full cron and `once` rules:
   [references/background.md](references/background.md).
-- Log with `GM_log(message, "debug" | "info" | "warn" | "error")`: it lands in ScriptCat's run log, the only place
-  a background script's output shows up (the script list, or `sctl logs`). Release builds do not store `debug`, so
-  log anything someone must read at `info` or above.
+- Log with `GM_log(message, "debug" | "info" | "warn" | "error")`: it lands in ScriptCat's log, the only place
+  a background script's output shows up — ScriptCat's Logs page (filter by the script's `name` or `uuid`), or
+  `sctl logs`. The script list shows only the run status (running / error / stopped) and a scheduled script's
+  next run time. Release builds do not store `debug`, so log anything someone must read at `info` or above.
 
 **User configuration**
 
@@ -176,7 +188,8 @@ It is a static check — it cannot tell whether the script does what the user as
   too — read it first if it is installed.
 - **No sctl:** save the code as `<name>.user.js` and tell the user to install it — drag the file onto the
   ScriptCat dashboard, or create a new script in ScriptCat and paste the code. Say which page to open (page
-  script) or where to look (background: the script list's run status and its log).
+  script) or where to look (background: the run status in the script list, and the script's output on
+  ScriptCat's Logs page).
 
 Whichever path you take, report what you actually observed: "installed and the button appears on
 example.com" is a result; "should work" is not.
