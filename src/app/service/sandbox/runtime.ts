@@ -15,7 +15,7 @@ import { BgExecScriptWarp } from "../content/exec_warp";
 import type ExecScript from "../content/exec_script";
 import { compileScriptCodeByResource } from "../content/utils";
 import type { ValueUpdateDataEncoded } from "../content/types";
-import { getStorageName, getMetadataStr, getUserConfigStr, getISOWeek } from "@App/pkg/utils/utils";
+import { getStorageName, getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { CATRetryError } from "../content/exec_warp";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
@@ -23,11 +23,7 @@ import { decodeRValue } from "@App/pkg/utils/message_value";
 import { extractCronExpr } from "@App/pkg/utils/cron";
 import { changeLanguage, initLanguage, t } from "@App/locales/locales";
 import { type TExtensionEnv } from "../extension/extension_env";
-import { backgroundRunInAllowed } from "./run_in";
-
-const utime_1min = 60 * 1000;
-const utime_1hr = 60 * 60 * 1000;
-const utime_1day = 24 * 60 * 60 * 1000;
+import { backgroundRunInAllowed, isOnceRunDone } from "./utils";
 
 export class Runtime {
   cronJob: Map<string, Array<CronJob>> = new Map();
@@ -144,33 +140,7 @@ export class Runtime {
     const execOnce = opts?.execOnce ?? false;
     const cronJobOncePos = opts?.cronJobOncePos ?? 0;
 
-    if (cronJobOncePos >= 1) {
-      // 没有最后一次执行时间表示之前都没执行过,直接执行
-      if (script.lastruntime) {
-        const now = new Date();
-        const last = new Date(script.lastruntime);
-        // 根据once所在的位置去判断执行
-        const timeDiff = now.getTime() - last.getTime();
-        switch (cronJobOncePos) {
-          case 1: // 每分钟
-            if (timeDiff < 2 * utime_1min && last.getMinutes() === now.getMinutes()) return;
-            break;
-          case 2: // 每小时
-            if (timeDiff < 2 * utime_1hr && last.getHours() === now.getHours()) return;
-            break;
-          case 3: // 每天
-            if (timeDiff < 2 * utime_1day && last.getDay() === now.getDay()) return;
-            break;
-          case 4: // 每月
-            if (timeDiff < 62 * utime_1day && last.getMonth() === now.getMonth()) return;
-            break;
-          case 5: // 每周
-            if (timeDiff < 14 * utime_1day && getISOWeek(last) === getISOWeek(now)) return;
-            break;
-          default:
-        }
-      }
-    }
+    if (isOnceRunDone(cronJobOncePos, script.lastruntime, new Date())) return;
 
     const logger = this.logger.with({ uuid: script.uuid, name: script.name });
     if (this.execScriptMap.has(script.uuid)) {

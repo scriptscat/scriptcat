@@ -10,7 +10,7 @@ import {
   SCRIPT_TYPE_CRONTAB,
 } from "@App/app/repo/scripts";
 import type { TExtensionEnv } from "@App/app/service/extension/extension_env";
-import { backgroundRunInAllowed } from "@App/app/service/sandbox/run_in";
+import { backgroundRunInAllowed } from "@App/app/service/sandbox/utils";
 import { getCombinedMeta } from "../utils";
 import { EXTERNAL_ACCESS_COMPONENT } from "./audit";
 import { ExternalAccessBridgeError } from "./errors";
