@@ -23,8 +23,16 @@ API 以 `src/types/scriptcat.d.ts` 和 `src/pkg/utils/script_compat.ts`（支持
 
 ## 安装
 
-通过 [scriptscat/skills](https://github.com/scriptscat/skills) 插件市场安装，之后可以检查更新（更新方式见该仓库的 README）。
-建议同时安装 `sctl`。
+下面两种方式任选一种，都可以检查更新，不要两种都装。建议同时安装 `sctl`。
+
+用 [`npx skills`](https://skills.sh/)（可装进 Claude Code、Codex、Cursor 等多个代理；`npx skills check -g` 检查更新，
+`npx skills update -g` 更新）：
+
+```sh
+npx skills add scriptscat/scriptcat -g
+```
+
+或者用 [scriptscat/skills](https://github.com/scriptscat/skills) 插件市场（更新方式见该仓库的 README）：
 
 ```text
 # Claude Code
