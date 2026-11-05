@@ -16,6 +16,7 @@ function script(headerLines, body = "") {
 
 const PAGE = ["@name Demo", "@namespace https://example.com/demo", "@match https://example.com/*"];
 const BACKGROUND = ["@name Demo", "@namespace https://example.com/demo", "@background"];
+const BASE_NAME = ["@name Demo", "@namespace https://example.com/demo"];
 
 // 只比较规则、级别和行号；提示文案不是契约
 const summary = (code) => checkScript(code).map(({ level, rule, line }) => ({ level, rule, line }));
@@ -72,6 +73,25 @@ describe("checkScript", () => {
       '// GM_setValue("x")\n/* unsafeWindow */\nconst s = "GM_getValue";\nconst t = `GM_log ${1}`;\nconst r = /GM_cookie"/;'
     );
     expect(summary(code)).toEqual([]);
+  });
+
+  it("对象字面量的键和成员访问里的 API 名不算调用，三元表达式里的仍算", () => {
+    const code = script(
+      PAGE,
+      "const o = { GM_getValue: 1, b: 2 };\nconst p = { a: 1, GM_setValue : 2 };\nx.GM_log(o, p);"
+    );
+    expect(summary(code)).toEqual([]);
+    const ternary = script(PAGE, "const f = ok ? GM_getValue : null;");
+    expect(summary(ternary)).toEqual([{ level: "error", rule: "grant-missing", line: 7 }]);
+  });
+
+  it("关键字后的 / 是正则开头：正则里的引号不会吞掉同一行后面的调用", () => {
+    for (const keyword of ["return", "typeof", "case", "throw", "in", "of", "void", "delete", "new"]) {
+      const code = script(PAGE, `${keyword} /"/.test(s) ? GM_getValue("a") : 0;`);
+      expect(summary(code), keyword).toEqual([{ level: "error", rule: "grant-missing", line: 7 }]);
+    }
+    const division = script(PAGE, 'const n = total / 2; const s = "GM_getValue";');
+    expect(summary(division)).toEqual([]);
   });
 
   it("脚本猫未实现的 GM_* 名称只警告（可能来自 @require 的库）", () => {
@@ -173,18 +193,44 @@ describe("checkScript", () => {
     expect(summary(script([...base, "@connect self"], req("https://sub.example.com/")))).toEqual([]);
   });
 
+  it("@match 带通配子域或有多个域名时，请求其中一个域名不算同域：页面可能在别的子域上", () => {
+    const req = (url) => `GM_xmlhttpRequest({ url: "${url}" });`;
+    const wildcard = [...BASE_NAME, "@match *://*.example.com/*", "@grant GM_xmlhttpRequest"];
+    expect(summary(script(wildcard, req("https://example.com/api")))).toEqual([
+      { level: "warn", rule: "connect-missing", line: 8 },
+    ]);
+    expect(summary(script([...wildcard, "@connect self"], req("https://example.com/api")))).toEqual([
+      { level: "warn", rule: "connect-missing", line: 9 },
+    ]);
+    const twoHosts = [...BASE_NAME, "@match https://a.com/*", "@match https://b.com/*", "@grant GM_xmlhttpRequest"];
+    expect(summary(script(twoHosts, req("https://a.com/api")))).toEqual([
+      { level: "warn", rule: "connect-missing", line: 9 },
+    ]);
+  });
+
+  it("有其他 @connect 时提示请求会被拒绝，没有任何 @connect 时提示会询问用户", () => {
+    const req = 'GM_xmlhttpRequest({ url: "https://other.net/" });';
+    const messageOf = (header) => checkScript(script([...PAGE, "@grant GM_xmlhttpRequest", ...header], req))[0].message;
+    expect(messageOf(["@connect example.org"])).toMatch(/refused/);
+    expect(messageOf([])).toMatch(/asks the user/);
+  });
+
   it("不发请求的脚本不检查 URL 字面量", () => {
     expect(summary(script(PAGE, 'const link = "https://other.net/";'))).toEqual([]);
   });
 });
 
-describe("check.mjs 命令行", () => {
-  const run = (code) => {
+// 这些用例真实 spawn node 子进程（满载时单次可达 1s），不适用 vitest.config.ts 给单元测试定的 340ms 预算；
+// 与 scripts/check-i18n.test.mjs 的命令行用例同一做法
+const CLI_TIMEOUT = 15_000;
+
+describe("check.mjs 命令行", { timeout: CLI_TIMEOUT }, () => {
+  const run = (code, extraBefore = []) => {
     const dir = mkdtempSync(path.join(os.tmpdir(), "sc-check-"));
     const file = path.join(dir, "a.user.js");
     writeFileSync(file, code);
     try {
-      return spawnSync(process.execPath, [CHECK, file], { encoding: "utf8" });
+      return spawnSync(process.execPath, [CHECK, ...extraBefore, file], { encoding: "utf8" });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -200,6 +246,13 @@ describe("check.mjs 命令行", () => {
     const res = run(script([...PAGE, "@grant GM_doesNotExist"]));
     expect(res.status).toBe(0);
     expect(res.stdout).toMatch(/^warn grant-unknown .*a\.user\.js:5 /m);
+  });
+
+  it("读不了的文件报错后继续检查其余文件，最终退出码为 2", () => {
+    const res = run(script(PAGE, 'GM_setValue("a", 1);'), [path.join(os.tmpdir(), "sc-check-missing", "none.user.js")]);
+    expect(res.status).toBe(2);
+    expect(res.stderr).toMatch(/cannot read .*none\.user\.js/);
+    expect(res.stdout).toMatch(/^error grant-missing .*a\.user\.js:7 /m);
   });
 
   it("没有参数时退出码为 2", () => {

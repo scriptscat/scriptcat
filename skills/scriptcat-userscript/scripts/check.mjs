@@ -5,7 +5,8 @@
 //   node check.mjs my-script.user.js [more.user.js …]
 //
 // Prints one line per finding — `error|warn <rule> <file>:<line> <message>` — and exits 1 when any error was found,
-// 0 otherwise, 2 on a usage or read error. The rules mirror ScriptCat's runtime; the sources are named per rule.
+// 0 otherwise, 2 on a usage error or when a file could not be read (the other files are still checked). The rules
+// mirror ScriptCat's runtime; the sources are named per rule.
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
@@ -140,6 +141,24 @@ const RUN_AT = new Set(["document-start", "document-body", "document-end", "docu
 const TAB_APIS = new Set(["GM_getTab", "GM_saveTab", "GM_getTabs", "GM.getTab", "GM.saveTab", "GM.getTabs"]);
 const REQUEST_APIS = ["GM_xmlhttpRequest", "GM.xmlHttpRequest", "GM_download", "GM.download"];
 
+// After these words a `/` starts a regular expression; after any other identifier it is a division.
+const REGEX_AFTER = new Set([
+  "return",
+  "typeof",
+  "case",
+  "throw",
+  "in",
+  "of",
+  "void",
+  "delete",
+  "new",
+  "instanceof",
+  "do",
+  "else",
+  "yield",
+  "await",
+]);
+
 const lineAt = (text, index) => {
   let line = 1;
   for (let i = 0; i < index; i++) if (text.charCodeAt(i) === 10) line++;
@@ -159,6 +178,14 @@ function lex(code) {
   let lastSignificant = "";
   const templateDepth = []; // brace depth at which each open `${` returns to its template
   let braceDepth = 0;
+  // The identifier right before `index` (comments already blanked), unless it is a property name such as `x.return`.
+  const wordBefore = (index) => {
+    let j = index - 1;
+    while (j >= 0 && /\s/.test(noComments[j])) j--;
+    const end = j + 1;
+    while (j >= 0 && /[\w$]/.test(noComments[j])) j--;
+    return noComments[j] === "." ? "" : noComments.slice(j + 1, end).join("");
+  };
   const readQuoted = (quote, start) => {
     let j = start + 1;
     while (j < code.length && code[j] !== quote && code[j] !== "\n") j += code[j] === "\\" ? 2 : 1;
@@ -208,7 +235,12 @@ function lex(code) {
     } else if (c === "}" && templateDepth.length && templateDepth[templateDepth.length - 1] === braceDepth) {
       templateDepth.pop();
       i = templatePiece(i, i + 1);
-    } else if (c === "/" && (lastSignificant === "" || /[(,=:[!&|?{};+\-*%<>~^]/.test(lastSignificant))) {
+    } else if (
+      c === "/" &&
+      (lastSignificant === "" ||
+        /[(,=:[!&|?{};+\-*%<>~^]/.test(lastSignificant) ||
+        (lastSignificant === "a" && REGEX_AFTER.has(wordBefore(i))))
+    ) {
       let j = i + 1;
       let inClass = false;
       while (j < code.length && code[j] !== "\n") {
@@ -254,19 +286,20 @@ const hostOf = (pattern) => {
   return m ? m[1].toLowerCase() : null;
 };
 
-// Same matching as getConnectMatched (src/app/service/service_worker/gm_api/gm_api.ts): a request to the page's own
-// host needs nothing; otherwise an @connect entry must equal the host or a parent domain of it, be `*`, or be `self`
-// with the host under the page's domain. The page host is approximated from @match/@include.
+// Same matching as getConnectMatched (src/app/service/service_worker/gm_api/gm_api.ts): a request to exactly the
+// page's host needs nothing, `self` also covers subdomains of the page's host, and any other @connect entry must
+// equal the request host or a parent domain of it, or be `*`. The page host comes from @match/@include, so the
+// page-relative rules only hold when every pattern names the same exact host: a wildcard (`*.example.com`) or a
+// second host means the script also runs on pages whose host is a different one.
 function connectCovers(host, connects, pageHosts) {
   const under = (h, d) => `.${h}`.endsWith(`.${d}`);
-  for (const page of pageHosts) {
-    if (page === "*") continue;
-    if (page.startsWith("*.") ? under(host, page.slice(2)) : host === page) return true;
-  }
+  const exactPages = pageHosts.length > 0 && pageHosts.every((p) => !p.includes("*")) ? pageHosts : [];
+  const forEveryPage = (test) => exactPages.length > 0 && exactPages.every(test);
+  if (forEveryPage((p) => p === host)) return true;
   for (const c of connects) {
     if (c === "*") return true;
     if (c === "self") {
-      if (pageHosts.some((p) => p !== "*" && under(host, p.replace(/^\*\./, "")))) return true;
+      if (forEveryPage((p) => under(host, p))) return true;
     } else if (under(host, c)) return true;
   }
   return false;
@@ -351,8 +384,12 @@ export function checkScript(code) {
 
   const used = [];
   const usage = /(?<![\w$.])(GM_[A-Za-z]\w*|GM\.[A-Za-z]\w*|CAT_[A-Za-z]\w*|CAT\.agent\.\w+)/g;
+  // `{ GM_getValue: 1 }` / `{ a, GM_getValue: 1 }` name a property, not the API; `ok ? GM_getValue : x` still uses it.
+  const isPropertyKey = (start, end) =>
+    /[{,]\s*$/.test(bare.slice(Math.max(0, start - 200), start)) && /^\s*:/.test(bare.slice(end, end + 200));
   for (const m of bare.matchAll(usage)) {
     if (m[1] === "GM_info" || m[1] === "GM.info") continue;
+    if (isPropertyKey(m.index, m.index + m[1].length)) continue;
     used.push({ name: m[1], index: m.index });
   }
   for (const m of noComments.matchAll(/(?<![\w$])onurlchange\b|addEventListener\(\s*["'`]urlchange["'`]/g)) {
@@ -415,8 +452,14 @@ export function checkScript(code) {
   }
 
   if (used.some((u) => REQUEST_APIS.includes(u.name))) {
-    const connects = values("connect").map((c) => c.toLowerCase());
-    const pageHosts = isBackground ? [] : [...values("match"), ...values("include")].map(hostOf).filter(Boolean);
+    const connects = values("connect")
+      .filter(Boolean)
+      .map((c) => c.toLowerCase());
+    // GM_xmlhttpRequest refuses an unlisted host once any @connect exists; GM_download (native mode) and a script
+    // without @connect ask the user instead (verifyXhrConnect in gm_api.ts).
+    const refused =
+      connects.length > 0 && used.some((u) => u.name === "GM_xmlhttpRequest" || u.name === "GM.xmlHttpRequest");
+    const pageHosts = isBackground ? [] : [...values("match"), ...values("include")].map((p) => hostOf(p) ?? "*");
     const seen = new Set();
     for (const s of strings) {
       const m = s.value.match(/^https?:\/\/([^/:?#]+)/i);
@@ -428,7 +471,10 @@ export function checkScript(code) {
         "warn",
         "connect-missing",
         bodyLine(s.index),
-        `requests to ${host} prompt the user; add "// @connect ${host}" if the script requests it`
+        refused
+          ? `GM_xmlhttpRequest to ${host} is refused: it is not in the @connect list (unless the user allowed it ` +
+              `before); add "// @connect ${host}" if the script requests it`
+          : `a request to ${host} asks the user first; add "// @connect ${host}" if the script requests it`
       );
     }
   }
@@ -460,20 +506,22 @@ function main(files) {
     return 2;
   }
   let status = 0;
+  let unreadable = false;
   for (const file of files) {
     let code;
     try {
       code = readFileSync(file, "utf8");
     } catch (e) {
       console.error(`cannot read ${file}: ${e.message}`);
-      return 2;
+      unreadable = true;
+      continue;
     }
     const findings = checkScript(code);
     for (const f of findings) console.log(`${f.level} ${f.rule} ${file}:${f.line} ${f.message}`);
     if (!findings.length) console.log(`ok ${file}`);
     if (findings.some((f) => f.level === "error")) status = 1;
   }
-  return status;
+  return unreadable ? 2 : status;
 }
 
 // realpath: the skill is usually installed through a symlink, while import.meta.url is the resolved path

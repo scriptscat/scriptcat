@@ -67,7 +67,9 @@ describe("buildStub", () => {
   });
 });
 
-describe("stub.mjs 命令行", () => {
+// 这些用例真实 spawn node 子进程（满载时单次可达 1s），不适用 vitest.config.ts 给单元测试定的 340ms 预算；
+// 与 scripts/check-i18n.test.mjs 的命令行用例同一做法
+describe("stub.mjs 命令行", { timeout: 15_000 }, () => {
   it("相对路径按当前目录解析为绝对 file:// 地址，输出到 stdout", () => {
     const dir = tmpDir();
     writeFileSync(path.join(dir, "demo.user.js"), SOURCE);
