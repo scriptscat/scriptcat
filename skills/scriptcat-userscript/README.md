@@ -23,6 +23,17 @@ API 以 `src/types/scriptcat.d.ts` 和 `src/pkg/utils/script_compat.ts`（支持
 
 ## 安装
 
+用 [`npx skills`](https://skills.sh/) 安装，可以装进 Claude Code、Codex、Cursor 等多个代理。建议同时安装 `sctl`。
+
+```sh
+npx skills add scriptscat/scriptcat -g
+```
+
+`npx skills check -g` 检查更新，`npx skills update -g` 更新。它按本目录的内容哈希判断有没有更新，所以本目录合入 `main`
+的改动就会推给用户。
+
+开发本 Skill 时改用软链，改动立即生效：
+
 ```sh
 ln -s "$(pwd)/skills/scriptcat-userscript" ~/.claude/skills/scriptcat-userscript
 ln -s "$(pwd)/skills/scriptcat-userscript" ~/.codex/skills/scriptcat-userscript
