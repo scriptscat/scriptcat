@@ -151,9 +151,41 @@ not need it.
 
 ## Verifying background and scheduled scripts
 
-They run in ScriptCat's background sandbox, which is not a web page: sctl cannot attach to it, cannot open
-ScriptCat's own pages (extension pages are not automatable), and has no command to start a run or read the run
-log. What you can do:
+They run in ScriptCat's background sandbox, which is not a web page: sctl cannot attach to it and cannot open
+ScriptCat's own pages (extension pages are not automatable). Newer sctl and ScriptCat versions can run such a
+script and read its log directly; try that first.
+
+### Run it and read its log
+
+```sh
+sctl run <uuid>                    # run once now, wait up to 60s, print the outcome and this run's log
+sctl run <uuid> --timeout 2m       # wait longer (at most 4m)
+sctl run <uuid> --no-wait          # start it and return at once
+sctl logs <uuid>                   # this script's log, oldest first, last hour
+sctl logs <uuid> --since 10m --level warn --text "[my-script]" --limit 50
+```
+
+- `run` works for `@background` and `@crontab` scripts only (a page script fails with `INVALID_REQUEST`), whether
+  or not the script is enabled. It is what the editor's Run button does: the same body, the same grants.
+- The status line reads `complete` (resolved), `error: <message>` (rejected or threw) or `still running` (not
+  settled when the wait ended — normal for a long-lived `@background` script). The command exits 0 in all three
+  cases; read the status, not the exit code. `-o json` gives `status`, `error`, `startedAt`, `endedAt` and `logs`.
+- Neither command opens an approval page, but `run` really runs the script: its requests, notifications and value
+  writes happen. Run scripts you are writing; ask before running one of the user's existing scripts.
+- A manual run does not schedule a `CATRetryError` retry; the error shows up as `error` instead. Test retry
+  timing through the real schedule.
+- `run` prints the log lines written during the run; ScriptCat's own "exec script complete" line can land just
+  after the command returns, so use `sctl logs` when you need the complete record.
+- `GM_log` at level `debug` is not stored in release builds of ScriptCat, so `sctl logs` never shows it. Log what
+  you need to read at `info` or above.
+- If the user runs the script from the editor, or its cron fires, while your `run` is waiting, the reported status
+  may belong to that other run. Keep test runs away from the script's schedule.
+
+The commands are missing on older versions. `sctl run` is an unknown command on an older sctl. On an older
+ScriptCat it fails with `METHOD_NOT_FOUND` (exit 3) and a hint to upgrade ScriptCat. In either case, tell the user
+an upgrade adds these commands, and use the indirect route below.
+
+### Without `sctl run`
 
 **Make a run happen.**
 

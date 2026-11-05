@@ -134,8 +134,9 @@ is legal there.
   failures with `CATRetryError`: `* * once * *` = at most once a day, `* once * * *` = at most once an hour,
   `* once(9-17) * * *` = once in each hour from 9 to 17. Full cron and `once` rules:
   [references/background.md](references/background.md).
-- Log with `GM_log(message, "debug" | "info" | "warn" | "error")`: it lands in ScriptCat's run log, which is the
-  only place a background script's output shows up.
+- Log with `GM_log(message, "debug" | "info" | "warn" | "error")`: it lands in ScriptCat's run log, the only place
+  a background script's output shows up (the script list, or `sctl logs`). Release builds do not store `debug`, so
+  log anything someone must read at `info` or above.
 
 **User configuration**
 
@@ -171,7 +172,7 @@ It is a static check — it cannot tell whether the script does what the user as
 - **sctl is available** (`sctl status` shows ScriptCat connected): install it into the user's ScriptCat and
   verify it in their browser, following [references/dev-loop.md](references/dev-loop.md). It also covers
   scouting the target page before you write code, iterating on a local file without an approval per change, and
-  observing background scripts. That loop runs inside the user's real browser, so the sctl skill's rules apply
+  running background and scheduled scripts and reading their logs (`sctl run` / `sctl logs`). That loop runs inside the user's real browser, so the sctl skill's rules apply
   too — read it first if it is installed.
 - **No sctl:** save the code as `<name>.user.js` and tell the user to install it — drag the file onto the
   ScriptCat dashboard, or create a new script in ScriptCat and paste the code. Say which page to open (page

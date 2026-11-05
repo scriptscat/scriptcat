@@ -57,7 +57,7 @@ code and `await` them. `GM_info` needs no grant; `unsafeWindow` needs none eithe
 
 | Grant | Notes |
 |---|---|
-| `GM_log(message, level?)` | Level `debug`/`info`/`warn`/`error`. Goes to ScriptCat's run log — the place to look for background-script output |
+| `GM_log(message, level?)` | Level `debug`/`info`/`warn`/`error`. Goes to ScriptCat's run log — the place to look for background-script output. Release builds do not store `debug` |
 | `CAT_scriptLoaded()` | Promise that resolves once an `@early-start` script is fully loaded; read `GM_info.userLanguage` after it |
 
 `GM_info` carries the script metadata (`GM_info.script`), `scriptMetaStr`, `scriptHandler` (`"ScriptCat"`),

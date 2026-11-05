@@ -13,7 +13,7 @@
 | `references/background.md` | 后台/定时脚本：Promise 生命周期、`CATRetryError` 重试、cron 与 `once` 扩展、日志 |
 | `references/userconfig.md` | `==UserConfig==` 用户配置格式 |
 | `references/patterns.md` | 常用写法：等待元素、SPA 路由切换、带记忆的菜单开关、跨域请求、样式、多语言、带重试的后台运行 |
-| `references/dev-loop.md` | 用 sctl 侦察页面 → 安装 → 看控制台 → 重装或 `sctl edit` 迭代；本地文件热重载（`@require file:///` 壳脚本）；用探针脚本观察后台脚本 |
+| `references/dev-loop.md` | 用 sctl 侦察页面 → 安装 → 看控制台 → 重装或 `sctl edit` 迭代；本地文件热重载（`@require file:///` 壳脚本）；用 `sctl run` / `sctl logs` 运行后台脚本并读日志，旧版本退回探针脚本 |
 | `scripts/check.mjs` | 零依赖静态检查：未声明 grant、`@grant none` 误用、缺 `@match`、cron 写法、`@connect` 缺失等；有 error 时退出码 1 |
 | `scripts/stub.mjs` | 生成本地热重载用的 `@require file:///` 壳脚本 |
 
@@ -30,6 +30,8 @@ ln -s "$(pwd)/skills/scriptcat-userscript" ~/.codex/skills/scriptcat-userscript
 
 ## 已知限制
 
-- sctl 没有触发后台/定时脚本运行、读取脚本猫运行日志的命令。`references/dev-loop.md` 给出了间接办法（重装即重跑
-  `@background`、测试时临时改成每分钟的 cron、用共享 `@storageName` 的探针页面脚本把进度打到控制台），完整的运行状态与
-  `GM_log` 输出仍需用户在脚本列表查看。
+- `sctl run` / `sctl logs` 需要 sctl 与脚本猫都升级到包含 scriptscat/sctl#17 与 scriptscat/scriptcat#1825 的版本。旧 sctl 不认识
+  `run`，旧脚本猫返回 `METHOD_NOT_FOUND` 并提示升级；Skill 遇到这两种情况会退回 `references/dev-loop.md` 里的间接办法（重装即重跑
+  `@background`、测试时临时改成每分钟的 cron、用共享 `@storageName` 的探针页面脚本把进度打到控制台）。
+- 脚本猫正式版不把 `debug` 级别的 `GM_log` 写进日志，脚本列表与 `sctl logs` 都看不到。
+- 运行状态事件不带运行 id：`sctl run` 等待期间如果用户在编辑器里点运行或 cron 触发，返回的状态可能属于那一次运行。
