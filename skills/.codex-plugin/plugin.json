@@ -1,8 +1,0 @@
-{
-  "name": "scriptcat-userscript",
-  "description": "Write, fix and debug ScriptCat / Tampermonkey userscripts (page, background and scheduled scripts), then install and verify them in the user's browser through sctl.",
-  "homepage": "https://github.com/scriptscat/scriptcat/tree/main/skills/scriptcat-userscript",
-  "repository": "https://github.com/scriptscat/scriptcat",
-  "license": "GPL-3.0",
-  "skills": "./scriptcat-userscript"
-}

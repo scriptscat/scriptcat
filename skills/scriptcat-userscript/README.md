@@ -23,29 +23,14 @@ API 以 `src/types/scriptcat.d.ts` 和 `src/pkg/utils/script_compat.ts`（支持
 
 ## 安装
 
-下面两种方式任选一种，都可以检查更新，不要两种都装。建议同时安装 `sctl`。
-
-用 [`npx skills`](https://skills.sh/)（可装进 Claude Code、Codex、Cursor 等多个代理；`npx skills check -g` 检查更新，
-`npx skills update -g` 更新）：
+用 [`npx skills`](https://skills.sh/) 安装，可以装进 Claude Code、Codex、Cursor 等多个代理。建议同时安装 `sctl`。
 
 ```sh
 npx skills add scriptscat/scriptcat -g
 ```
 
-或者用 [scriptscat/skills](https://github.com/scriptscat/skills) 插件市场（更新方式见该仓库的 README）：
-
-```text
-# Claude Code
-/plugin marketplace add scriptscat/skills
-/plugin install scriptcat-userscript@scriptcat
-
-# Codex
-codex plugin marketplace add scriptscat/skills
-codex plugin add scriptcat-userscript@scriptcat
-```
-
-插件市场从本仓库 `main` 分支的 `skills/` 目录取文件。Codex 要求插件根下有清单，所以 `skills/.codex-plugin/plugin.json`
-指向本目录；目录改名或移动时同步修改它和插件市场的目录文件。
+`npx skills check -g` 检查更新，`npx skills update -g` 更新。它按本目录的内容哈希判断有没有更新，所以本目录合入 `main`
+的改动就会推给用户。
 
 开发本 Skill 时改用软链，改动立即生效：
 
