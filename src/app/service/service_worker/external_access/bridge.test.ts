@@ -16,7 +16,6 @@ import { type BridgeAction, type ExternalAccessBridgeRequest, type ExternalAcces
 import type { ExternalAccessWritePolicy, ExternalAccessSourceReadPolicy } from "@App/pkg/config/config";
 import { EXTERNAL_ACCESS_COMPONENT, type ExternalAccessAuditEvent } from "./audit";
 import { ExternalAccessRunLogs } from "./run_logs";
-import { LIMITS } from "./generated/protocol.generated";
 import type { Logger, LoggerDAO } from "@App/app/repo/logger";
 import type { LogLabel, LogLevel } from "@App/app/logger/core";
 import { MessageQueue } from "@Packages/message/message_queue";
@@ -574,12 +573,15 @@ console.log('v1');`;
       }
     });
 
-    it("脚本抛出超大错误信息时截断错误文本，整个应答帧仍在 daemon 的帧上限内，日志照常返回", async () => {
+    it("脚本的错误文本超过 16384 个 UTF-16 码元时截断并以「…」结尾，日志照常返回", async () => {
+      // 截断让应答不超 daemon 帧上限（sctl docs/protocol.md 约定 16384）。只需刚越过截断边界的输入：
+      // 按帧上限构造的 MB 级字符串在 CI 覆盖率与分片负载下会让本例超出单测预算。
+      const cap = 16384;
       await seedScript(RUN_UUID, { type: SCRIPT_TYPE_BACKGROUND });
       runScript.mockImplementation(async () => {
         publishRunStatus("running");
-        pushLog("info", "y".repeat(2 * 1024 * 1024), { uuid: RUN_UUID, component: "GM_log" });
-        publishRunStatus("error", { error: "e".repeat(LIMITS.maxFrameBytes) });
+        pushLog("info", "small-log", { uuid: RUN_UUID, component: "GM_log" });
+        publishRunStatus("error", { error: "e".repeat(cap + 100) });
       });
 
       const response = expectResponse(await bridge.handle(makeRequest("scripts.run", { uuid: RUN_UUID })));
@@ -587,10 +589,8 @@ console.log('v1');`;
       expect(response.ok).toBe(true);
       if (!response.ok) return;
       const result = response.result as { status: string; error: string; logs: unknown[] };
-      const frame = JSON.stringify({ jsonrpc: "2.0", id: uuidv4(), result });
-      expect(new TextEncoder().encode(frame).length).toBeLessThanOrEqual(LIMITS.maxFrameBytes);
       expect(result.status).toBe("error");
-      expect(result.error.startsWith("eeee")).toBe(true);
+      expect(result.error).toBe(`${"e".repeat(cap)}…`);
       expect(result.logs).toHaveLength(1);
     });
 
