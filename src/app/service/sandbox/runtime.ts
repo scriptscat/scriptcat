@@ -15,7 +15,7 @@ import { BgExecScriptWarp } from "../content/exec_warp";
 import type ExecScript from "../content/exec_script";
 import { compileScriptCodeByResource } from "../content/utils";
 import type { ValueUpdateDataEncoded } from "../content/types";
-import { getStorageName, getMetadataStr, getUserConfigStr, getISOWeek } from "@App/pkg/utils/utils";
+import { getStorageName, getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { CATRetryError } from "../content/exec_warp";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
@@ -23,10 +23,7 @@ import { decodeRValue } from "@App/pkg/utils/message_value";
 import { extractCronExpr } from "@App/pkg/utils/cron";
 import { changeLanguage, initLanguage, t } from "@App/locales/locales";
 import { type TExtensionEnv } from "../extension/extension_env";
-
-const utime_1min = 60 * 1000;
-const utime_1hr = 60 * 60 * 1000;
-const utime_1day = 24 * 60 * 60 * 1000;
+import { backgroundRunInAllowed, isOnceRunDone } from "./utils";
 
 export class Runtime {
   cronJob: Map<string, Array<CronJob>> = new Map();
@@ -143,33 +140,7 @@ export class Runtime {
     const execOnce = opts?.execOnce ?? false;
     const cronJobOncePos = opts?.cronJobOncePos ?? 0;
 
-    if (cronJobOncePos >= 1) {
-      // 没有最后一次执行时间表示之前都没执行过,直接执行
-      if (script.lastruntime) {
-        const now = new Date();
-        const last = new Date(script.lastruntime);
-        // 根据once所在的位置去判断执行
-        const timeDiff = now.getTime() - last.getTime();
-        switch (cronJobOncePos) {
-          case 1: // 每分钟
-            if (timeDiff < 2 * utime_1min && last.getMinutes() === now.getMinutes()) return;
-            break;
-          case 2: // 每小时
-            if (timeDiff < 2 * utime_1hr && last.getHours() === now.getHours()) return;
-            break;
-          case 3: // 每天
-            if (timeDiff < 2 * utime_1day && last.getDay() === now.getDay()) return;
-            break;
-          case 4: // 每月
-            if (timeDiff < 62 * utime_1day && last.getMonth() === now.getMonth()) return;
-            break;
-          case 5: // 每周
-            if (timeDiff < 14 * utime_1day && getISOWeek(last) === getISOWeek(now)) return;
-            break;
-          default:
-        }
-      }
-    }
+    if (isOnceRunDone(cronJobOncePos, script.lastruntime, new Date())) return;
 
     const logger = this.logger.with({ uuid: script.uuid, name: script.name });
     if (this.execScriptMap.has(script.uuid)) {
@@ -178,19 +149,8 @@ export class Runtime {
       await this.stopScript(script.uuid);
     }
     const extensionEnv = await this.extensionEnvAsync;
-
-    // 判断 run-in
-    const runIn = script.metadata?.["run-in"]?.[0];
-    const inIncognitoContext = extensionEnv?.inIncognitoContext;
-    // Firefox spanning 只有一个共享 event page / sandbox，没有按普通窗口与隐身窗口拆分的后台环境。
-    // 因此后台/定时脚本只能运行一次；tab 专属的 run-in 值在该共享环境中不做伪隔离。
-    const hasPerContextBackground = extensionEnv?.incognitoMode !== "spanning";
-    if (hasPerContextBackground && runIn && runIn !== "all" && typeof inIncognitoContext === "boolean") {
-      // 判断插件运行环境
-      const contextType = inIncognitoContext ? "incognito-tabs" : "normal-tabs";
-      if (runIn !== contextType) {
-        return;
-      }
+    if (!backgroundRunInAllowed(script.metadata, extensionEnv)) {
+      return;
     }
 
     const exec = new BgExecScriptWarp(script, this.windowMessage, extensionEnv, this.userLanguage);
@@ -199,23 +159,27 @@ export class Runtime {
     // 修改掉脚本掉最后运行时间, 数据库也需要修改
     script.lastruntime = Date.now();
     const ret = exec.exec();
+    // stopScript 只清掉旧运行的计时器，它的 Promise 仍可能在重跑或停用之后才结束。运行状态不带运行 id，
+    // 只有仍登记为该脚本当前运行的 exec 才能发布终态和安排重试，否则会覆盖新运行（或已停用）的状态。
+    const isCurrent = () => this.execScriptMap.get(script.uuid) === exec;
     if (ret instanceof Promise) {
       ret
         .then((resp) => {
-          // 发送执行完成消息
-          proxyUpdateRunStatus(this.windowMessage, { uuid: script.uuid, runStatus: SCRIPT_RUN_STATUS_COMPLETE });
+          if (isCurrent()) {
+            proxyUpdateRunStatus(this.windowMessage, { uuid: script.uuid, runStatus: SCRIPT_RUN_STATUS_COMPLETE });
+          }
           logger.info("exec script complete", {
             value: resp,
           });
         })
         .catch((err) => {
-          // 发送执行完成+错误消息
+          const current = isCurrent();
           let errMsg;
           let nextruntime = 0;
           if (err instanceof CATRetryError) {
             // @ts-ignore
             errMsg = { error: err.msg };
-            if (!execOnce) {
+            if (!execOnce && current) {
               // 下一次执行时间
               // @ts-ignore
               nextruntime = err.time.getTime();
@@ -226,6 +190,8 @@ export class Runtime {
             errMsg = Logger.E(err);
           }
           logger.error("exec script error", errMsg);
+          // 被停止的运行已不代表该脚本：它的错误只记入上面的日志，不再当作当前运行的失败抛出。
+          if (!current) return;
           proxyUpdateRunStatus(this.windowMessage, {
             uuid: script.uuid,
             runStatus: SCRIPT_RUN_STATUS_ERROR,

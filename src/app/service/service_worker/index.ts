@@ -33,6 +33,7 @@ import {
 } from "@App/app/service/service_worker/external_access/bridge";
 import { ExternalAccessController } from "@App/app/service/service_worker/external_access/controller";
 import { ExternalAccessUIService } from "@App/app/service/service_worker/external_access/service";
+import { ExternalAccessRunLogs } from "@App/app/service/service_worker/external_access/run_logs";
 import { ExternalAccessConnectClient } from "@App/app/service/offscreen/client";
 import { hookFirefoxEventPageKeepAliveLoop, hookServiceWorkerKeepAliveLoop } from "../offscreen/keep_alive";
 import { NetworkRuleStateDAO } from "@App/app/repo/network_rule";
@@ -212,6 +213,7 @@ export default class ServiceWorkerManager {
         scriptDAO,
         script.scriptCodeDAO,
         externalAccessApproval,
+        new ExternalAccessRunLogs(scriptDAO, runtime, this.mq, new LoggerDAO(), extensionEnv),
         () => systemConfig.getExternalAccessWritePolicy(),
         () => systemConfig.getExternalAccessSourceReadPolicy(),
         notifyExternalAccessWrite

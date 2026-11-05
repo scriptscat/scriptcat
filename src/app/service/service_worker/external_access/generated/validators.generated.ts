@@ -225,6 +225,106 @@ export function validateScriptsListResult(value: unknown): value is Protocol.Scr
   );
 }
 
+export function validateScriptsLogsParams(value: unknown): value is Protocol.ScriptsLogsParams {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, ["limit", "severity", "since", "text", "uuid"]) &&
+    (value["limit"] === undefined ||
+      (typeof value["limit"] === "number" && Number.isInteger(value["limit"]) && value["limit"] >= 1)) &&
+    (value["severity"] === undefined ||
+      value["severity"] === "debug" ||
+      value["severity"] === "info" ||
+      value["severity"] === "warn" ||
+      value["severity"] === "error") &&
+    (value["since"] === undefined ||
+      (typeof value["since"] === "number" && Number.isInteger(value["since"]) && value["since"] >= 0)) &&
+    (value["text"] === undefined || typeof value["text"] === "string") &&
+    typeof value["uuid"] === "string" &&
+    isUUID(value["uuid"])
+  );
+}
+
+export function validateScriptsLogsResult(value: unknown): value is Protocol.ScriptsLogsResult {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, ["contentTrust", "logs", "truncated"]) &&
+    value["contentTrust"] === "untrusted-user-script-log" &&
+    Array.isArray(value["logs"]) &&
+    value["logs"].every(
+      (item) =>
+        isRecord(item) &&
+        hasOnlyKeys(item, ["component", "fields", "message", "severity", "time"]) &&
+        (item["component"] === undefined || typeof item["component"] === "string") &&
+        (item["fields"] === undefined ||
+          (Array.isArray(item["fields"]) &&
+            item["fields"].every(
+              (item) =>
+                isRecord(item) &&
+                hasOnlyKeys(item, ["name", "value"]) &&
+                typeof item["name"] === "string" &&
+                typeof item["value"] === "string"
+            ))) &&
+        typeof item["message"] === "string" &&
+        (item["severity"] === "debug" ||
+          item["severity"] === "info" ||
+          item["severity"] === "warn" ||
+          item["severity"] === "error") &&
+        typeof item["time"] === "number" &&
+        Number.isInteger(item["time"])
+    ) &&
+    typeof value["truncated"] === "boolean"
+  );
+}
+
+export function validateScriptsRunParams(value: unknown): value is Protocol.ScriptsRunParams {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, ["timeoutMs", "uuid", "wait"]) &&
+    (value["timeoutMs"] === undefined ||
+      (typeof value["timeoutMs"] === "number" && Number.isInteger(value["timeoutMs"]) && value["timeoutMs"] >= 1)) &&
+    typeof value["uuid"] === "string" &&
+    isUUID(value["uuid"]) &&
+    (value["wait"] === undefined || typeof value["wait"] === "boolean")
+  );
+}
+
+export function validateScriptsRunResult(value: unknown): value is Protocol.ScriptsRunResult {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, ["contentTrust", "endedAt", "error", "logs", "startedAt", "status", "truncated"]) &&
+    value["contentTrust"] === "untrusted-user-script-log" &&
+    (value["endedAt"] === undefined || (typeof value["endedAt"] === "number" && Number.isInteger(value["endedAt"]))) &&
+    (value["error"] === undefined || typeof value["error"] === "string") &&
+    Array.isArray(value["logs"]) &&
+    value["logs"].every(
+      (item) =>
+        isRecord(item) &&
+        hasOnlyKeys(item, ["component", "fields", "message", "severity", "time"]) &&
+        (item["component"] === undefined || typeof item["component"] === "string") &&
+        (item["fields"] === undefined ||
+          (Array.isArray(item["fields"]) &&
+            item["fields"].every(
+              (item) =>
+                isRecord(item) &&
+                hasOnlyKeys(item, ["name", "value"]) &&
+                typeof item["name"] === "string" &&
+                typeof item["value"] === "string"
+            ))) &&
+        typeof item["message"] === "string" &&
+        (item["severity"] === "debug" ||
+          item["severity"] === "info" ||
+          item["severity"] === "warn" ||
+          item["severity"] === "error") &&
+        typeof item["time"] === "number" &&
+        Number.isInteger(item["time"])
+    ) &&
+    typeof value["startedAt"] === "number" &&
+    Number.isInteger(value["startedAt"]) &&
+    (value["status"] === "complete" || value["status"] === "error" || value["status"] === "running") &&
+    (value["truncated"] === undefined || typeof value["truncated"] === "boolean")
+  );
+}
+
 export function validateScriptsSourceGetParams(value: unknown): value is Protocol.ScriptsSourceGetParams {
   return (
     isRecord(value) &&
@@ -277,7 +377,9 @@ export const RPC_PARAM_VALIDATORS = {
   "scripts.edit.request": validateScriptsEditParams,
   "scripts.install.request": validateScriptsInstallParams,
   "scripts.list": validateScriptsListParams,
+  "scripts.logs": validateScriptsLogsParams,
   "scripts.metadata.get": validateScriptUUIDParams,
+  "scripts.run": validateScriptsRunParams,
   "scripts.source.get": validateScriptsSourceGetParams,
   "scripts.source.grep": validateScriptsSourceGrepParams,
   "scripts.toggle.request": validateScriptsToggleParams,
@@ -288,7 +390,9 @@ export const RPC_RESULT_VALIDATORS = {
   "scripts.edit.request": validateScriptMutationResult,
   "scripts.install.request": validateScriptMutationResult,
   "scripts.list": validateScriptsListResult,
+  "scripts.logs": validateScriptsLogsResult,
   "scripts.metadata.get": validateScriptMetadata,
+  "scripts.run": validateScriptsRunResult,
   "scripts.source.get": validateScriptSource,
   "scripts.source.grep": validateScriptSourceGrepResult,
   "scripts.toggle.request": validateScriptsToggleResult,

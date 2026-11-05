@@ -22,7 +22,12 @@ vi.mock("../content/exec_warp", () => ({
   BgExecScriptWarp: function (...args: any[]) {
     return BgExecScriptWarpCtor(...args);
   },
-  CATRetryError: class CATRetryError {},
+  CATRetryError: class CATRetryError {
+    constructor(
+      public msg: string,
+      public time: Date
+    ) {}
+  },
 }));
 
 vi.mock("../offscreen/client", () => ({
@@ -31,6 +36,9 @@ vi.mock("../offscreen/client", () => ({
 
 import { Runtime } from "./runtime";
 import { initLanguage } from "@App/locales/locales";
+import { proxyUpdateRunStatus } from "../offscreen/client";
+import { CATRetryError } from "../content/exec_warp";
+import { SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
 
 initTestEnv();
 // 生产中 sandbox init() 会先 initLanguage()，setSandboxLanguage 依赖已初始化的 i18n
@@ -161,5 +169,92 @@ describe("Runtime.executeSkillScript 执行环境", () => {
     expect(BgExecScriptWarpCtor).toHaveBeenCalledTimes(1);
     expect(BgExecScriptWarpCtor.mock.calls[0][2]).toBe(extensionEnv);
     expect(BgExecScriptWarpCtor.mock.calls[0][3]).toBe("pt-BR");
+  });
+});
+
+describe("Runtime.execScript 被停止的旧运行迟到结束", () => {
+  // 每次 exec 返回一个由测试控制结束时机的运行；started[n] 在第 n 次 exec 被调用时兑现。
+  let runs: Array<{ resolve: (value: unknown) => void; reject: (reason: unknown) => void }>;
+  let execCalled: Array<() => void>;
+  const execStarted = (n: number) => new Promise<void>((resolve) => (execCalled[n] = resolve));
+
+  beforeEach(() => {
+    BgExecScriptWarpCtor.mockClear();
+    mockStop.mockClear();
+    vi.mocked(proxyUpdateRunStatus).mockClear();
+    runs = [];
+    execCalled = [];
+    mockExec.mockImplementation(
+      () =>
+        new Promise((resolve, reject) => {
+          runs.push({ resolve, reject });
+          execCalled[runs.length]?.();
+        })
+    );
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    mockExec.mockReset().mockResolvedValue(undefined);
+    vi.useRealTimers();
+  });
+
+  // 返回本次运行使用的 logger，info/error 被调用时兑现对应 Promise，作为旧运行收尾处理已执行完的信号。
+  const spyRunLogger = (runtime: Runtime) => {
+    const runLogger = runtime.logger.with();
+    vi.spyOn(runtime.logger, "with").mockReturnValue(runLogger);
+    let infoLogged!: () => void;
+    let errorLogged!: () => void;
+    const info = new Promise<void>((resolve) => (infoLogged = resolve));
+    const error = new Promise<void>((resolve) => (errorLogged = resolve));
+    vi.spyOn(runLogger, "info").mockImplementation(() => infoLogged());
+    vi.spyOn(runLogger, "error").mockImplementation(() => errorLogged());
+    return { info, error };
+  };
+
+  // execScript 的返回值就是脚本运行的 Promise（交给消息层答复调用方），返回旧运行的那一个供断言其结局。
+  const startTwoRuns = async (runtime: Runtime, script: ScriptLoadInfo) => {
+    const firstStarted = execStarted(1);
+    const oldRun = runtime.execScript(script);
+    await firstStarted;
+    const secondStarted = execStarted(2);
+    void runtime.execScript(script);
+    await secondStarted;
+    vi.mocked(proxyUpdateRunStatus).mockClear();
+    return { oldRun };
+  };
+
+  it("旧运行在新运行开始后才完成：不发布 COMPLETE，新运行结束时照常发布", async () => {
+    const runtime = setup({ inIncognitoContext: false });
+    const logged = spyRunLogger(runtime);
+    const script = buildScript();
+    const { oldRun } = await startTwoRuns(runtime, script);
+
+    runs[0].resolve("old");
+    await expect(oldRun).resolves.toBe("old");
+    await logged.info;
+    expect(proxyUpdateRunStatus).not.toHaveBeenCalled();
+
+    runs[1].resolve("new");
+    await vi.waitFor(() =>
+      expect(proxyUpdateRunStatus).toHaveBeenCalledWith(expect.anything(), {
+        uuid: script.uuid,
+        runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+      })
+    );
+  });
+
+  it("旧运行在新运行开始后才以 CATRetryError 失败：不发布 ERROR、不加入重试队列", async () => {
+    const runtime = setup({ inIncognitoContext: false });
+    const logged = spyRunLogger(runtime);
+    const script = buildScript(undefined, SCRIPT_TYPE_CRONTAB);
+    const { oldRun } = await startTwoRuns(runtime, script);
+
+    runs[0].reject(new CATRetryError("retry later", new Date(Date.now() + 60_000)));
+    await expect(oldRun).rejects.toBeInstanceOf(CATRetryError);
+    await logged.error;
+
+    expect(proxyUpdateRunStatus).not.toHaveBeenCalled();
+    expect(runtime.retryList).toEqual([]);
   });
 });

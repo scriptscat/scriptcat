@@ -20,6 +20,13 @@ import {
 } from "./source";
 import { logExternalAccess, type ExternalAccessAudit } from "./audit";
 import {
+  type ExternalAccessRunLogs,
+  type LogSeverity,
+  RUN_DEFAULT_TIMEOUT_MS,
+  RUN_MAX_TIMEOUT_MS,
+  LOGS_MAX_LIMIT,
+} from "./run_logs";
+import {
   type BridgeAction,
   type ExternalAccessBridgeRequest,
   type ExternalAccessBridgeResponse,
@@ -55,6 +62,15 @@ function assertKeys(input: Record<string, unknown>, allowed: string[]): void {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function assertIntegerField(input: Record<string, unknown>, field: string, min: number, max: number): void {
+  const value = input[field];
+  if (value !== undefined && (!Number.isInteger(value) || (value as number) < min || (value as number) > max)) {
+    throw new ExternalAccessBridgeError("INVALID_REQUEST", `${field} must be an integer between ${min} and ${max}`);
+  }
+}
+
+const LOG_SEVERITIES: readonly LogSeverity[] = ["debug", "info", "warn", "error"];
 
 function assertUuidField(input: Record<string, unknown>, field: string): string {
   const value = input[field];
@@ -181,6 +197,29 @@ const VALIDATORS: Record<BridgeAction, (input: unknown) => void> = {
       }
     }
   },
+  // 生成的校验器不检查 maximum，上限在这里拒绝。
+  "scripts.run": (input) => {
+    if (!isPlainObject(input)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "input must be an object");
+    assertKeys(input, ["uuid", "wait", "timeoutMs"]);
+    assertUuidField(input, "uuid");
+    if (input.wait !== undefined && typeof input.wait !== "boolean") {
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "wait must be a boolean");
+    }
+    assertIntegerField(input, "timeoutMs", 1, RUN_MAX_TIMEOUT_MS);
+  },
+  "scripts.logs": (input) => {
+    if (!isPlainObject(input)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "input must be an object");
+    assertKeys(input, ["uuid", "since", "severity", "text", "limit"]);
+    assertUuidField(input, "uuid");
+    assertIntegerField(input, "since", 0, Number.MAX_SAFE_INTEGER);
+    if (input.severity !== undefined && !LOG_SEVERITIES.includes(input.severity as LogSeverity)) {
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "severity must be one of debug, info, warn, error");
+    }
+    if (input.text !== undefined && typeof input.text !== "string") {
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "text must be a string");
+    }
+    assertIntegerField(input, "limit", 1, LOGS_MAX_LIMIT);
+  },
 };
 
 function toScriptType(type: SCRIPT_TYPE): ScriptType {
@@ -218,6 +257,8 @@ function toSummary(script: Script): ScriptSummary {
  *    by the decide/void event); "allow" executes immediately and fires a notification.
  *  - Source reads (scripts.source.get) → the source-read policy, same two modes. Source is a privacy
  *    read, so it keeps its own gate and — unlike the old model — is no longer CLI-exempt (§2.3).
+ *  - scripts.run / scripts.logs are under neither policy: the code being run was confirmed at install
+ *    time, so they execute immediately like list/metadata.
  *
  * The "本会话允许" third tier is applied inside ExternalAccessApprovalService.present(): a session-allowed
  * (script, kind) auto-approves without opening a page. Writes exactly one audit event per request.
@@ -227,17 +268,28 @@ export class ExternalAccessBridge {
     private readonly scriptDAO: Pick<ScriptDAO, "all" | "get">,
     private readonly scriptCodeDAO: Pick<ScriptCodeDAO, "get">,
     private readonly approval: ExternalAccessApprovalService,
+    private readonly runLogs: ExternalAccessRunLogs,
     private getWritePolicy: () => Promise<ExternalAccessWritePolicy> = async () => "approval",
     private getSourceReadPolicy: () => Promise<ExternalAccessSourceReadPolicy> = async () => "approval",
     private readonly notifyWrite: (notice: ExternalAccessWriteNotice) => void = () => {},
     private readonly audit: ExternalAccessAudit = logExternalAccess
   ) {}
 
+  // In-flight scripts.run calls by request ID, so a cancel can drop a queued run or end a wait.
+  private readonly runCalls = new Map<string, AbortController>();
+
   // daemon → $/cancelRequest {id}: the requester (MCP client / CLI) timed out, Ctrl-C'd or
-  // its WS session died. Void the matching pending op; its confirm page's next decide then fails
-  // cleanly. First-terminal-wins arbitration vs a concurrent decide lives in the approval service.
+  // its WS session died (no id: every request of the session). Void the matching pending op; its
+  // confirm page's next decide then fails cleanly. First-terminal-wins arbitration vs a concurrent
+  // decide lives in the approval service. A matching scripts.run that has not triggered its run yet
+  // drops it; one already waiting stops waiting (the triggered run keeps going in ScriptCat).
   cancel(requestId?: string): Promise<void> {
-    return requestId ? this.approval.cancelByRequestId(requestId) : this.approval.cancelAllPending();
+    if (requestId) {
+      this.runCalls.get(requestId)?.abort();
+      return this.approval.cancelByRequestId(requestId);
+    }
+    for (const call of this.runCalls.values()) call.abort();
+    return this.approval.cancelAllPending();
   }
 
   async handle(request: ExternalAccessBridgeRequest): Promise<ExternalAccessBridgeResponse | null> {
@@ -392,6 +444,26 @@ export class ExternalAccessBridge {
             requestId,
           })
         );
+      case "scripts.run": {
+        const call = new AbortController();
+        this.runCalls.set(request.requestId, call);
+        try {
+          return await this.runLogs.run(input.uuid as string, {
+            wait: (input.wait as boolean | undefined) ?? true,
+            timeoutMs: (input.timeoutMs as number | undefined) ?? RUN_DEFAULT_TIMEOUT_MS,
+            signal: call.signal,
+          });
+        } finally {
+          this.runCalls.delete(request.requestId);
+        }
+      }
+      case "scripts.logs":
+        return this.runLogs.logs(input.uuid as string, {
+          since: input.since as number | undefined,
+          severity: input.severity as LogSeverity | undefined,
+          text: input.text as string | undefined,
+          limit: input.limit as number | undefined,
+        });
     }
   }
 
