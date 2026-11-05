@@ -199,23 +199,27 @@ export class Runtime {
     // 修改掉脚本掉最后运行时间, 数据库也需要修改
     script.lastruntime = Date.now();
     const ret = exec.exec();
+    // stopScript 只清掉旧运行的计时器，它的 Promise 仍可能在重跑或停用之后才结束。运行状态不带运行 id，
+    // 只有仍登记为该脚本当前运行的 exec 才能发布终态和安排重试，否则会覆盖新运行（或已停用）的状态。
+    const isCurrent = () => this.execScriptMap.get(script.uuid) === exec;
     if (ret instanceof Promise) {
       ret
         .then((resp) => {
-          // 发送执行完成消息
-          proxyUpdateRunStatus(this.windowMessage, { uuid: script.uuid, runStatus: SCRIPT_RUN_STATUS_COMPLETE });
+          if (isCurrent()) {
+            proxyUpdateRunStatus(this.windowMessage, { uuid: script.uuid, runStatus: SCRIPT_RUN_STATUS_COMPLETE });
+          }
           logger.info("exec script complete", {
             value: resp,
           });
         })
         .catch((err) => {
-          // 发送执行完成+错误消息
+          const current = isCurrent();
           let errMsg;
           let nextruntime = 0;
           if (err instanceof CATRetryError) {
             // @ts-ignore
             errMsg = { error: err.msg };
-            if (!execOnce) {
+            if (!execOnce && current) {
               // 下一次执行时间
               // @ts-ignore
               nextruntime = err.time.getTime();
@@ -226,6 +230,8 @@ export class Runtime {
             errMsg = Logger.E(err);
           }
           logger.error("exec script error", errMsg);
+          // 被停止的运行已不代表该脚本：它的错误只记入上面的日志，不再当作当前运行的失败抛出。
+          if (!current) return;
           proxyUpdateRunStatus(this.windowMessage, {
             uuid: script.uuid,
             runStatus: SCRIPT_RUN_STATUS_ERROR,
