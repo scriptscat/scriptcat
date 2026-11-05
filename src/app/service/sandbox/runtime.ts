@@ -23,6 +23,7 @@ import { decodeRValue } from "@App/pkg/utils/message_value";
 import { extractCronExpr } from "@App/pkg/utils/cron";
 import { changeLanguage, initLanguage, t } from "@App/locales/locales";
 import { type TExtensionEnv } from "../extension/extension_env";
+import { backgroundRunInAllowed } from "./run_in";
 
 const utime_1min = 60 * 1000;
 const utime_1hr = 60 * 60 * 1000;
@@ -178,19 +179,8 @@ export class Runtime {
       await this.stopScript(script.uuid);
     }
     const extensionEnv = await this.extensionEnvAsync;
-
-    // 判断 run-in
-    const runIn = script.metadata?.["run-in"]?.[0];
-    const inIncognitoContext = extensionEnv?.inIncognitoContext;
-    // Firefox spanning 只有一个共享 event page / sandbox，没有按普通窗口与隐身窗口拆分的后台环境。
-    // 因此后台/定时脚本只能运行一次；tab 专属的 run-in 值在该共享环境中不做伪隔离。
-    const hasPerContextBackground = extensionEnv?.incognitoMode !== "spanning";
-    if (hasPerContextBackground && runIn && runIn !== "all" && typeof inIncognitoContext === "boolean") {
-      // 判断插件运行环境
-      const contextType = inIncognitoContext ? "incognito-tabs" : "normal-tabs";
-      if (runIn !== contextType) {
-        return;
-      }
+    if (!backgroundRunInAllowed(script.metadata, extensionEnv)) {
+      return;
     }
 
     const exec = new BgExecScriptWarp(script, this.windowMessage, extensionEnv, this.userLanguage);

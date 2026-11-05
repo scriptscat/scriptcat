@@ -275,11 +275,21 @@ export class ExternalAccessBridge {
     private readonly audit: ExternalAccessAudit = logExternalAccess
   ) {}
 
+  // In-flight scripts.run calls by request ID, so a cancel can drop a queued run or end a wait.
+  private readonly runCalls = new Map<string, AbortController>();
+
   // daemon → $/cancelRequest {id}: the requester (MCP client / CLI) timed out, Ctrl-C'd or
-  // its WS session died. Void the matching pending op; its confirm page's next decide then fails
-  // cleanly. First-terminal-wins arbitration vs a concurrent decide lives in the approval service.
+  // its WS session died (no id: every request of the session). Void the matching pending op; its
+  // confirm page's next decide then fails cleanly. First-terminal-wins arbitration vs a concurrent
+  // decide lives in the approval service. A matching scripts.run that has not triggered its run yet
+  // drops it; one already waiting stops waiting (the triggered run keeps going in ScriptCat).
   cancel(requestId?: string): Promise<void> {
-    return requestId ? this.approval.cancelByRequestId(requestId) : this.approval.cancelAllPending();
+    if (requestId) {
+      this.runCalls.get(requestId)?.abort();
+      return this.approval.cancelByRequestId(requestId);
+    }
+    for (const call of this.runCalls.values()) call.abort();
+    return this.approval.cancelAllPending();
   }
 
   async handle(request: ExternalAccessBridgeRequest): Promise<ExternalAccessBridgeResponse | null> {
@@ -434,11 +444,19 @@ export class ExternalAccessBridge {
             requestId,
           })
         );
-      case "scripts.run":
-        return this.runLogs.run(input.uuid as string, {
-          wait: (input.wait as boolean | undefined) ?? true,
-          timeoutMs: (input.timeoutMs as number | undefined) ?? RUN_DEFAULT_TIMEOUT_MS,
-        });
+      case "scripts.run": {
+        const call = new AbortController();
+        this.runCalls.set(request.requestId, call);
+        try {
+          return await this.runLogs.run(input.uuid as string, {
+            wait: (input.wait as boolean | undefined) ?? true,
+            timeoutMs: (input.timeoutMs as number | undefined) ?? RUN_DEFAULT_TIMEOUT_MS,
+            signal: call.signal,
+          });
+        } finally {
+          this.runCalls.delete(request.requestId);
+        }
+      }
       case "scripts.logs":
         return this.runLogs.logs(input.uuid as string, {
           since: input.since as number | undefined,

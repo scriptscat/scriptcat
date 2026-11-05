@@ -213,7 +213,7 @@ export default class ServiceWorkerManager {
         scriptDAO,
         script.scriptCodeDAO,
         externalAccessApproval,
-        new ExternalAccessRunLogs(scriptDAO, runtime, this.mq, new LoggerDAO()),
+        new ExternalAccessRunLogs(scriptDAO, runtime, this.mq, new LoggerDAO(), extensionEnv),
         () => systemConfig.getExternalAccessWritePolicy(),
         () => systemConfig.getExternalAccessSourceReadPolicy(),
         notifyExternalAccessWrite
