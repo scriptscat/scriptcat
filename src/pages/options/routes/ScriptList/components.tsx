@@ -453,26 +453,43 @@ export function ScriptRowActionSlots({
             </ActionButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem onClick={openEditor}>{t("edit")}</DropdownMenuItem>
-            {home && <DropdownMenuItem onClick={() => openExternalUrl(home)}>{t("script:homepage")}</DropdownMenuItem>}
+            <DropdownMenuItem onClick={openEditor}>
+              <Pencil />
+              {t("edit")}
+            </DropdownMenuItem>
+            {home && (
+              <DropdownMenuItem onClick={() => openExternalUrl(home)}>
+                <House />
+                {t("script:homepage")}
+              </DropdownMenuItem>
+            )}
             {support && (
-              <DropdownMenuItem onClick={() => openExternalUrl(support)}>{t("script:support")}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openExternalUrl(support)}>
+                <Bug />
+                {t("script:support")}
+              </DropdownMenuItem>
             )}
             {script.config && (
               <DropdownMenuItem onPointerEnter={preloadUserConfigValues} onClick={openUserConfig}>
+                <Settings2 />
                 {t("editor:user_config")}
               </DropdownMenuItem>
             )}
             {script.metadata?.cloudcat && (
               <DropdownMenuItem onPointerEnter={preloadCloudPlan} onClick={openCloud}>
+                <UploadCloud />
                 {t("editor:upload_to_cloud")}
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem onClick={exportSelf}>{t("export")}</DropdownMenuItem>
+            <DropdownMenuItem onClick={exportSelf}>
+              <Download />
+              {t("export")}
+            </DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
               onSelect={() => setConfirmDelete(true)}
             >
+              <Trash2 />
               {t("delete")}
             </DropdownMenuItem>
           </DropdownMenuContent>
