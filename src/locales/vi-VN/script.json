@@ -28,6 +28,7 @@
   "operation_failed": "Thao tác thất bại",
   "scripts_pinned_to_top": "Script đã chọn đã được ghim",
   "homepage": "Trang chủ",
+  "support": "Hỗ trợ",
   "script_total_runs": "Script đã chạy {{runNum}} lần, {{runNumByIframe}} lần trong iframes",
   "script_total_runs_single": "Script đã chạy {{runNum}} lần",
   "script_disabled": "Script chưa được bật",

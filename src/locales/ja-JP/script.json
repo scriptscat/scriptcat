@@ -28,6 +28,7 @@
   "operation_failed": "操作に失敗しました",
   "scripts_pinned_to_top": "選択されたスクリプトは固定されました",
   "homepage": "スクリプトホームページ",
+  "support": "サポート",
   "script_total_runs": "このスクリプトは合計{{runNum}}回実行され、iframe上で{{runNumByIframe}}回実行されました",
   "script_total_runs_single": "このスクリプトは{{runNum}}回実行されました",
   "script_disabled": "このスクリプトは有効になっていません",

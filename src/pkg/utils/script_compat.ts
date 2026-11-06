@@ -76,6 +76,8 @@ const INFORMATIONAL_TAGS = [
   "website",
   "source",
   "supporturl",
+  // @supportURL 的同义写法
+  "support",
   "installurl",
   "compatible",
   "definition",

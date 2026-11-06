@@ -105,6 +105,7 @@ tracking: Dieses Skript verfolgt Ihre Benutzerinformationen`.replace(/\n/g, "<br
     updateURL: "URL zur Aktualisierungsprüfung des Skripts",
     downloadURL: "URL zum Herunterladen von Skriptaktualisierungen",
     supportURL: "Support-Seite / Bugtracker",
+    support: "Support-Seite / Bugtracker",
     source: "Quellcode-Seite des Skripts",
     scriptUrl: "Benutzerskript-URL, die von einem Abonnement-Skript referenziert wird",
     storageName: "Speichername für Skriptwerte, um einen Speicherbereich mit mehreren Skripten zu teilen",

@@ -107,6 +107,18 @@ describe("移动端脚本行", () => {
     expect(document.querySelector('[data-slot="mobile-action-sheet"]')!.textContent).not.toContain(t("editor:run"));
   });
 
+  it("脚本声明了反馈链接时面板出现反馈项，点击打开新标签", () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    const withSupport = { ...script, metadata: { ...script.metadata, support: ["https://support"] } };
+    renderWithRouterTooltip(<ScriptRowsMobile {...baseProps} scriptList={[withSupport]} />);
+    tapRow();
+
+    fireEvent.click(screen.getByText(t("script:support")));
+
+    expect(openSpy).toHaveBeenCalledWith("https://support", "_blank");
+    openSpy.mockRestore();
+  });
+
   it("面板里的导出按单个脚本导出", () => {
     renderWithRouterTooltip(<ScriptRowsMobile {...baseProps} />);
     tapRow();

@@ -28,6 +28,7 @@
   "operation_failed": "Vorgang fehlgeschlagen",
   "scripts_pinned_to_top": "Das ausgewählte Skript wurde angepinnt",
   "homepage": "Skript-Startseite",
+  "support": "Support",
   "script_total_runs": "Dieses Skript wurde insgesamt {{runNum}} Mal ausgeführt, {{runNumByIframe}} Mal in iframes",
   "script_total_runs_single": "Dieses Skript wurde {{runNum}} Mal ausgeführt",
   "script_disabled": "Dieses Skript ist nicht aktiviert",

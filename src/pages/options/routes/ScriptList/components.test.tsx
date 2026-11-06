@@ -37,6 +37,7 @@ vi.mock("@App/pages/store/global", async () => {
 import {
   FaviconDots,
   getScriptHomePage,
+  getScriptSupportUrl,
   getTagColor,
   ScheduleNextRun,
   ScriptRowActionSlots,
@@ -57,11 +58,15 @@ describe("脚本主页链接解析 getScriptHomePage", () => {
     expect(getScriptHomePage({ homepage: ["https://a"], website: ["https://b"] })).toBe("https://a");
   });
 
-  it("homepage 缺失时依次回退到 homepageurl/website/source/supporturl", () => {
+  it("homepage 缺失时依次回退到 homepageurl/website/source", () => {
     expect(getScriptHomePage({ homepageurl: ["https://hu"] })).toBe("https://hu");
     expect(getScriptHomePage({ website: ["https://w"] })).toBe("https://w");
     expect(getScriptHomePage({ source: ["https://src"] })).toBe("https://src");
-    expect(getScriptHomePage({ supporturl: ["https://s"] })).toBe("https://s");
+  });
+
+  it("supportURL/support 指向问题反馈页，不当作主页", () => {
+    expect(getScriptHomePage({ supporturl: ["https://s"] })).toBeUndefined();
+    expect(getScriptHomePage({ support: ["https://s"] })).toBeUndefined();
   });
 
   it("无任何主页字段时返回 undefined", () => {
@@ -75,6 +80,25 @@ describe("脚本主页链接解析 getScriptHomePage", () => {
     expect(getScriptHomePage({ homepage: ["file:///etc/passwd"] })).toBeUndefined();
     // 首选项异常时回退到后续的安全链接
     expect(getScriptHomePage({ homepage: ["javascript:alert(1)"], website: ["https://safe"] })).toBe("https://safe");
+  });
+});
+
+describe("脚本反馈链接解析 getScriptSupportUrl", () => {
+  it("优先返回 supportURL，缺失时回退到同义的 @support", () => {
+    expect(getScriptSupportUrl({ supporturl: ["https://a"], support: ["https://b"] })).toBe("https://a");
+    expect(getScriptSupportUrl({ support: ["https://b"] })).toBe("https://b");
+  });
+
+  it("主页类字段不算反馈链接", () => {
+    expect(getScriptSupportUrl({ homepage: ["https://h"], website: ["https://w"] })).toBeUndefined();
+    expect(getScriptSupportUrl(undefined)).toBeUndefined();
+  });
+
+  it("仅允许 http/https：异常协议被忽略并继续回退", () => {
+    expect(getScriptSupportUrl({ supporturl: ["javascript:alert(1)"] })).toBeUndefined();
+    expect(getScriptSupportUrl({ supporturl: ["javascript:alert(1)"], support: ["https://safe"] })).toBe(
+      "https://safe"
+    );
   });
 });
 
@@ -186,11 +210,12 @@ describe("ScriptRowActionSlots 宽窄两套排布", () => {
     expect(navigate).toHaveBeenCalledWith("/script/editor/u1");
   });
 
-  it("无主页/配置/云端时更多菜单里不出现对应项", () => {
+  it("无主页/反馈/配置/云端时更多菜单里不出现对应项", () => {
     renderSlots();
     openMore();
 
     expect(screen.queryByText(t("script:homepage"))).toBeNull();
+    expect(screen.queryByText(t("script:support"))).toBeNull();
     expect(screen.queryByText(t("editor:user_config"))).toBeNull();
     expect(screen.queryByText(t("editor:upload_to_cloud"))).toBeNull();
   });
@@ -203,6 +228,27 @@ describe("ScriptRowActionSlots 宽窄两套排布", () => {
     fireEvent.click(screen.getByText(t("script:homepage")));
 
     expect(openSpy).toHaveBeenCalledWith("https://home", "_blank");
+    openSpy.mockRestore();
+  });
+
+  it("含反馈链接时宽排布出现反馈按钮，点击打开新标签", () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    renderSlots({ metadata: { support: ["https://support"] } });
+
+    fireEvent.click(wide().getByLabelText(t("script:support")));
+
+    expect(openSpy).toHaveBeenCalledWith("https://support", "_blank");
+    openSpy.mockRestore();
+  });
+
+  it("含反馈链接时更多菜单出现反馈项，点击打开新标签", () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    renderSlots({ metadata: { supporturl: ["https://support"] } });
+    openMore();
+
+    fireEvent.click(screen.getByText(t("script:support")));
+
+    expect(openSpy).toHaveBeenCalledWith("https://support", "_blank");
     openSpy.mockRestore();
   });
 

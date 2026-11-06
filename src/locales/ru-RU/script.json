@@ -28,6 +28,7 @@
   "operation_failed": "Операция не выполнена",
   "scripts_pinned_to_top": "Выбранные скрипты закреплены сверху",
   "homepage": "Главная страница скрипта",
+  "support": "Поддержка",
   "script_total_runs": "Этот скрипт выполнялся {{runNum}} раз(а), в iframe {{runNumByIframe}} раз(а)",
   "script_total_runs_single": "Этот скрипт выполнялся {{runNum}} раз(а)",
   "script_disabled": "Этот скрипт не включен",

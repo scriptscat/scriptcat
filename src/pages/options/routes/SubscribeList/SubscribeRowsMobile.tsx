@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { Inbox } from "lucide-react";
+import { Inbox, Trash2 } from "lucide-react";
 import { SubscribeStatusType } from "@App/app/repo/subscribe";
 import { requestEnableSubscribe, type SubscribeLoading } from "@App/pages/store/features/subscribe";
 import { useTranslation } from "react-i18next";
@@ -107,6 +107,7 @@ export default function SubscribeRowsMobile({
             <SubscribeUpdateTimeCell url={sheetSubscribe.url} updatetime={sheetSubscribe.updatetime} />
           </div>
           <MobileActionSheetItem destructive onSelect={() => handleDelete(sheetSubscribe)}>
+            <Trash2 />
             {t("delete")}
           </MobileActionSheetItem>
         </MobileActionSheet>

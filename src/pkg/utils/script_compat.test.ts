@@ -48,7 +48,15 @@ describe("元数据指令支持判定", () => {
   });
 
   it("脚本站与著作信息类指令不报不支持——脚本猫不执行它们，但也不影响脚本行为", () => {
-    for (const tag of ["license", "compatible", "contributionURL", "uso:script", "oujs:author", "screenshot"]) {
+    for (const tag of [
+      "license",
+      "compatible",
+      "contributionURL",
+      "uso:script",
+      "oujs:author",
+      "screenshot",
+      "support",
+    ]) {
       expect(isSupportedMetadataTag(tag), tag).toBe(true);
     }
   });

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { CheckSquare, Settings2, Trash2, TriangleAlert } from "lucide-react";
+import { CheckSquare, RotateCcw, Settings2, Trash2, TriangleAlert } from "lucide-react";
 import type { TrashScript } from "@App/app/repo/trash_script";
 import type { InstallSource } from "@App/app/service/service_worker/types";
 import { requestTrashScripts, requestRestoreScripts, requestPurgeScripts } from "@App/pages/store/features/script";
@@ -353,10 +353,12 @@ export default function TrashListMobile({
           icon={<ScriptIcon name={sheetItem.name} metadata={sheetItem.metadata} />}
         >
           <MobileActionSheetItem onSelect={() => void onRestore([sheetItem.uuid])}>
+            <RotateCcw />
             {t("script:trash_restore")}
           </MobileActionSheetItem>
           {/* 面板关闭会连带销毁挂在面板项上的气泡确认，故彻底删除走列表级的模态 */}
           <MobileActionSheetItem destructive onSelect={() => setPendingPurge(sheetItem)}>
+            <Trash2 />
             {t("script:trash_purge")}
           </MobileActionSheetItem>
         </MobileActionSheet>
