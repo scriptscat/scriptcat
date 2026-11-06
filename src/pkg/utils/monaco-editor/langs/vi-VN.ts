@@ -102,6 +102,7 @@ tracking: Script này theo dõi thông tin người dùng của bạn`.replace(/
     updateURL: "URL dùng để kiểm tra cập nhật script",
     downloadURL: "URL tải về bản cập nhật script",
     supportURL: "Trang hỗ trợ / báo lỗi",
+    support: "Trang hỗ trợ / báo lỗi",
     source: "Trang mã nguồn script",
     scriptUrl: "URL user script được tham chiếu bởi script đăng ký",
     storageName: "Tên vùng lưu trữ giá trị script, dùng để chia sẻ cùng một vùng lưu trữ giữa nhiều script",
