@@ -22,6 +22,7 @@ export function MobileSearchBar({
           placeholder={label}
           value={searchRequest.keyword}
           onChange={(e) => setSearchRequest({ ...searchRequest, keyword: e.target.value })}
+          onClear={() => setSearchRequest({ ...searchRequest, keyword: "" })}
         />
       </div>
     </div>

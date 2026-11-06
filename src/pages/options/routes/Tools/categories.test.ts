@@ -30,3 +30,11 @@ describe("Tools 分类项 · 外部接入卡片可见性（Firefox 上尚未支�
     expect(categories.some((c: { id: string }) => c.id === "external-access")).toBe(false);
   });
 });
+
+describe("Tools 分类项 · 未上线功能不提供入口", () => {
+  it("不包含尚未实现的自动备份分类", async () => {
+    const { getToolsCategories } = await import("./categories.ts");
+    const categories = getToolsCategories(i18n.t);
+    expect(categories.some((c: { id: string }) => c.id === "auto-backup")).toBe(false);
+  });
+});

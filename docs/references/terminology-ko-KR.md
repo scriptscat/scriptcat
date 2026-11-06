@@ -73,7 +73,7 @@
 | 개념 | 사용할 수 있는 표현 | 선택 기준 | 예시 key |
 | --- | --- | --- | --- |
 | source | `출처`, `설치 출처`, `구독 출처`, `소스 코드` | origin/provenance는 `출처`, code는 `소스 코드`를 사용합니다. | `source`, `col_source`, `prompt.source` |
-| local / cloud | `로컬` / `클라우드` | 데이터 위치, 백업 위치, 동기화 대상을 설명합니다. | `local`, `cloud`, `backup_to` |
+| local / cloud | `로컬` / `클라우드` | 데이터 위치, 백업 위치, 동기화 대상을 설명합니다. | `local`, `backup_to` |
 | storage | `저장소`, `저장 공간` | 기능 이름과 짧은 레이블은 `저장소`, 공간을 설명하는 문장은 `저장 공간`을 사용할 수 있습니다. | `script_storage`, `storage_error` |
 | panel / console | `패널` / `콘솔` | ScriptCat 조작 UI는 `패널`, 개발자 도구 출력은 `콘솔`을 사용합니다. | `background_script_description`, `build_success_message` |
 | permission | `권한` | 기능이 수행할 수 있는 능력과 권한 목록에 사용합니다. | `permission`, `permission_management` |

@@ -83,6 +83,7 @@
   "no_subscribes": "暂无订阅",
   "no_subscribes_hint": "订阅脚本集合后将显示在这里",
   "clear_filter": "清除筛选",
+  "clear_search": "清除搜索",
   "batch_selected": "已选择 {{count}} 项",
   "stopped": "已停止",
   "auth_type": "鉴权类型",

@@ -62,6 +62,17 @@ function ScriptListMobile({
     clearSelection();
   }, [clearSelection]);
 
+  const filtered = searchRequest.keyword !== "" || Object.values(selectedFilters).some((v) => v !== null);
+  const clearFilters = () => {
+    setSearchRequest({ ...searchRequest, keyword: "" });
+    setSelectedFilters({ status: null, type: null, tags: null, source: null });
+  };
+
+  const deleteSelected = () => {
+    onBatchDelete();
+    exitSelection();
+  };
+
   // 长按进入多选：先亮起模式，再把被长按的那一行选上
   const enterSelectionWith = useCallback(
     (uuid: string) => {
@@ -106,27 +117,29 @@ function ScriptListMobile({
           selectedUuids={selectedUuids}
           toggleSelect={toggleSelect}
           onEnterSelectionMode={enterSelectionWith}
+          filtered={filtered}
+          onClearFilters={clearFilters}
         />
         <MobileBatchBar>
           <MobileBatchBarButton onClick={onBatchEnable}>{t("enable")}</MobileBatchBarButton>
           <MobileBatchBarButton onClick={onBatchDisable}>{t("disable")}</MobileBatchBarButton>
           <MobileBatchBarButton onClick={onBatchExport}>{t("export")}</MobileBatchBarButton>
-          <Popconfirm
-            description={
-              (trashEnabled ?? true)
-                ? t("script:confirm_delete_scripts_trash_content", { count: selectedUuids.size })
-                : t("script:confirm_delete_scripts_content", { count: selectedUuids.size })
-            }
-            destructive
-            confirmText={t("delete")}
-            cancelText={t("editor:cancel")}
-            onConfirm={() => {
-              onBatchDelete();
-              exitSelection();
-            }}
-          >
-            <MobileBatchBarButton destructive>{t("delete")}</MobileBatchBarButton>
-          </Popconfirm>
+          {/* 回收站开启时删除可由撤销 toast 和回收站找回，不再二次确认；关闭或配置尚未读到时按不可撤销处理，先确认 */}
+          {trashEnabled === true ? (
+            <MobileBatchBarButton destructive onClick={deleteSelected}>
+              {t("delete")}
+            </MobileBatchBarButton>
+          ) : (
+            <Popconfirm
+              description={t("script:confirm_delete_scripts_content", { count: selectedUuids.size })}
+              destructive
+              confirmText={t("delete")}
+              cancelText={t("editor:cancel")}
+              onConfirm={deleteSelected}
+            >
+              <MobileBatchBarButton destructive>{t("delete")}</MobileBatchBarButton>
+            </Popconfirm>
+          )}
         </MobileBatchBar>
       </div>
     );
@@ -203,6 +216,8 @@ function ScriptListMobile({
             selectedUuids={selectedUuids}
             toggleSelect={toggleSelect}
             onEnterSelectionMode={enterSelectionWith}
+            filtered={filtered}
+            onClearFilters={clearFilters}
           />
         </>
       )}

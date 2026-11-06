@@ -240,6 +240,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
           <SearchInput
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
+            onClear={() => setKeyword("")}
             placeholder={t("editor:search_storage")}
             aria-label={t("editor:search_storage")}
             className="h-8 w-full md:w-64"

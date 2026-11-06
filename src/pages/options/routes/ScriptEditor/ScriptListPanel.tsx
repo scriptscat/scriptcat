@@ -52,6 +52,7 @@ function ScriptListPanel({
         <SearchInput
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
+          onClear={() => setKeyword("")}
           aria-label={t("editor:search_scripts")}
           placeholder={t("editor:search_scripts")}
           className="h-8 px-2"

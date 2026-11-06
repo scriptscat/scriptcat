@@ -83,6 +83,7 @@
   "no_subscribes": "サブスクライブがありません",
   "no_subscribes_hint": "スクリプトコレクションをサブスクライブするとここに表示されます",
   "clear_filter": "フィルターをクリア",
+  "clear_search": "検索をクリア",
   "batch_selected": "{{count}} 件選択中",
   "stopped": "停止済み",
   "auth_type": "認証タイプ",
