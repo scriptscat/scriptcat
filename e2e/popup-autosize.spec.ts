@@ -191,6 +191,41 @@ test.describe("Popup 窗口自适应尺寸", () => {
     }
   });
 
+  // 窗口高度由内容反推，内容高度一旦依赖视口高度（如 min-height: 100vh）就只增不减：
+  // 展开分组撑高窗口后再收起，窗口停在展开时的高度，底部留下一大块空白。
+  test("展开再收起分组后窗口随内容缩回，列表与页脚之间不留空白", async () => {
+    const { context, sw, cleanup } = await launchWithExtension();
+    try {
+      const evaluate = await openActionPopup(context, sw);
+      // 最后一个分组是「后台脚本」，没有后台脚本时默认收起。
+      // 不和打开时的高度比较：权限/警告检测异步返回后吸顶区本就会合法变高。
+      const lastTrigger = `Array.from(document.querySelectorAll("h3 > button[aria-expanded]")).pop()`;
+      const measure = `(() => {
+        const footer = document.querySelector("footer");
+        const trigger = ${lastTrigger};
+        if (!footer || !trigger) return null;
+        const section = trigger.closest("h3").parentElement;
+        return {
+          expanded: trigger.getAttribute("aria-expanded") === "true",
+          gapAboveFooter: Math.round(footer.getBoundingClientRect().top - section.getBoundingClientRect().bottom),
+          fitsContent: document.documentElement.scrollHeight <= window.innerHeight + 1,
+          footerAtBottom: Math.round(footer.getBoundingClientRect().bottom) === window.innerHeight,
+        };
+      })()`;
+      const settled = { gapAboveFooter: 0, fitsContent: true, footerAtBottom: true };
+
+      await expect.poll(() => evaluate(measure), { timeout: 15_000 }).toMatchObject({ ...settled, expanded: false });
+
+      await evaluate(`${lastTrigger}.click()`);
+      await expect.poll(() => evaluate(measure)).toMatchObject({ ...settled, expanded: true });
+
+      await evaluate(`${lastTrigger}.click()`);
+      await expect.poll(() => evaluate(measure)).toMatchObject({ ...settled, expanded: false });
+    } finally {
+      await cleanup();
+    }
+  });
+
   // 移动端（如 Edge Android）popup 被撑满整屏：宽度须填满(#686)，页脚须贴底而不是悬在内容下方。
   test("移动端整屏 popup 宽度填满且页脚贴底", async () => {
     const { context, extensionId, cleanup } = await launchWithExtension({ mobile: true });
