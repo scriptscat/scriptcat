@@ -28,6 +28,7 @@
   "operation_failed": "A operação falhou",
   "scripts_pinned_to_top": "O script selecionado foi fixado",
   "homepage": "Página do script",
+  "support": "Suporte",
   "script_total_runs": "O script foi executado {{runNum}} vezes, {{runNumByIframe}} vezes em iframes",
   "script_total_runs_single": "O script foi executado {{runNum}} vezes",
   "script_disabled": "O script não está ativado",

@@ -28,6 +28,7 @@
   "operation_failed": "操作失败",
   "scripts_pinned_to_top": "已将所选脚本置顶",
   "homepage": "脚本主页",
+  "support": "反馈问题",
   "script_total_runs": "该脚本总共运行了{{runNum}}次，在iframe上运行了{{runNumByIframe}}次",
   "script_total_runs_single": "该脚本运行了{{runNum}}次",
   "script_disabled": "该脚本未开启",

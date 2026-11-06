@@ -44,6 +44,7 @@ import {
   ScheduleNextRun,
   ScriptIcon,
   getScriptHomePage,
+  getScriptSupportUrl,
   openExternalUrl,
   scriptTypeLabel,
 } from "./components";
@@ -385,6 +386,7 @@ function ScriptActionSheet({
   const { t } = useTranslation();
   const name = i18nName(script);
   const home = getScriptHomePage(script.metadata);
+  const support = getScriptSupportUrl(script.metadata);
   const isBackground = script.type !== SCRIPT_TYPE_NORMAL;
   const isRunning = script.runStatus === SCRIPT_RUN_STATUS_RUNNING;
 
@@ -413,6 +415,9 @@ function ScriptActionSheet({
       )}
       {home && (
         <MobileActionSheetItem onSelect={() => openExternalUrl(home)}>{t("script:homepage")}</MobileActionSheetItem>
+      )}
+      {support && (
+        <MobileActionSheetItem onSelect={() => openExternalUrl(support)}>{t("script:support")}</MobileActionSheetItem>
       )}
       {isBackground && (
         <MobileActionSheetItem onSelect={() => onRunStop(script)}>

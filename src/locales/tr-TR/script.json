@@ -28,6 +28,7 @@
   "operation_failed": "İşlem başarısız",
   "scripts_pinned_to_top": "Seçili betik üste sabitlendi",
   "homepage": "Ana Sayfa",
+  "support": "Destek",
   "script_total_runs": "Betik {{runNum}} kez, iframe'lerde {{runNumByIframe}} kez çalıştırıldı",
   "script_total_runs_single": "Betik {{runNum}} kez çalıştırıldı",
   "script_disabled": "Betik etkin değil",

@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
 import { getNameAvatarTone, NameAvatar } from "@App/pages/components/NameAvatar";
 import {
+  Bug,
   Globe,
   RefreshCw,
   Play,
@@ -367,6 +368,7 @@ export function ScriptRowActionSlots({
   const [trashEnabled] = useSystemConfig("trash_enabled");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const home = getScriptHomePage(script.metadata);
+  const support = getScriptSupportUrl(script.metadata);
   const isBackground = script.type !== SCRIPT_TYPE_NORMAL;
   const isRunning = script.runStatus === SCRIPT_RUN_STATUS_RUNNING;
   const preloadUserConfigValues = () => void preloadUserConfig(script).catch(() => undefined);
@@ -400,16 +402,22 @@ export function ScriptRowActionSlots({
   return (
     <>
       {/* 宽窗口摊开全部操作；窄窗口它们会把脚本名挤没（#1698），故窄于断点时换成下面的紧凑排布。
-          min-w 取满配 7 个按钮的宽度：条件按钮的有无会改变本区宽度，进而把左侧的更新时间列推得逐行参差。
-          断点取 1160 而非 1000：摊开态比紧凑态多占 160px，实测 1000px 处名称会从 253px 直接掉到 150px，
-          即「窗口拉宽反而更窄」；1160px 起摊开态才不会让名称比紧凑态更窄。 */}
+          min-w 取满配 8 个按钮的宽度：条件按钮的有无会改变本区宽度，进而把左侧的更新时间列推得逐行参差。
+          断点取 1192 而非 1000：摊开态比紧凑态多占 192px，在 1000px 切换会让名称骤然变窄，
+          即「窗口拉宽反而更窄」；1192px 起摊开态的名称宽才不低于紧凑态在 1000px 时的宽度。
+          加按钮时 min-w 与断点须同步加宽。 */}
       <span
         data-testid="row-actions-wide"
-        className="hidden min-w-[220px] items-center justify-end gap-1 min-[1160px]:flex"
+        className="hidden min-w-[252px] items-center justify-end gap-1 min-[1192px]:flex"
       >
         {home && (
           <ActionButton label={t("script:homepage")} onClick={() => openExternalUrl(home)}>
             <House className="w-3.5 h-3.5" />
+          </ActionButton>
+        )}
+        {support && (
+          <ActionButton label={t("script:support")} onClick={() => openExternalUrl(support)}>
+            <Bug className="w-3.5 h-3.5" />
           </ActionButton>
         )}
         {script.config && (
@@ -434,7 +442,7 @@ export function ScriptRowActionSlots({
         </ActionButton>
       </span>
 
-      <span data-testid="row-actions-compact" className="flex items-center gap-1 min-[1160px]:hidden">
+      <span data-testid="row-actions-compact" className="flex items-center gap-1 min-[1192px]:hidden">
         {/* 普通脚本没有运行按钮，留等宽占位让更多按钮在所有行对齐同一横坐标 */}
         {isBackground ? runButton : <span aria-hidden className="size-7 shrink-0" />}
 
@@ -447,6 +455,9 @@ export function ScriptRowActionSlots({
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuItem onClick={openEditor}>{t("edit")}</DropdownMenuItem>
             {home && <DropdownMenuItem onClick={() => openExternalUrl(home)}>{t("script:homepage")}</DropdownMenuItem>}
+            {support && (
+              <DropdownMenuItem onClick={() => openExternalUrl(support)}>{t("script:support")}</DropdownMenuItem>
+            )}
             {script.config && (
               <DropdownMenuItem onPointerEnter={preloadUserConfigValues} onClick={openUserConfig}>
                 {t("editor:user_config")}
@@ -490,16 +501,21 @@ export function ScriptRowActionSlots({
   );
 }
 
-// ========== 脚本主页链接 ==========
-// 取脚本主页/支持链接（优先 homepage，其次 homepageurl / website / source / supporturl）
-export function getScriptHomePage(metadata?: SCMetadata): string | undefined {
+// ========== 脚本主页 / 反馈链接 ==========
+const firstSafeUrl = (metadata: SCMetadata | undefined, keys: readonly string[]): string | undefined => {
   if (!metadata) return undefined;
-  for (const key of ["homepage", "homepageurl", "website", "source", "supporturl"] as const) {
+  for (const key of keys) {
     const url = metadata[key]?.[0];
     if (url && isSafeHttpUrl(url)) return url;
   }
   return undefined;
-}
+};
+
+export const getScriptHomePage = (metadata?: SCMetadata) =>
+  firstSafeUrl(metadata, ["homepage", "homepageurl", "website", "source"]);
+
+// supportURL 约定指向问题反馈页，与主页分开展示；@support 是它的同义写法
+export const getScriptSupportUrl = (metadata?: SCMetadata) => firstSafeUrl(metadata, ["supporturl", "support"]);
 
 // ========== SourceTag ==========
 export const SourceTag = React.memo(
