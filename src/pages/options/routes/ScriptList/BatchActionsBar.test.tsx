@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
+import { act, render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 
 // useSystemConfig("trash_enabled") 读的是这个 store；默认给回收站「开启」，
-// 关闭态相关用例（见「回收站关闭时的批量删除确认文案」describe）再各自切到 false。
+// 关闭态相关用例（见「批量删除」describe）再各自切到 false。
 const { get } = vi.hoisted(() => ({ get: vi.fn() }));
 vi.mock("@App/pages/store/global", async () => {
   const { createGlobalStoreMock } = await import("@Tests/mocks/pageStores.ts");
@@ -42,47 +42,57 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("BatchActionsBar 批量删除二次确认", () => {
-  it("批量删除触发器为带 aria-haspopup 的真实按钮（trigger 属性透传到 BatchBtn 内层按钮）", () => {
+describe("BatchActionsBar 批量删除", () => {
+  // trash_enabled 经 store 异步读取，点击前先等它落地
+  const flushConfig = () => act(async () => {});
+  const trashOff = () => get.mockImplementation((key: string) => Promise.resolve(key === "trash_enabled" ? false : 30));
+
+  it("回收站开启时，点击批量删除直接调用 onBatchDelete，不弹确认（由撤销 toast 兜底）", async () => {
+    const onBatchDelete = vi.fn();
+    renderBar({ onBatchDelete });
+    await flushConfig();
+
+    fireEvent.click(screen.getByText(t("delete"), { selector: "button" }));
+
+    expect(onBatchDelete).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(t("script:confirm_delete_scripts_content", { count: 3 }))).not.toBeInTheDocument();
+  });
+
+  it("回收站关闭时，批量删除触发器为带 aria-haspopup 的真实按钮", async () => {
+    trashOff();
     renderBar({});
+    await flushConfig();
+
     const trigger = screen.getByText(t("delete"), { selector: "button" });
     expect(trigger.tagName).toBe("BUTTON");
     expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
   });
 
-  it("点击批量删除先弹出带数量的 Popconfirm，确认前不调用 onBatchDelete（回收站默认开启，文案说可还原）", async () => {
+  it("回收站关闭时，先弹出带数量的「此操作无法撤销」确认，确认后才调用 onBatchDelete", async () => {
+    trashOff();
     const onBatchDelete = vi.fn();
     renderBar({ onBatchDelete });
+    await flushConfig();
 
     const trigger = screen.getByText(t("delete"), { selector: "button" });
     fireEvent.click(trigger);
-
-    expect(await screen.findByText(t("script:confirm_delete_scripts_trash_content", { count: 3 }))).toBeInTheDocument();
+    expect(await screen.findByText(t("script:confirm_delete_scripts_content", { count: 3 }))).toBeInTheDocument();
     expect(onBatchDelete).not.toHaveBeenCalled();
-  });
-
-  it("在 Popconfirm 中点击确认后才调用 onBatchDelete", async () => {
-    const onBatchDelete = vi.fn();
-    renderBar({ onBatchDelete });
-
-    const trigger = screen.getByText(t("delete"), { selector: "button" });
-    fireEvent.click(trigger);
-    await screen.findByText(t("script:confirm_delete_scripts_trash_content", { count: 3 }));
 
     const confirmBtn = screen.getAllByText(t("delete"), { selector: "button" }).find((b) => b !== trigger)!;
     fireEvent.click(confirmBtn);
     expect(onBatchDelete).toHaveBeenCalledTimes(1);
   });
 
-  it("回收站关闭时，批量删除确认文案改回「此操作无法撤销」", async () => {
-    get.mockImplementation((key: string) => Promise.resolve(key === "trash_enabled" ? false : 30));
-    renderBar({});
+  it("回收站配置尚未读到时按不可撤销处理，仍先弹确认", async () => {
+    get.mockImplementation(() => new Promise(() => {}));
+    const onBatchDelete = vi.fn();
+    renderBar({ onBatchDelete });
 
-    const trigger = screen.getByText(t("delete"), { selector: "button" });
-    fireEvent.click(trigger);
+    fireEvent.click(screen.getByText(t("delete"), { selector: "button" }));
 
     expect(await screen.findByText(t("script:confirm_delete_scripts_content", { count: 3 }))).toBeInTheDocument();
-    expect(screen.queryByText(t("script:confirm_delete_scripts_trash_content", { count: 3 }))).not.toBeInTheDocument();
+    expect(onBatchDelete).not.toHaveBeenCalled();
   });
 });
 

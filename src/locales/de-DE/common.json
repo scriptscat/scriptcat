@@ -83,6 +83,7 @@
   "no_subscribes": "Keine Abonnements",
   "no_subscribes_hint": "Abonnierte Skriptsammlungen werden hier angezeigt",
   "clear_filter": "Filter zurücksetzen",
+  "clear_search": "Suche löschen",
   "batch_selected": "{{count}} ausgewählt",
   "stopped": "Gestoppt",
   "auth_type": "Authentifizierungstyp",

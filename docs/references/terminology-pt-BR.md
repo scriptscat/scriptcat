@@ -72,7 +72,7 @@ Fontes de uso revisadas: `src/locales/pt-BR/*.json`, `docs/architecture.md`.
 
 | Conceito | Formas possíveis | Regra de decisão | Exemplos de chaves |
 | --- | --- | --- | --- |
-| Local / nuvem | `Local` / `Na nuvem` | Ajuste artigo e preposição à frase: `backup na nuvem`, `armazenamento local e em nuvem`. | `local`, `cloud`, `backup_to`, `source_local_script` |
+| Local / nuvem | `Local` / `Na nuvem` | Ajuste artigo e preposição à frase: `backup na nuvem`, `armazenamento local e em nuvem`. | `local`, `backup_to`, `source_local_script` |
 | Origem / fonte | `Origem`, `Origem da instalação`, `Código-fonte`, `Fonte de dados` | Use `Origem` para procedência. Use `Fonte` apenas quando o contexto realmente for fonte de dados, tipografia ou código-fonte. | `source`, `col_source`, `loading_desc` |
 | Armazenamento | `Armazenamento`, `Espaço de armazenamento`, `Storage API` | Diferencie dados armazenados, espaço concedido e nome técnico da API. | `script_storage`, `script_operation_description`, `storage_api` |
 | Painel / console | `painel` / `console` | `painel` para controles da interface; `console` para saída das ferramentas de desenvolvedor. | `background_script_description`, `build_success_message` |

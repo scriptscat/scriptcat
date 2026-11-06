@@ -71,7 +71,6 @@
 | tabs | `タブ` | `close_current_tab`, `script_run_env.all`, `script_run_env.normal-tabs` | 現行の外来語表記を維持します。 |
 | interface display | `表示` / `非表示` | `badge_type_none`, `editor.show_script_list`, `editor.hide_script_list` | 表示状態および表示操作に使用します。 |
 | action / operation | `操作` | `action`, `script_list_action_title` | UI の列名、操作欄、メニュー文脈では `操作` を使用します。 |
-| work in progress | `開発中` | `under_construction` | ソフトウェアの機能状態を示します。 |
 | silent update | `サイレントで更新する` | `silent_update_non_critical_changes` | 通知を抑えた更新を示す現行表記です。 |
 | issue report | `バグ報告 / 問題のフィードバック` | `report_issue` | 読みやすい区切りを維持します。 |
 
@@ -79,7 +78,7 @@
 
 | 概念 | 現行表記 | 判断基準 | 現行用例 key |
 | --- | --- | --- | --- |
-| local / cloud | `ローカル` / `クラウド` | 端末上の保存先、作成元、インポート元は `ローカル`、同期先は `クラウド` を使用します。 | `local`, `cloud`, `source_local_script`, `importpage.source_local`, `tools_backup_content` |
+| local / cloud | `ローカル` / `クラウド` | 端末上の保存先、作成元、インポート元は `ローカル`、同期先は `クラウド` を使用します。 | `local`, `source_local_script`, `importpage.source_local`, `tools_backup_content` |
 | directory / path | `ディレクトリ` / `パス` | ファイルシステムを扱う開発機能では、現行の `ディレクトリ` を維持します。一般向け機能へ拡大する場合は別途確認します。 | `open_directory`, `open_backup_dir`, `script_operation_description`, `watch_file_description` |
 | panel / console | `パネル` / `コンソール` | `panel` は `パネル`、開発者ツールの console は `コンソール` とし、相互に置換しません。 | `background_script_description`, `build_success_message` |
 | check / confirm | `チェック` / `確認` | 更新確認の UI には両表現が現存します。新しい文言では周辺 UI に合わせ、統一はレビュー後に行います。 | `check_update`, `updatepage.main_header`, `updatepage.status_checking_updates` |

@@ -88,7 +88,7 @@ import { Badge } from "@App/pages/components/ui/badge";
 
 ### Toast (sonner + notify)
 
-The container [`sonner.tsx`](../../src/pages/components/ui/sonner.tsx) is theme-aware, **bottom-right on desktop / top-center on mobile** (switched by `useIsMobile()`), with a neutral `popover` surface, a semantic-colored icon + left accent bar, a close button, and at most 3 stacked; mount it once per page entry.
+The container [`sonner.tsx`](../../src/pages/components/ui/sonner.tsx) is theme-aware, **bottom-right on desktop / top-center on mobile** (switched by `useIsMobile()`), with a neutral `popover` surface whose type is carried by the semantic-colored icon alone (plus a thin auto-dismiss progress line), an in-card close button, and at most 3 stacked; mount it once per page entry.
 
 **Decision pages must mount it as `<Toaster placement="decision" />`** — that moves it to top-center on desktop too. A page whose footer is a `sticky bottom-0` action bar with right-aligned buttons (install, confirm, external-access confirm) would otherwise have every toast land squarely on top of its own buttons; on the external-access page those buttons are a security decision. Declare the page's kind at the mount site rather than hand-tuning `offset` per page.
 

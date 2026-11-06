@@ -60,7 +60,7 @@ Bu belge, ScriptCat'in Türkçe (`tr-TR`) arayüzü ve belgeleri için terminolo
 
 | Kavram | Kullanılabilecek ifade | Karar kuralı | Güncel örnek key'ler |
 | --- | --- | --- | --- |
-| local / cloud | `Yerel` / `Bulut` | Veri kaynağı, depolama konumu veya eşitleme hedefi için kullanın; belirsizse nesneyi ekleyin. | `local`, `cloud`, `source_local_script`, `tools_backup_content` |
+| local / cloud | `Yerel` / `Bulut` | Veri kaynağı, depolama konumu veya eşitleme hedefi için kullanın; belirsizse nesneyi ekleyin. | `local`, `source_local_script`, `tools_backup_content` |
 | panel / console | `panel` / `konsol` | ScriptCat kontrol yüzeyi için `panel`, geliştirici çıktısı için `konsol` kullanın. | `scheduled_script_description_title`, `build_success_message` |
 | source | `Kaynak`, `Yükleme Kaynağı`, `Abonelik Kaynağı` | Kaynağın ne sağladığını açıkça adlandırın. | `source`, `importpage.col_source`, `source_subscribe_link` |
 | storage | `depolama`, `depolama alanı`, `Depolama API'si` | Veri saklama, ayrılmış alan ve API kavramlarını bağlama göre ayırın. | `script_storage`, `script_operation_title`, `storage_api` |

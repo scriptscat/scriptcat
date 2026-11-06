@@ -60,7 +60,7 @@ Usage sources reviewed: `src/locales/en-US/*.json`, `README.md`, `docs/architect
 
 | Concept | Candidate wording | Decision rule | Current example keys |
 | --- | --- | --- | --- |
-| local / cloud | `Local` / `Cloud` | Use for data origin, destination, and storage location; add `device` or `storage` where the object is otherwise unclear. | `local`, `cloud`, `source_local_script`, `tools_backup_content` |
+| local / cloud | `Local` / `Cloud` | Use for data origin, destination, and storage location; add `device` or `storage` where the object is otherwise unclear. | `local`, `source_local_script`, `tools_backup_content` |
 | panel / console | `panel` / `console` | Use `panel` for ScriptCat UI controls and `console` for developer-tools output. | `background_script_description`, `build_success_message` |
 | source | `Source`, `Install Source`, `Subscription Source` | Name what the source provides; a subscription object is not a verb. | `source`, `importpage.col_source`, `source_subscribe_link` |
 | permissions / authorization | `Permission`, `Allow`, `Grant access` | Use permission for capability records, allow/deny for decisions, and grant access in explanatory sentences. | `permission`, `duration_once`, `confirm_script_operation` |

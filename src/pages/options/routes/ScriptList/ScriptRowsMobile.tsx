@@ -11,7 +11,6 @@ import {
 } from "@App/app/repo/scripts";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import { requestEnableScript, scriptClient, synchronizeClient } from "@App/pages/store/features/script";
-import { EmptyState } from "@App/pages/components/ui/empty-state";
 import { LoadingState } from "@App/pages/components/ui/loading-state";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { notify } from "@App/pages/components/ui/toast";
@@ -45,6 +44,7 @@ import {
   ScriptIcon,
   getScriptHomePage,
   openExternalUrl,
+  ScriptListEmpty,
   scriptTypeLabel,
 } from "./components";
 
@@ -107,6 +107,9 @@ export interface ScriptRowsMobileProps {
   selectedUuids: Set<string>;
   toggleSelect: (uuid: string) => void;
   onEnterSelectionMode: (uuid: string) => void;
+  /** 当前是否有搜索/筛选条件，决定空列表给「清除筛选」还是「新建脚本」 */
+  filtered: boolean;
+  onClearFilters: () => void;
 }
 
 export default function ScriptRowsMobile({
@@ -120,6 +123,8 @@ export default function ScriptRowsMobile({
   selectedUuids,
   toggleSelect,
   onEnterSelectionMode,
+  filtered,
+  onClearFilters,
 }: ScriptRowsMobileProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -128,6 +133,8 @@ export default function ScriptRowsMobile({
   const [swipeOpenUuid, setSwipeOpenUuid] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ScriptLoading | null>(null);
   const [trashEnabled] = useSystemConfig("trash_enabled");
+  // 回收站开启时删除可由撤销 toast 和回收站找回，不再二次确认；关闭或配置尚未读到时按不可撤销处理，先确认
+  const requestDelete = (item: ScriptLoading) => (trashEnabled === true ? handleDelete(item) : setPendingDelete(item));
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
@@ -173,7 +180,7 @@ export default function ScriptRowsMobile({
   if (scriptList.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto">
-        <EmptyState data-testid="script-list-empty" title={t("no_scripts")} compact />
+        <ScriptListEmpty filtered={filtered} onClearFilters={onClearFilters} navigate={navigate} />
       </div>
     );
   }
@@ -200,7 +207,7 @@ export default function ScriptRowsMobile({
                 onOpenActions={setSheetUuid}
                 onToggleSelect={toggleSelect}
                 onEnterSelectionMode={onEnterSelectionMode}
-                onDelete={setPendingDelete}
+                onDelete={requestDelete}
                 navigate={navigate}
               />
             </DraggableRow>
@@ -214,7 +221,7 @@ export default function ScriptRowsMobile({
           onOpenChange={(open) => !open && setSheetUuid(null)}
           navigate={navigate}
           onRunStop={handleRunStop}
-          onDelete={setPendingDelete}
+          onDelete={requestDelete}
         />
       )}
 
@@ -223,10 +230,7 @@ export default function ScriptRowsMobile({
           <AlertDialogHeader>
             <AlertDialogTitle>{t("delete")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingDelete &&
-                ((trashEnabled ?? true)
-                  ? t("script:confirm_delete_script_trash_content", { name: i18nName(pendingDelete) })
-                  : t("script:confirm_delete_script_content", { name: i18nName(pendingDelete) }))}
+              {pendingDelete && t("script:confirm_delete_script_content", { name: i18nName(pendingDelete) })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

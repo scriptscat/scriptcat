@@ -85,8 +85,9 @@ export default function ConversationList({
           aria-label={t("agent:chat_search_placeholder")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onClear={() => setQuery("")}
           placeholder={t("agent:chat_search_placeholder")}
-          className="bg-input/60 transition-shadow"
+          className="transition-shadow"
           inputClassName="text-[13px]"
         />
       </div>

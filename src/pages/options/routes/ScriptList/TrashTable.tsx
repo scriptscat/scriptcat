@@ -188,6 +188,7 @@ export default function TrashTable({
           placeholder={t("script:trash_search_placeholder")}
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
+          onClear={() => setKeyword("")}
         />
         <SortMenu
           options={[

@@ -139,12 +139,13 @@ export default function SubscribeTable({
           </span>
         </div>
         <SearchInput
-          className="flex-1 rounded-lg bg-muted"
+          className="flex-1 rounded-lg"
           inputClassName="text-[13px]"
           aria-label={t("script:enter_subscribe_name")}
           placeholder={t("script:enter_subscribe_name")}
           value={searchKeyword}
           onChange={(e) => setSearchKeyword(e.target.value)}
+          onClear={() => setSearchKeyword("")}
         />
         <StatusFilterMenu statusFilter={statusFilter} setStatusFilter={setStatusFilter} />
         <SortMenu

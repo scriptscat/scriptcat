@@ -1,3 +1,4 @@
+import { HelpCircle } from "lucide-react";
 import { SettingCard } from "../../../components/SettingCard";
 import { Button } from "@App/pages/components/ui/button";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
@@ -14,6 +15,18 @@ export function MigrationSection({ register }: { register: (id: string) => (el: 
     <SettingCard
       id="data-migration"
       title={t("tools:data_migration")}
+      titleAction={
+        <a
+          href="https://docs.scriptcat.org/docs/change/v0.17/"
+          target="_blank"
+          rel="noreferrer"
+          aria-label={t("tools:migration_details")}
+          title={t("tools:migration_details")}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <HelpCircle className="size-4" />
+        </a>
+      }
       description={t("settings:migration_confirm_message")}
       register={register}
     >

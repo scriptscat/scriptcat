@@ -44,20 +44,19 @@ export function Toaster({ placement = "default", ...props }: ScriptCatToasterPro
       toastOptions={{
         classNames: {
           // sonner v2 在 <head> 末尾 appendChild 注入默认样式，与等特异性的 Tailwind 工具类冲突时后到者胜；
-          // 故对被其默认规则覆盖的视觉属性（圆角 / 左强调条宽度与色 / 阴影）用 v4 尾置 `!` 强制 important。
-          toast: "group rounded-xl! border border-border border-l-4! bg-popover text-popover-foreground shadow-lg!",
+          // 故对被其默认规则覆盖的视觉属性（圆角 / 内边距 / 阴影 / 关闭按钮外观）用 v4 尾置 `!` 强制 important。
+          // 类型只由图标颜色表达：左强调条叠在圆角上会被拗成括号形，且与图标、进度条重复表达同一语义。
+          // pr-11 给卡片内垂直居中的关闭按钮留位。
+          toast: "group rounded-lg! border border-border bg-popover pr-11! text-popover-foreground shadow-lg!",
           title: "text-sm! font-medium!",
           description: "text-[13px]! text-muted-foreground!",
           // sonner 默认 action 按钮是反色实心（bg=var(--normal-text)、border:none）；
-          // 强制 outline 化对齐设计稿（--border 细边 + --background 底 + 前景字），供带 action 的 toast 使用。
+          // 强制 outline 化（--border 细边 + --background 底 + 前景字），供带 action 的 toast 使用。
           actionButton:
             "inline-flex! items-center! rounded-md! border! border-solid! border-border! bg-background! px-2.5! py-1! h-auto! text-[13px]! font-medium! text-popover-foreground!",
-          closeButton: "text-muted-foreground",
-          success: "border-l-success!",
-          error: "border-l-destructive!",
-          warning: "border-l-warning!",
-          info: "border-l-primary!",
-          loading: "border-l-primary!",
+          // 默认是挂在卡片角外的描边圆形；改为卡片内、垂直居中的透明图标按钮，hover 才出底色
+          closeButton:
+            "top-1/2! size-6! rounded-md! border-0! bg-transparent! text-muted-foreground! hover:bg-accent! hover:text-foreground! [&>svg]:size-3.5!",
         },
       }}
       style={
@@ -65,10 +64,10 @@ export function Toaster({ placement = "default", ...props }: ScriptCatToasterPro
           "--normal-bg": "var(--popover)",
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
-          // sonner 默认把关闭按钮放左上角（LTR 变量），覆盖到右上角对齐设计稿
+          // sonner 默认把关闭按钮挂在左上角外侧（LTR 变量），改到卡片内右侧，配合 top-1/2 垂直居中
           "--toast-close-button-start": "unset",
-          "--toast-close-button-end": "0",
-          "--toast-close-button-transform": "translate(35%, -35%)",
+          "--toast-close-button-end": "10px",
+          "--toast-close-button-transform": "translateY(-50%)",
         } as React.CSSProperties
       }
       {...props}

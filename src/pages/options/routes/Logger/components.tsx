@@ -141,11 +141,25 @@ export function LogRow({
     onToggle();
   };
 
-  const chips = labelChips.slice(0, 4).map(([k, v]) => (
-    <span key={k} className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-fg-secondary">
-      {`${k}:${v}`}
-    </span>
-  ));
+  // 行内最多摊开 4 个标签，其余折成「+N」提示还有更多（完整内容在展开详情里）；
+  // 单个标签过长时截断，避免一个 uuid 就把消息挤没
+  const hiddenChipCount = labelChips.length - 4;
+  const chips = [
+    ...labelChips.slice(0, 4).map(([k, v]) => (
+      <span
+        key={k}
+        title={`${k}:${v}`}
+        className="min-w-0 max-w-56 truncate rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-fg-secondary"
+      >
+        {`${k}:${v}`}
+      </span>
+    )),
+    hiddenChipCount > 0 && (
+      <span key="__more" className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-fg-secondary">
+        {`+${hiddenChipCount}`}
+      </span>
+    ),
+  ];
 
   const actions = (
     <span className="flex shrink-0 items-center gap-0.5">
@@ -213,8 +227,15 @@ export function LogRow({
             <span className="shrink-0 w-[74px]">
               <LevelBadge bucket={bucket} />
             </span>
-            <span className="flex-1 min-w-0 truncate font-mono text-[13px] text-foreground">{log.message}</span>
-            {labelChips.length > 0 && <span className="hidden md:flex items-center gap-1.5 shrink-0">{chips}</span>}
+            {/* 消息是日志的主体：按自然宽度增长、最多占六成，剩余宽度留给标签区收缩截断 */}
+            <span className="min-w-0 max-w-[60%] flex-[1_0_auto] truncate font-mono text-[13px] text-foreground">
+              {log.message}
+            </span>
+            {labelChips.length > 0 && (
+              <span className="hidden min-w-0 flex-[0_1_auto] items-center justify-end gap-1.5 overflow-hidden md:flex">
+                {chips}
+              </span>
+            )}
             {actions}
           </>
         )}
