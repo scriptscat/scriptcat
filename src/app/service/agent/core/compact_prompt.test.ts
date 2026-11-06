@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { extractSummary, buildCompactUserPrompt } from "./compact_prompt";
+import { COMPACT_SYSTEM_PROMPT, extractSummary, buildCompactUserPrompt } from "./compact_prompt";
+
+describe("COMPACT_SYSTEM_PROMPT", () => {
+  it("要求忠实记录失败、歧义和更正历史", () => {
+    expect(COMPACT_SYSTEM_PROMPT).toContain("**Fidelity requirement:**");
+    expect(COMPACT_SYSTEM_PROMPT).toContain("If a step failed, record the failure");
+    expect(COMPACT_SYSTEM_PROMPT).toContain("If a result was ambiguous, record the ambiguity");
+    expect(COMPACT_SYSTEM_PROMPT).toContain("record both");
+    expect(COMPACT_SYSTEM_PROMPT).toContain("Do not revise history");
+  });
+});
 
 describe("extractSummary", () => {
   it("extracts content from <summary> tags", () => {
