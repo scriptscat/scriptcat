@@ -26,6 +26,8 @@ import { StateScreen } from "@App/pages/components/ui/state-screen";
 import { DataPanel } from "@App/pages/components/ui/data-panel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
+import { Popover, PopoverContent, PopoverTrigger } from "@App/pages/components/ui/popover";
+import type { MetadataComparison } from "@App/pkg/utils/script_similarity";
 import { formatSimilarity, groupCheckState, splitBySite } from "./logic";
 import type { BatchProgress, RowState, UpdateItem, UpdateRisk } from "./logic";
 
@@ -120,10 +122,24 @@ const RISK_KEY: Record<UpdateRisk, string> = {
   tiny: "codechange_tiny",
 };
 
-export function RiskBadge({ risk, similarity }: { risk: UpdateRisk; similarity: number }) {
+export function RiskBadge({
+  risk,
+  similarity,
+  comparable = true,
+}: {
+  risk: UpdateRisk;
+  similarity: number;
+  comparable?: boolean;
+}) {
   const { t } = useTranslation();
   return (
-    <HoverTip content={`${t("install:updatepage.similarity")} ${formatSimilarity(similarity)}`}>
+    <HoverTip
+      content={
+        comparable
+          ? `${t("install:updatepage.similarity")} ${formatSimilarity(similarity)}`
+          : t("install:updatepage.similarity_unavailable")
+      }
+    >
       <span className={cn(PILL, RISK_CLASS[risk], "cursor-default")}>{t(`install:updatepage.${RISK_KEY[risk]}`)}</span>
     </HoverTip>
   );
@@ -142,6 +158,52 @@ export function ConnectBadge({ newConnects }: { newConnects: string[] }) {
         {t("install:updatepage.tag_new_connect")}
       </span>
     </HoverTip>
+  );
+}
+
+/** Metadata directives are executable policy, not disposable comments. Keep them visible even at 100% body similarity. */
+export function MetadataBadge({ comparison }: { comparison?: MetadataComparison }) {
+  const { t } = useTranslation();
+  const changes = comparison?.metadataChanges.filter((change) => change.tag !== "version") ?? [];
+  if (!comparison || (comparison.metadataValid && !comparison.userConfigChanged && changes.length === 0)) {
+    return null;
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" className={cn(PILL, "bg-warning-bg text-warning-fg cursor-pointer")}>
+          <ShieldAlert className="size-3" />
+          {t("install:updatepage.tag_metadata_changed")}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="max-h-[55vh] w-[min(90vw,380px)] overflow-y-auto text-sm" align="start">
+        <div className="space-y-3 break-all">
+          {!comparison.metadataValid && (
+            <p className="font-medium text-warning-fg">{t("install:updatepage.metadata_invalid")}</p>
+          )}
+          {comparison.userConfigChanged && (
+            <p className="font-medium text-warning-fg">{t("install:updatepage.user_config_changed")}</p>
+          )}
+          {changes.map((change) => (
+            <div key={change.tag} className="space-y-1">
+              <p className="font-mono font-semibold">
+                {"@"}
+                {change.tag}
+              </p>
+              <div className="rounded bg-muted px-2 py-1 font-mono text-xs whitespace-pre-wrap">
+                <span className="text-muted-foreground">{"− "}</span>
+                <span>{change.oldValues.join("\n") || "∅"}</span>
+              </div>
+              <div className="rounded bg-muted px-2 py-1 font-mono text-xs whitespace-pre-wrap">
+                <span className="text-muted-foreground">{"+ "}</span>
+                <span>{change.newValues.join("\n") || "∅"}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -605,8 +667,9 @@ function DesktopRow({
         </div>
       </div>
       <div className={cn(COL.change, "flex items-center gap-1.5 flex-wrap", dim)}>
-        <RiskBadge risk={item.risk} similarity={item.similarity} />
+        <RiskBadge risk={item.risk} similarity={item.similarity} comparable={item.codeComparable} />
         {item.withNewConnect && <ConnectBadge newConnects={item.newConnects} />}
+        <MetadataBadge comparison={item.metadataComparison} />
       </div>
       <div className={cn(COL.action, "flex items-center justify-end gap-2")}>
         <RowStatus item={item} state={state} onRetry={primaryAction}>

@@ -1,6 +1,7 @@
 import type { SCMetadata } from "@App/app/repo/scripts";
 import { i18nName } from "@App/locales/locales";
 import type { TBatchUpdateRecord, TBatchUpdateRecordObject } from "@App/app/service/service_worker/types";
+import type { MetadataComparison } from "@App/pkg/utils/script_similarity";
 
 export type UpdateRisk = "major" | "noticeable" | "tiny";
 
@@ -11,7 +12,9 @@ export interface UpdateItem {
   oldVersion: string;
   newVersion: string;
   similarity: number;
+  codeComparable?: boolean;
   risk: UpdateRisk;
+  metadataComparison?: MetadataComparison;
   withNewConnect: boolean;
   /** 新版本相比旧版本新增的 @connect 域名 */
   newConnects: string[];
@@ -65,9 +68,18 @@ function diffConnects(oldConnects: string[] | undefined, newConnects: string[] |
   return (newConnects || []).filter((c) => !old.has(c));
 }
 
-export function riskLevel(similarity: number): UpdateRisk {
-  if (similarity < 0.75) return "major";
-  if (similarity < 0.95) return "noticeable";
+export function riskLevel(similarity: number, metadata?: MetadataComparison, codeComparable = true): UpdateRisk {
+  if (!codeComparable) return "major";
+  if (metadata) {
+    // @version is already shown by VersionDiff, and nearly every update changes it.
+    const changes = metadata.metadataChanges.filter((change) => change.tag !== "version");
+    if (!metadata.metadataValid || metadata.userConfigChanged || changes.some((change) => change.sensitive)) {
+      return "major";
+    }
+    if (changes.length > 0) return similarity < 0.5 ? "major" : "noticeable";
+  }
+  if (similarity < 0.5) return "major";
+  if (similarity < 0.9) return "noticeable";
   return "tiny";
 }
 
@@ -103,7 +115,9 @@ export function toUpdateItem(record: TBatchUpdateRecord, site?: string): UpdateI
     oldVersion,
     newVersion,
     similarity: record.codeSimilarity,
-    risk: riskLevel(record.codeSimilarity),
+    codeComparable: record.codeComparable !== false,
+    risk: riskLevel(record.codeSimilarity, record.metadataComparison, record.codeComparable !== false),
+    metadataComparison: record.metadataComparison,
     withNewConnect: record.withNewConnect,
     newConnects: diffConnects(record.script.metadata.connect, record.newMeta.connect),
     source: getSource(record),

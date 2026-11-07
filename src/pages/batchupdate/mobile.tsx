@@ -12,6 +12,7 @@ import {
   BatchSummary,
   CHECKBOX_HIT,
   ConnectBadge,
+  MetadataBadge,
   EmptyState,
   LoadErrorScreen,
   RecordExpiredNotice,
@@ -153,8 +154,9 @@ function MobileCard({
       <div className={cn("flex flex-col gap-1.5", dim)}>
         <VersionDiff oldVersion={item.oldVersion} newVersion={item.newVersion} wrap />
         <div className="flex flex-wrap items-center gap-1.5">
-          <RiskBadge risk={item.risk} similarity={item.similarity} />
+          <RiskBadge risk={item.risk} similarity={item.similarity} comparable={item.codeComparable} />
           {item.withNewConnect && <ConnectBadge newConnects={item.newConnects} />}
+          <MetadataBadge comparison={item.metadataComparison} />
         </div>
       </div>
       <div className="flex items-center">

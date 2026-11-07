@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { Script } from "@App/app/repo/scripts";
 import type { TBatchUpdateRecord, TBatchUpdateRecordObject } from "@App/app/service/service_worker/types";
+import type { MetadataComparison } from "@App/pkg/utils/script_similarity";
 import {
   riskLevel,
   getSource,
@@ -49,6 +50,7 @@ function mkRecord(
     icon64?: string;
     oldConnect?: string[];
     newConnect?: string[];
+    metadataComparison?: MetadataComparison;
   } = {}
 ): TBatchUpdateRecord {
   const oldVersion = p.oldVersion ?? "1.0.0";
@@ -74,25 +76,50 @@ function mkRecord(
       },
     }),
     codeSimilarity: p.similarity ?? 1,
+    metadataComparison: p.metadataComparison,
     sites: p.sites ?? [],
     withNewConnect: p.withNewConnect ?? false,
   };
 }
 
 describe("riskLevel 代码变化风险分级", () => {
-  it("相似度 < 0.75 视为变化大(major)", () => {
+  it("shingle 相似度 < 0.50 视为变化大(major)", () => {
     expect(riskLevel(0)).toBe("major");
-    expect(riskLevel(0.5)).toBe("major");
-    expect(riskLevel(0.7499)).toBe("major");
+    expect(riskLevel(0.4999)).toBe("major");
   });
-  it("相似度落在 [0.75, 0.95) 视为有变化(noticeable)", () => {
-    expect(riskLevel(0.75)).toBe("noticeable");
-    expect(riskLevel(0.9)).toBe("noticeable");
-    expect(riskLevel(0.9499)).toBe("noticeable");
+  it("shingle 相似度落在 [0.50, 0.90) 视为有变化(noticeable)", () => {
+    expect(riskLevel(0.5)).toBe("noticeable");
+    expect(riskLevel(0.8999)).toBe("noticeable");
   });
-  it("相似度 >= 0.95 视为变化小(tiny)", () => {
-    expect(riskLevel(0.95)).toBe("tiny");
+  it("shingle 相似度 >= 0.90 视为变化小(tiny)", () => {
+    expect(riskLevel(0.9)).toBe("tiny");
     expect(riskLevel(1)).toBe("tiny");
+  });
+  it("没有可比较的可执行代码时显示重大改动而不是声称数值相似", () => {
+    expect(riskLevel(0, undefined, false)).toBe("major");
+    expect(riskLevel(1, undefined, false)).toBe("major");
+  });
+  it("独立考虑敏感元数据变更与无效 metadata", () => {
+    const changed = {
+      metadataValid: true,
+      metadataChanges: [{ tag: "grant", oldValues: ["none"], newValues: ["GM_xmlhttpRequest"], sensitive: true }],
+      userConfigChanged: false,
+    };
+    expect(riskLevel(1, changed)).toBe("major");
+    expect(riskLevel(1, { ...changed, metadataValid: false, metadataChanges: [] })).toBe("major");
+    expect(riskLevel(1, { ...changed, metadataChanges: [], userConfigChanged: true })).toBe("major");
+    expect(
+      riskLevel(1, {
+        ...changed,
+        metadataChanges: [{ tag: "version", oldValues: ["1"], newValues: ["2"], sensitive: false }],
+      })
+    ).toBe("tiny");
+    expect(
+      riskLevel(1, {
+        ...changed,
+        metadataChanges: [{ tag: "name", oldValues: ["Old"], newValues: ["New"], sensitive: false }],
+      })
+    ).toBe("noticeable");
   });
 });
 
@@ -169,6 +196,18 @@ describe("toUpdateItem 记录转视图模型", () => {
   it("newConnects 仅包含旧版本未声明的新增连接域名", () => {
     const item = toUpdateItem(mkRecord({ oldConnect: ["a.com"], newConnect: ["a.com", "b.com", "c.com"] }));
     expect(item?.newConnects).toEqual(["b.com", "c.com"]);
+  });
+  it("元数据变化在从 service worker 记录转换为更新项后仍可见", () => {
+    const comparison = {
+      metadataValid: true,
+      metadataChanges: [{ tag: "match", oldValues: ["a"], newValues: ["b"], sensitive: true }],
+      userConfigChanged: false,
+    };
+    expect(toUpdateItem(mkRecord({ similarity: 1, metadataComparison: comparison }))).toMatchObject({
+      metadataComparison: comparison,
+      risk: "major",
+      similarity: 1,
+    });
   });
 });
 

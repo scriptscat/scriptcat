@@ -1316,6 +1316,41 @@ describe("ScriptService.batchUpdateListAction —— 更新动作的执行结果
     service["scriptUpdateCheck"].setCacheFull({ checktime: Date.now(), list });
   };
 
+  it("轻量更新列表保留元数据差异，但不泄露新旧源代码到列表传输", () => {
+    const { service } = buildService();
+    const comparison = {
+      metadataValid: true,
+      metadataChanges: [{ tag: "grant", oldValues: ["none"], newValues: ["GM_xmlhttpRequest"], sensitive: true }],
+      userConfigChanged: false,
+    };
+    service["scriptUpdateCheck"].setCacheFull({
+      checktime: Date.now(),
+      list: [
+        {
+          uuid: "u-metadata",
+          checkUpdate: true,
+          oldCode: userscript("1.0.0"),
+          newCode: userscript("2.0.0"),
+          newMeta: { version: ["2.0.0"], connect: [] },
+          script: makeScript({ uuid: "u-metadata", name: "批量更新目标", namespace: "scriptcat-test" }),
+          codeSimilarity: 1,
+          codeComparable: true,
+          metadataComparison: comparison,
+          sites: [],
+          withNewConnect: false,
+        },
+      ],
+    });
+    const delivered = JSON.parse(service["scriptUpdateCheck"].deliveryTexts!.join(""));
+    expect(delivered.list[0]).toMatchObject({
+      oldCode: "",
+      newCode: "",
+      codeSimilarity: 1,
+      codeComparable: true,
+      metadataComparison: comparison,
+    });
+  });
+
   it("Service Worker 检查结果缓存丢失时应返回明确的失败原因而非静默 undefined", async () => {
     const { service } = buildService();
 

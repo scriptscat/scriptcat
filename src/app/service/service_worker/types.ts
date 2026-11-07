@@ -1,4 +1,5 @@
 import type { Script, SCRIPT_RUN_STATUS, ScriptLoadInfo } from "@App/app/repo/scripts";
+import type { MetadataComparison } from "@App/pkg/utils/script_similarity";
 import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { type IGetSender } from "@Packages/message/server";
 
@@ -234,6 +235,8 @@ export type TBatchUpdateRecord =
       newMeta?: undefined;
       script?: undefined;
       codeSimilarity?: undefined;
+      codeComparable?: undefined;
+      metadataComparison?: undefined;
       sites?: undefined;
       withNewConnect?: undefined;
     }
@@ -248,6 +251,8 @@ export type TBatchUpdateRecord =
       };
       script: Script;
       codeSimilarity: number;
+      codeComparable?: boolean;
+      metadataComparison?: MetadataComparison;
       sites: string[];
       withNewConnect: boolean;
     };
