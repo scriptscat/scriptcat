@@ -106,6 +106,7 @@ of sanitization patterns can otherwise look like matches — so don't rely on a 
 | [`../e2e/README.md`](../e2e/README.md) | The harness itself: the two tracks and their configs, isolation, fixture/helper inventory, protocol mocks, `E2E_*` variables, artifact paths. |
 | [`architecture.md`](./architecture.md) | Deep internals; subsystem deep-dives → the six `references/architecture-*.md`. |
 | [`cloud-sync.md`](./cloud-sync.md) | Cloud sync internals: sync files, digest/status semantics, provider differences, error classification, retry policy. |
+| [`update-similarity-proposal.md`](./update-similarity-proposal.md) | Design-only RFC for metadata-aware script-update similarity; no current-runtime or contributor-policy authority. |
 | [`translation.md`](./translation.md) | Translation / localization single source of truth. |
 | [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | This guide: organization rules, fact-check / anti-drift discipline, policy-consistency checks — across every tracked contributor Markdown, not just `AGENTS.md` + `docs/*`. |
 | [`README.md`](./README.md) | The reader-facing index: what each doc contains and when to read it. |
