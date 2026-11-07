@@ -118,6 +118,41 @@ describe("批量更新移动视图 检查中反馈", () => {
   });
 });
 
+describe("批量更新元数据变化提示", () => {
+  const metadataComparison = {
+    metadataValid: true,
+    metadataChanges: [{ tag: "grant", oldValues: ["none"], newValues: ["GM_xmlhttpRequest"], sensitive: true }],
+    userConfigChanged: false,
+  };
+
+  it("桌面和移动版可点击查看元数据指令变更", () => {
+    for (const renderView of [renderDesktop, renderMobile]) {
+      const view = renderView({ updates: [mkItem({ metadataComparison, risk: "major", similarity: 1 })] });
+      fireEvent.click(
+        within(view.container).getByRole("button", { name: t("install:updatepage.tag_metadata_changed") })
+      );
+      expect(screen.getByText("@grant")).toBeInTheDocument();
+      expect(screen.getByText("GM_xmlhttpRequest")).toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it("版本号单独改变时不重复显示元数据警告", () => {
+    const versionOnly = {
+      metadataValid: true,
+      metadataChanges: [{ tag: "version", oldValues: ["1"], newValues: ["2"], sensitive: false }],
+      userConfigChanged: false,
+    };
+    for (const renderView of [renderDesktop, renderMobile]) {
+      const view = renderView({ updates: [mkItem({ metadataComparison: versionOnly, risk: "tiny", similarity: 1 })] });
+      expect(
+        within(view.container).queryByRole("button", { name: t("install:updatepage.tag_metadata_changed") })
+      ).toBeNull();
+      view.unmount();
+    }
+  });
+});
+
 describe("批量更新空状态 重新检查按钮", () => {
   it("桌面空状态展示重新检查按钮并可触发检查", () => {
     const onCheckNow = vi.fn();
