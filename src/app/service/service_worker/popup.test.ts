@@ -1259,3 +1259,25 @@ describe("PopupService clearTabData 标签页关闭/替换时释放 tab 数据",
     await expect(service.getScriptMenu(10)).resolves.toEqual([]);
   });
 });
+
+describe("PopupService getTabIdsByStorageName 值更新的投递目标", () => {
+  beforeEach(async () => {
+    await cacheInstance.clear();
+  });
+
+  it("只返回脚本菜单中运行了该 storageName 的未丢弃标签页", async () => {
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu("a", { storageName: "shared" })]);
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${2}`, [createMenu("b", { storageName: "other" })]);
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${3}`, [createMenu("c", { storageName: "shared" })]);
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${5}`, [
+      createMenu("d", { storageName: "other" }),
+      createMenu("e", { storageName: "shared" }),
+    ]);
+    const tabs = [{ id: 1 }, { id: 2 }, { id: 3, discarded: true }, { id: 4 }, { id: 5 }] as chrome.tabs.Tab[];
+    vi.spyOn(chrome.tabs, "query").mockImplementation((() => Promise.resolve(tabs)) as typeof chrome.tabs.query);
+
+    const { service } = createService();
+
+    await expect(service.getTabIdsByStorageName("shared")).resolves.toEqual([1, 5]);
+  });
+});

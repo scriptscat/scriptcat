@@ -1468,15 +1468,47 @@ describe("pushValueUpdate 判断是否需要为 early-start 脚本重新编译",
     });
     const updateSpy = vi.spyOn(runtime, "updateResourceOnScriptChange").mockResolvedValue(undefined);
 
-    await runtime.pushValueUpdate(script, {
+    await runtime.pushValueUpdate(
+      script,
+      {
+        entries: [],
+        uuid: script.uuid,
+        storageName: "test-storage",
+        sender: { runFlag: "", tabId: -1 },
+        valueUpdated: true,
+      },
+      []
+    );
+
+    expect(updateSpy).toHaveBeenCalledWith(script);
+  });
+});
+
+describe("pushValueUpdate 页面投递", () => {
+  // 改由消息定向投递，不再经 chrome.storage.local 广播，否则每次写入都会扇出到所有 frame（#1834）
+  it("只向指定标签页发送 scripting/runtime/valueUpdate，不写 chrome.storage.local", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createMockScript();
+    const sendData = {
+      id: "id-1",
       entries: [],
       uuid: script.uuid,
       storageName: "test-storage",
-      sender: { runFlag: "", tabId: -1 },
-      valueUpdated: true,
-    });
+      sender: { runFlag: "", tabId: 2 },
+      valueUpdated: false,
+    };
+    const sendSpy = vi.spyOn(chrome.tabs, "sendMessage").mockImplementation(((...args: unknown[]) => {
+      (args[args.length - 1] as (resp: unknown) => void)({ code: 0 });
+    }) as unknown as typeof chrome.tabs.sendMessage);
+    const setSpy = vi.spyOn(chrome.storage.local, "set");
 
-    expect(updateSpy).toHaveBeenCalledWith(script);
+    await runtime.pushValueUpdate(script, sendData, [1, 2]);
+
+    expect(sendSpy.mock.calls.map(([tabId, msg]) => [tabId, msg])).toEqual([
+      [1, { action: "scripting/runtime/valueUpdate", data: sendData }],
+      [2, { action: "scripting/runtime/valueUpdate", data: sendData }],
+    ]);
+    expect(setSpy).not.toHaveBeenCalled();
   });
 });
 
