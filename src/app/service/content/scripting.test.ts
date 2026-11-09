@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Server } from "@Packages/message/server";
-import type { MessageSend } from "@Packages/message/types";
+import type { MessageConnect, MessageSend, TMessage } from "@Packages/message/types";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import ScriptingRuntime from "./scripting";
 import type { ValueUpdateDataEncoded } from "./types";
@@ -52,12 +52,30 @@ describe("ScriptingRuntime 值更新投递", () => {
     const page = createServer();
     const toContent = createPageSender();
     const toInject = createPageSender();
+    let portMessage: (message: TMessage) => void = () => undefined;
+    const portSend = vi.fn();
+    const onPortMessage = vi.fn((fn: (message: TMessage) => void) => (portMessage = fn));
+    const port = {
+      sendMessage: portSend,
+      onMessage: onPortMessage,
+      onDisconnect: vi.fn(),
+      disconnect: vi.fn(),
+    } as unknown as MessageConnect;
     const senderToExt = {
       sendMessage: vi.fn().mockResolvedValue({ code: 0, data: pageLoadData ?? { ok: false } }),
+      connect: vi.fn().mockResolvedValue(port),
     } as unknown as MessageSend;
     const runtime = new ScriptingRuntime(ext.server, page.server, senderToExt, toContent.sender, toInject.sender);
     runtime.init();
-    return { runtime, ext, toContent, toInject };
+    return {
+      runtime,
+      ext,
+      toContent,
+      toInject,
+      portSend,
+      onPortMessage,
+      receive: (message: TMessage) => portMessage(message),
+    };
   };
 
   // 每个页面的每个 frame 都有 scripting.js；若它监听 storage.local，任何一次 local 写入
@@ -78,39 +96,75 @@ describe("ScriptingRuntime 值更新投递", () => {
     expect(toInject.sendMessage).not.toHaveBeenCalled();
   });
 
-  it("pageLoad 之后，runtime/valueUpdate 只转发给运行了该 storageName 的一侧", async () => {
-    const { runtime, ext, toContent, toInject } = setup({
+  it("Port 只转发给当前 frame 运行的脚本世界，且先订阅再启动脚本", async () => {
+    const { runtime, toContent, toInject, portSend, onPortMessage, receive } = setup({
       ok: true,
-      injectScriptList: [{ uuid: "a", metadata: { storagename: ["page-store"] } }],
-      contentScriptList: [{ uuid: "b", metadata: { storagename: ["content-store"] } }],
+      injectScriptList: [
+        { uuid: "a", metadata: { storagename: ["page-store"] } },
+        { uuid: "c", metadata: { storagename: ["shared"] } },
+      ],
+      contentScriptList: [
+        { uuid: "b", metadata: { storagename: ["content-store"] } },
+        { uuid: "d", metadata: { storagename: ["shared"] } },
+        { uuid: "e", metadata: { storagename: ["__proto__"] } },
+      ],
       envInfo: {},
     });
     runtime.pageLoad();
+    await vi.waitFor(() => expect(onPortMessage).toHaveBeenCalledOnce());
+    receive({ code: 0, data: { ready: true } });
+    await vi.waitFor(() =>
+      expect(portSend).toHaveBeenCalledWith({
+        action: "runtime/subscribeValueUpdates",
+        data: ["page-store", "shared", "content-store", "__proto__"],
+      })
+    );
+    expect(toContent.sendMessage).not.toHaveBeenCalled();
+    expect(toInject.sendMessage).not.toHaveBeenCalled();
+
+    receive({ action: "runtime/valueSubscriptionsReady" });
     await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/pageLoad"));
     toContent.sendMessage.mockClear();
     toInject.sendMessage.mockClear();
 
-    await ext.handlers.get("runtime/valueUpdate")!(valueUpdate("page-store"));
+    receive({ action: "runtime/valueUpdate", data: valueUpdate("shared") });
+    await Promise.resolve();
+    expect(actionsOf(toContent.sendMessage)).toEqual(["content/runtime/valueUpdate"]);
+    expect(actionsOf(toInject.sendMessage)).toEqual(["inject/runtime/valueUpdate"]);
+    toContent.sendMessage.mockClear();
+    toInject.sendMessage.mockClear();
+
+    receive({ action: "runtime/valueUpdate", data: valueUpdate("__proto__") });
+    await Promise.resolve();
+    expect(actionsOf(toContent.sendMessage)).toEqual(["content/runtime/valueUpdate"]);
+    expect(toInject.sendMessage).not.toHaveBeenCalled();
+    toContent.sendMessage.mockClear();
+
+    receive({ action: "runtime/valueUpdate", data: valueUpdate("page-store") });
+    await Promise.resolve();
     expect(actionsOf(toInject.sendMessage)).toEqual(["inject/runtime/valueUpdate"]);
     expect(toContent.sendMessage).not.toHaveBeenCalled();
 
     toInject.sendMessage.mockClear();
-    await ext.handlers.get("runtime/valueUpdate")!(valueUpdate("content-store"));
+    receive({ action: "runtime/valueUpdate", data: valueUpdate("content-store") });
+    await Promise.resolve();
     expect(actionsOf(toContent.sendMessage)).toEqual(["content/runtime/valueUpdate"]);
     expect(toInject.sendMessage).not.toHaveBeenCalled();
 
     toContent.sendMessage.mockClear();
-    await ext.handlers.get("runtime/valueUpdate")!(valueUpdate("other-store"));
+    receive({ action: "runtime/valueUpdate", data: valueUpdate("other-store") });
+    await Promise.resolve();
     expect(toContent.sendMessage).not.toHaveBeenCalled();
     expect(toInject.sendMessage).not.toHaveBeenCalled();
   });
 
-  it("pageLoad 尚未返回时，runtime/valueUpdate 同时转发给 page 与 content", async () => {
-    const { ext, toContent, toInject } = setup();
-
-    await ext.handlers.get("runtime/valueUpdate")!(valueUpdate("any-store"));
-
-    expect(actionsOf(toContent.sendMessage)).toEqual(["content/runtime/valueUpdate"]);
-    expect(actionsOf(toInject.sendMessage)).toEqual(["inject/runtime/valueUpdate"]);
+  it("pageLoad 没有运行脚本的 frame 不会订阅，释放 Port", async () => {
+    const { runtime, toContent, toInject, portSend } = setup();
+    runtime.pageLoad();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(portSend).not.toHaveBeenCalled();
+    expect(toContent.sendMessage).not.toHaveBeenCalled();
+    expect(toInject.sendMessage).not.toHaveBeenCalled();
   });
 });

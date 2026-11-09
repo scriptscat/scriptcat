@@ -11,7 +11,7 @@ import {
 } from "@App/app/repo/scripts";
 import { buildScriptRunResourceBasic, getCombinedMeta, scriptURLPatternResults } from "./utils";
 import type { SystemConfig } from "@App/pkg/config/config";
-import { SenderRuntime, type Group } from "@Packages/message/server";
+import { SenderRuntime, type Group, type IGetSender } from "@Packages/message/server";
 import type { ServiceWorkerMessageSend, WindowMessageBody } from "@Packages/message/window_message";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { ValueService } from "./value";
@@ -1468,25 +1468,20 @@ describe("pushValueUpdate 判断是否需要为 early-start 脚本重新编译",
     });
     const updateSpy = vi.spyOn(runtime, "updateResourceOnScriptChange").mockResolvedValue(undefined);
 
-    await runtime.pushValueUpdate(
-      script,
-      {
-        entries: [],
-        uuid: script.uuid,
-        storageName: "test-storage",
-        sender: { runFlag: "", tabId: -1 },
-        valueUpdated: true,
-      },
-      []
-    );
+    await runtime.pushValueUpdate(script, {
+      entries: [],
+      uuid: script.uuid,
+      storageName: "test-storage",
+      sender: { runFlag: "", tabId: -1 },
+      valueUpdated: true,
+    });
 
     expect(updateSpy).toHaveBeenCalledWith(script);
   });
 });
 
 describe("pushValueUpdate 页面投递", () => {
-  // 改由消息定向投递，不再经 chrome.storage.local 广播，否则每次写入都会扇出到所有 frame（#1834）
-  it("只向指定标签页发送 scripting/runtime/valueUpdate，不写 chrome.storage.local", async () => {
+  it("直接向订阅 storageName 的 Port 投递，不使用 tabs API 或 storage 广播", async () => {
     const { runtime } = _createRuntimeContext();
     const script = _createMockScript();
     const sendData = {
@@ -1497,17 +1492,25 @@ describe("pushValueUpdate 页面投递", () => {
       sender: { runFlag: "", tabId: 2 },
       valueUpdated: false,
     };
-    const sendSpy = vi.spyOn(chrome.tabs, "sendMessage").mockImplementation(((...args: unknown[]) => {
-      (args[args.length - 1] as (resp: unknown) => void)({ code: 0 });
-    }) as unknown as typeof chrome.tabs.sendMessage);
+    let onMessage: (message: TMessage) => void = () => undefined;
+    const postMessage = vi.fn();
+    const port = {
+      sendMessage: postMessage,
+      onMessage: (callback: (message: TMessage) => void) => (onMessage = callback),
+      onDisconnect: vi.fn(),
+    } as unknown as MessageConnect;
+    runtime.connectValueUpdates(undefined, { getConnect: () => port } as unknown as IGetSender);
+    onMessage({ action: "runtime/subscribeValueUpdates", data: ["test-storage"] });
+    postMessage.mockClear();
+    const tabsSpy = vi.spyOn(chrome.tabs, "sendMessage");
+    const querySpy = vi.spyOn(chrome.tabs, "query");
     const setSpy = vi.spyOn(chrome.storage.local, "set");
 
-    await runtime.pushValueUpdate(script, sendData, [1, 2]);
+    await runtime.pushValueUpdate(script, sendData);
 
-    expect(sendSpy.mock.calls.map(([tabId, msg]) => [tabId, msg])).toEqual([
-      [1, { action: "scripting/runtime/valueUpdate", data: sendData }],
-      [2, { action: "scripting/runtime/valueUpdate", data: sendData }],
-    ]);
+    expect(postMessage).toHaveBeenCalledExactlyOnceWith({ action: "runtime/valueUpdate", data: sendData });
+    expect(tabsSpy).not.toHaveBeenCalled();
+    expect(querySpy).not.toHaveBeenCalled();
     expect(setSpy).not.toHaveBeenCalled();
   });
 });
