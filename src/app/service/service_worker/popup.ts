@@ -558,14 +558,6 @@ export class PopupService {
     return (await cacheInstance.get<ScriptMenu[]>(cacheKey)) || [];
   }
 
-  // 值更新的页面投递目标；被丢弃的标签页没有存活的 content script，重新激活时会重载并取到最新值
-  async getTabIdsByStorageName(storageName: string): Promise<number[]> {
-    const tabs = await chrome.tabs.query({});
-    const candidates = tabs.filter((tab) => tab.id && !tab.discarded).map((tab) => tab.id!);
-    const menus = await Promise.all(candidates.map((tabId) => this.getScriptMenu(tabId)));
-    return candidates.filter((_, i) => menus[i].some((item) => item.storageName === storageName));
-  }
-
   // 菜单变化后同步角标计数缓存（脚本数、运行数）。计数为 0 时存空字符串表示不显示角标。
   // tabId <= 0 为后台菜单(-1)等非真实标签页，跳过。
   private updateCachedScriptMenuCounters(tabId: number, menu: ScriptMenu[]) {

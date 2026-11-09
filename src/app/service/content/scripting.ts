@@ -7,6 +7,7 @@ import { getStorageName, makeBlobURL } from "@App/pkg/utils/utils";
 import type { Logger } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
 import type { ValueUpdateDataEncoded } from "./types";
+import ScriptingValuePort from "./value_port";
 
 const PageOrContent = {
   PAGE: 1,
@@ -18,7 +19,8 @@ type PageOrContent = ValueOf<typeof PageOrContent>;
 
 // scripting页的处理
 export default class ScriptingRuntime {
-  private activeStorageNames: Map<string, PageOrContent> | null = null;
+  private activeStorageNames = new Map<string, PageOrContent>();
+  private readonly valuePort: ScriptingValuePort;
   constructor(
     // 监听来自service_worker的消息
     private readonly extServer: Server,
@@ -30,7 +32,17 @@ export default class ScriptingRuntime {
     private readonly senderToContent: CustomEventMessage,
     // 发送给inject的消息接口
     private readonly senderToInject: CustomEventMessage
-  ) {}
+  ) {
+    this.valuePort = new ScriptingValuePort(this.senderToExt, (data) => this.forwardValueUpdate(data));
+  }
+
+  private forwardValueUpdate(data: ValueUpdateDataEncoded) {
+    const activeOn = this.activeStorageNames.get(data.storageName);
+    if (!activeOn) return;
+    void this.broadcastToPage("runtime/valueUpdate", data, activeOn).catch((error) => {
+      LoggerCore.logger().error("forward value update failed", { storageName: data.storageName, error });
+    });
+  }
 
   // 广播消息给 content 和 inject
   broadcastToPage(
@@ -45,19 +57,10 @@ export default class ScriptingRuntime {
   }
 
   init() {
+    this.valuePort.start();
     this.extServer.on("runtime/emitEvent", (data) => {
       // 转发给inject和content
       return this.broadcastToPage("runtime/emitEvent", data);
-    });
-    this.extServer.on("runtime/valueUpdate", (data: ValueUpdateDataEncoded) => {
-      // SW 按标签页投递，同一标签页里没有运行该脚本的 frame 也会收到，需按 storageName 过滤；
-      // pageLoad 返回前还不知道本 frame 运行哪些脚本，两侧都转发
-      const activeOn =
-        this.activeStorageNames === null
-          ? PageOrContent.PAGE_AND_CONTENT
-          : this.activeStorageNames.get(data.storageName);
-      if (!activeOn) return;
-      return this.broadcastToPage("runtime/valueUpdate", data, activeOn);
     });
     this.server.on("logger", (data: Logger) => {
       LoggerCore.logger().log(data.level, data.message, data.label);
@@ -135,17 +138,25 @@ export default class ScriptingRuntime {
       });
     }
     // 向service_worker请求脚本列表及环境信息
-    client.pageLoad().then((o) => {
-      if (!o.ok) return;
+    client.pageLoad().then(async (o) => {
+      if (!o.ok) {
+        this.valuePort.stop();
+        return;
+      }
       const { injectScriptList, contentScriptList, envInfo } = o;
-      const pairs = {} as Record<string, PageOrContent>;
+      const pairs = new Map<string, PageOrContent>();
       for (const script of injectScriptList) {
-        pairs[getStorageName(script)] |= PageOrContent.PAGE;
+        const name = getStorageName(script);
+        pairs.set(name, ((pairs.get(name) || 0) | PageOrContent.PAGE) as PageOrContent);
       }
       for (const script of contentScriptList) {
-        pairs[getStorageName(script)] |= PageOrContent.CONTENT;
+        const name = getStorageName(script);
+        pairs.set(name, ((pairs.get(name) || 0) | PageOrContent.CONTENT) as PageOrContent);
       }
-      this.activeStorageNames = new Map(Object.entries(pairs));
+      this.activeStorageNames = pairs;
+
+      // 先确认中央已建立订阅，再启动页面脚本；早期 GM.setValue 的回执不会落入订阅空窗。
+      await this.valuePort.subscribe([...this.activeStorageNames.keys()]);
 
       // 向页面 发送脚本列表及环境信息
       if (contentScriptList.length) {
