@@ -83,6 +83,7 @@
   "no_subscribes": "Chưa có đăng ký nào",
   "no_subscribes_hint": "Các bộ sưu tập script đã đăng ký sẽ hiển thị ở đây",
   "clear_filter": "Xóa bộ lọc",
+  "clear_search": "Xóa tìm kiếm",
   "batch_selected": "Đã chọn {{count}}",
   "stopped": "Đã dừng",
   "auth_type": "Loại xác thực",

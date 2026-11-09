@@ -42,7 +42,7 @@ export function LocalBackupSection({ register }: { register: (id: string) => (el
       <SettingCard
         id="local-backup"
         title={t("tools:local_backup")}
-        description={t("settings:local")}
+        description={t("tools:local_backup_desc")}
         register={register}
       >
         <input

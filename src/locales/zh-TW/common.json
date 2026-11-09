@@ -83,6 +83,7 @@
   "no_subscribes": "尚無訂閱",
   "no_subscribes_hint": "訂閱腳本集合後將顯示在這裡",
   "clear_filter": "清除篩選",
+  "clear_search": "清除搜尋",
   "batch_selected": "已選擇 {{count}} 項",
   "stopped": "已停止",
   "auth_type": "驗證類型",

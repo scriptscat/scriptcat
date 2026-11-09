@@ -160,6 +160,7 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
           <SearchInput
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
+            onClear={() => setKeyword("")}
             placeholder={t("editor:search_resource")}
             aria-label={t("editor:search_resource")}
             className="h-8 w-full md:w-64"

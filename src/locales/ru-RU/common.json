@@ -83,6 +83,7 @@
   "no_subscribes": "Нет подписок",
   "no_subscribes_hint": "Подписки на коллекции скриптов появятся здесь",
   "clear_filter": "Сбросить фильтр",
+  "clear_search": "Очистить поиск",
   "batch_selected": "Выбрано: {{count}}",
   "stopped": "Остановлено",
   "auth_type": "Тип аутентификации",

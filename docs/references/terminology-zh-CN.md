@@ -65,7 +65,7 @@
 
 | 概念 | 可用表达 | 判断标准 | 当前用例 key |
 | --- | --- | --- | --- |
-| local / cloud | `本地` / `云端` | 保存位置、导入来源与同步目的地使用现行成对表达。 | `local`, `cloud`, `source_local_script`, `tools_backup_content` |
+| local / cloud | `本地` / `云端` | 保存位置、导入来源与同步目的地使用现行成对表达。 | `local`, `source_local_script`, `tools_backup_content` |
 | storage | `存储` / `储存` / `存储空间` | 当前权限标题和脚本数据文案使用 `储存` / `储存空间`，API 标签保留英文 `Storage API`；统一用词前需按 UI 语境单独审查。 | `storage_api`, `script_operation_title`, `script_storage`, `storage_error` |
 | panel / console | `面板` / `控制台` | 操作面板使用 `面板`；开发者工具输出位置使用 `控制台`。 | `background_script_description`, `build_success_message` |
 | source | `来源` / `安装来源` / `订阅源` | 依据是一般来源、安装出处还是提供订阅内容的源来选择。 | `source`, `importpage.col_source`, `source_subscribe_link` |

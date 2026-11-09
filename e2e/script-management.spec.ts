@@ -39,8 +39,9 @@ test.describe("脚本管理", () => {
     await expect(deleteBtn).toBeVisible({ timeout: 10_000 });
     await deleteBtn.click();
 
-    // AlertDialog 二次确认
-    await page.locator('[data-slot="alert-dialog-action"]').click();
+    // 回收站默认开启：直接移入回收站，不再二次确认，由带撤销按钮的 toast 兜底
+    await expect(page.locator("[data-sonner-toast] [data-button]")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
 
     // 删除后回到空状态
     await expect(page.getByTestId("script-list-empty")).toBeVisible({ timeout: 10_000 });

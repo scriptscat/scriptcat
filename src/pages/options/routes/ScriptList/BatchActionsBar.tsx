@@ -47,19 +47,22 @@ export default function BatchActionsBar({
       <SelectionBarButton color="muted" onClick={onBatchExport}>
         {t("export")}
       </SelectionBarButton>
-      <Popconfirm
-        description={
-          (trashEnabled ?? true)
-            ? t("script:confirm_delete_scripts_trash_content", { count: selectedCount })
-            : t("script:confirm_delete_scripts_content", { count: selectedCount })
-        }
-        destructive
-        confirmText={t("delete")}
-        cancelText={t("editor:cancel")}
-        onConfirm={onBatchDelete}
-      >
-        <SelectionBarButton color="destructive">{t("delete")}</SelectionBarButton>
-      </Popconfirm>
+      {/* 回收站开启时删除可由撤销 toast 和回收站找回，不再二次确认；关闭或配置尚未读到时按不可撤销处理，先确认 */}
+      {trashEnabled === true ? (
+        <SelectionBarButton color="destructive" onClick={onBatchDelete}>
+          {t("delete")}
+        </SelectionBarButton>
+      ) : (
+        <Popconfirm
+          description={t("script:confirm_delete_scripts_content", { count: selectedCount })}
+          destructive
+          confirmText={t("delete")}
+          cancelText={t("editor:cancel")}
+          onConfirm={onBatchDelete}
+        >
+          <SelectionBarButton color="destructive">{t("delete")}</SelectionBarButton>
+        </Popconfirm>
+      )}
       <SelectionBarButton color="muted" onClick={onBatchPinTop}>
         {t("pin_to_top")}
       </SelectionBarButton>

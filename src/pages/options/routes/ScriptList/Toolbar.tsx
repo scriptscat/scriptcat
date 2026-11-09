@@ -76,6 +76,7 @@ export function Toolbar({
         placeholder={t("script:search_scripts")}
         value={searchRequest.keyword}
         onChange={(e) => setSearchRequest({ ...searchRequest, keyword: e.target.value })}
+        onClear={() => setSearchRequest({ ...searchRequest, keyword: "" })}
         trailing={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

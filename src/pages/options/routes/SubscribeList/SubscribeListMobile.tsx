@@ -90,6 +90,7 @@ function SubscribeListMobile({
           placeholder={t("script:enter_subscribe_name")}
           value={searchKeyword}
           onChange={(e) => setSearchKeyword(e.target.value)}
+          onClear={() => setSearchKeyword("")}
         />
         <MobileStatusFilter statusFilter={statusFilter} setStatusFilter={setStatusFilter} />
       </div>

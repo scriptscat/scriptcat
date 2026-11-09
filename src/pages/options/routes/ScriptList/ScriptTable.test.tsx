@@ -9,6 +9,8 @@ import { renderWithRouterTooltip } from "@Tests/renderWithTooltip";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import type { SortState } from "./sort";
+import type { TSelectFilter } from "./hooks";
+import type { SearchFilterRequest } from "./SearchFilter";
 import { semTime } from "@App/locales/relative-date";
 
 const notify = vi.hoisted(() => ({ info: vi.fn() }));
@@ -51,12 +53,20 @@ const noopAsync = () => Promise.resolve();
 
 const TableHarness = ({
   scriptList,
+  searchRequest = { keyword: "", type: "auto" },
+  setSearchRequest = noop,
+  selectedFilters = { status: null, type: null, tags: null, source: null },
+  setSelectedFilters = noop,
   initialSortState = { key: null, order: "asc" },
   toggleSelect = noop,
   toggleSelectAll = noop,
   selectedUuids = new Set<string>(),
 }: {
   scriptList: ScriptLoading[];
+  searchRequest?: SearchFilterRequest;
+  setSearchRequest?: (req: SearchFilterRequest) => void;
+  selectedFilters?: TSelectFilter;
+  setSelectedFilters?: React.Dispatch<React.SetStateAction<TSelectFilter>>;
   initialSortState?: SortState;
   toggleSelect?: (uuid: string) => void;
   toggleSelectAll?: () => void;
@@ -70,13 +80,13 @@ const TableHarness = ({
       updateScripts={noop}
       handleDelete={noop}
       handleRunStop={noopAsync}
-      searchRequest={{ keyword: "", type: "auto" }}
-      setSearchRequest={noop}
+      searchRequest={searchRequest}
+      setSearchRequest={setSearchRequest}
       totalCount={scriptList.length}
       scriptListSortOrderMove={noop}
       filterItems={{ statusItems: [], typeItems: [], tagItems: [], sourceItems: [] }}
-      selectedFilters={{ status: null, type: null, tags: null, source: null }}
-      setSelectedFilters={noop}
+      selectedFilters={selectedFilters}
+      setSelectedFilters={setSelectedFilters}
       selectedUuids={selectedUuids}
       toggleSelect={toggleSelect}
       toggleSelectAll={toggleSelectAll}
@@ -298,5 +308,31 @@ describe("ScriptTable 行级 memo 不会展示过期数据", () => {
 
     expect(latestSelect).toHaveBeenCalledWith("a");
     expect(firstSelect).not.toHaveBeenCalled();
+  });
+});
+
+describe("ScriptTable 空状态", () => {
+  it("搜索无结果时提供清除筛选，点击后清空关键字并重置全部筛选", () => {
+    const setSearchRequest = vi.fn();
+    const setSelectedFilters = vi.fn();
+    renderWithRouterTooltip(
+      <TableHarness
+        scriptList={[]}
+        searchRequest={{ keyword: "GHSA", type: "auto" }}
+        setSearchRequest={setSearchRequest}
+        selectedFilters={{ status: "enable", type: null, tags: null, source: null }}
+        setSelectedFilters={setSelectedFilters}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: t("clear_filter") }));
+
+    expect(setSearchRequest).toHaveBeenCalledWith({ keyword: "", type: "auto" });
+    expect(setSelectedFilters).toHaveBeenCalledWith({ status: null, type: null, tags: null, source: null });
+  });
+
+  it("没有任何脚本且无筛选时给出新建入口", () => {
+    renderTable([]);
+    expect(screen.getByRole("button", { name: t("script:create_script") })).toBeInTheDocument();
   });
 });
