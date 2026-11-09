@@ -29,6 +29,7 @@
   "operation_failed": "작업에 실패했습니다",
   "scripts_pinned_to_top": "선택한 스크립트가 고정되었습니다",
   "homepage": "홈페이지",
+  "support": "지원",
   "script_total_runs": "이 스크립트는 총 {{runNum}}회 실행되었으며, iframe에서 {{runNumByIframe}}회 실행되었습니다",
   "script_total_runs_single": "이 스크립트는 {{runNum}}회 실행되었습니다",
   "script_disabled": "이 스크립트는 활성화되어 있지 않습니다",

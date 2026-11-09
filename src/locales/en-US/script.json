@@ -29,6 +29,7 @@
   "operation_failed": "Operation failed",
   "scripts_pinned_to_top": "The selected script has been pinned",
   "homepage": "Homepage",
+  "support": "Support",
   "script_total_runs": "The script has run {{runNum}} times, {{runNumByIframe}} times in iframes",
   "script_total_runs_single": "The script has run {{runNum}} times",
   "script_disabled": "The script is not enabled",

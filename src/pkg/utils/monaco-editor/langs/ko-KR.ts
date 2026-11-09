@@ -102,6 +102,7 @@ tracking: 이 스크립트는 사용자 정보를 추적합니다`.replace(/\n/g
     updateURL: "스크립트 업데이트 확인용 URL",
     downloadURL: "스크립트 업데이트 다운로드 URL",
     supportURL: "지원 사이트 / 버그 제보 페이지",
+    support: "지원 사이트 / 버그 제보 페이지",
     source: "스크립트 소스 코드 페이지",
     scriptUrl: "구독 스크립트가 참조하는 유저스크립트 URL",
     storageName: "여러 스크립트가 하나의 저장 공간을 공유하도록 하는 스크립트 값 저장소 이름",

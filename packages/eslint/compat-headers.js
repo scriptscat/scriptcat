@@ -18,6 +18,8 @@ const compatMap = {
     "early-start": [],
     "require-css": [],
     definition: [],
+    // supportURL 的同义写法
+    support: [],
     allFrames: [],
   },
 };

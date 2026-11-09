@@ -1,7 +1,19 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { GripVertical } from "lucide-react";
+import {
+  Bug,
+  Download,
+  GripVertical,
+  House,
+  Pencil,
+  Play,
+  RefreshCw,
+  Settings2,
+  Square,
+  Trash2,
+  UploadCloud,
+} from "lucide-react";
 import {
   SCRIPT_RUN_STATUS_RUNNING,
   SCRIPT_STATUS_DISABLE,
@@ -43,6 +55,7 @@ import {
   ScheduleNextRun,
   ScriptIcon,
   getScriptHomePage,
+  getScriptSupportUrl,
   openExternalUrl,
   ScriptListEmpty,
   scriptTypeLabel,
@@ -389,6 +402,7 @@ function ScriptActionSheet({
   const { t } = useTranslation();
   const name = i18nName(script);
   const home = getScriptHomePage(script.metadata);
+  const support = getScriptSupportUrl(script.metadata);
   const isBackground = script.type !== SCRIPT_TYPE_NORMAL;
   const isRunning = script.runStatus === SCRIPT_RUN_STATUS_RUNNING;
 
@@ -403,27 +417,41 @@ function ScriptActionSheet({
       icon={<ScriptIcon name={name} metadata={script.metadata} />}
     >
       <MobileActionSheetItem onSelect={() => navigate(`/script/editor/${script.uuid}`)}>
+        <Pencil />
         {t("edit")}
       </MobileActionSheetItem>
       {script.config && (
         <MobileActionSheetItem onSelect={() => navigate(`/?userConfig=${script.uuid}`)}>
+          <Settings2 />
           {t("editor:user_config")}
         </MobileActionSheetItem>
       )}
       {script.metadata?.cloudcat && (
         <MobileActionSheetItem onSelect={() => navigate(`/?cloud=${script.uuid}`)}>
+          <UploadCloud />
           {t("editor:upload_to_cloud")}
         </MobileActionSheetItem>
       )}
       {home && (
-        <MobileActionSheetItem onSelect={() => openExternalUrl(home)}>{t("script:homepage")}</MobileActionSheetItem>
+        <MobileActionSheetItem onSelect={() => openExternalUrl(home)}>
+          <House />
+          {t("script:homepage")}
+        </MobileActionSheetItem>
+      )}
+      {support && (
+        <MobileActionSheetItem onSelect={() => openExternalUrl(support)}>
+          <Bug />
+          {t("script:support")}
+        </MobileActionSheetItem>
       )}
       {isBackground && (
         <MobileActionSheetItem onSelect={() => onRunStop(script)}>
+          {isRunning ? <Square /> : <Play />}
           {isRunning ? t("stop") : t("editor:run")}
         </MobileActionSheetItem>
       )}
       <MobileActionSheetItem onSelect={() => void scriptClient.requestCheckUpdate(script.uuid)}>
+        <RefreshCw />
         {t("check_update")}
       </MobileActionSheetItem>
       <MobileActionSheetItem
@@ -432,9 +460,11 @@ function ScriptActionSheet({
           void synchronizeClient.export([script.uuid]).then(() => notify.success(t("settings:export_success"), { id }));
         }}
       >
+        <Download />
         {t("export")}
       </MobileActionSheetItem>
       <MobileActionSheetItem destructive onSelect={() => onDelete(script)}>
+        <Trash2 />
         {t("delete")}
       </MobileActionSheetItem>
     </MobileActionSheet>

@@ -316,7 +316,7 @@ function MobileActionSheetItem({ onSelect, destructive, className, ...props }: M
         close();
       }}
       className={cn(
-        "flex items-center gap-3 px-4 py-3 text-left text-sm",
+        "flex items-center gap-3 px-4 py-3 text-left text-sm [&_svg]:size-4 [&_svg]:shrink-0",
         destructive ? "text-destructive" : "text-foreground",
         className
       )}

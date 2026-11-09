@@ -103,6 +103,7 @@ tracking: Este script rastreia suas informações de usuário`.replace(/\n/g, "<
     updateURL: "URL usada para verificar atualizações do script",
     downloadURL: "URL usada para baixar atualizações do script",
     supportURL: "Site de suporte / página de relato de bugs",
+    support: "Site de suporte / página de relato de bugs",
     source: "Página do código-fonte do script",
     scriptUrl: "URL do script de usuário referenciado por um script de assinatura",
     storageName:
