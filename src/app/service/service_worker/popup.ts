@@ -429,7 +429,7 @@ export class PopupService {
       scriptMenuMap.set(uuid, run);
     }
 
-    await this.mergeSubFrameRunScripts(tabId, url, runScripts, scriptMenuMap);
+    await this.mergeSubFrameScripts(tabId, url, runScripts, scriptMenuMap);
 
     const scriptMenu = [...scriptMenuMap.values()];
     // 即时附加图标与本地化脚本名（仅写入响应，不回写 session 缓存，避免 icon64 等占用过大）
@@ -477,21 +477,20 @@ export class PopupService {
   }
 
   /**
-   * 把「只在子 frame（iframe）里跑起来」的脚本并回当前页清单。
+   * 把「只匹配子 frame（iframe）」的脚本并回当前页清单。
    *
    * 清单主体按顶层网址匹配，因此 @match 只命中 iframe 的脚本连同它在 iframe 注册的 GM 菜单
-   * 都会整条消失（#1687）。判定条件是「本 tab 跑过 ∧ 现在仍匹配某个子 frame」而非单纯「跑过」：
-   * 用户在 Popup 排除本站后脚本对所有 frame 都不再匹配，该行仍会立即消失。
+   * 都会整条消失（#1687）。子 frame 与顶层一致地按「现在是否匹配」判定，而不要求「本 tab 跑过」：
+   * 禁用脚本永远不会跑，要求运行证据会让它们无法在 Popup 里被启用（#1808），刚启用的脚本也会
+   * 因开关切换从列表消失。用户在 Popup 排除本站后脚本对所有 frame 都不再匹配，该行仍会立即消失。
+   * @noframes 脚本不会在子 frame 运行，不因子 frame 匹配而列出。
    */
-  private async mergeSubFrameRunScripts(
+  private async mergeSubFrameScripts(
     tabId: number,
     topUrl: string,
     runScripts: ScriptMenu[],
     scriptMenuMap: Map<string, ScriptMenu>
   ) {
-    const unmatched = runScripts.filter((script) => !scriptMenuMap.has(script.uuid));
-    if (!unmatched.length) return;
-
     const frameUrls = await this.getSubFrameUrls(tabId, topUrl);
     if (!frameUrls.length) return;
 
@@ -500,26 +499,32 @@ export class PopupService {
     for (const frameUrl of frameUrls) {
       const matchingResult = await this.runtime.getPopupPageScriptMatchingResultByUrl(frameUrl);
       for (const [uuid, o] of matchingResult) {
+        if (scriptMenuMap.has(uuid)) continue;
         frameMatching.set(uuid, frameMatching.get(uuid) || o.effective);
       }
     }
+    if (!frameMatching.size) return;
 
-    const matchedRunScripts = unmatched.filter((script) => frameMatching.has(script.uuid));
-    if (!matchedRunScripts.length) return;
-
+    const uuids = [...frameMatching.keys()];
     // 运行记录来自 tabScript:<tabId> session cache，脚本删除事件与 Popup 读取可能交错，
     // 因此要用 DAO 结果做读侧防护，避免已删除脚本残留在 Popup 清单。
-    const scripts = await this.scriptDAO.gets(matchedRunScripts.map((script) => script.uuid));
-    for (let idx = 0, l = matchedRunScripts.length; idx < l; idx++) {
+    const scripts = await this.scriptDAO.gets(uuids);
+    const runMap = new Map<string, ScriptMenu>(runScripts.map((script) => [script.uuid, script]));
+    for (let idx = 0, l = uuids.length; idx < l; idx++) {
+      const uuid = uuids[idx];
       const script = scripts[idx];
-      if (!script) continue;
-      const run = matchedRunScripts[idx];
-      run.enable = script.status === SCRIPT_STATUS_ENABLE;
-      run.isEffective = frameMatching.get(run.uuid)!;
-      run.hasMatchOverride = script.selfMetadata?.match !== undefined;
-      run.hasUserConfig = !!script.config;
+      if (!script || script.metadata.noframes) continue;
+      let run = runMap.get(uuid);
+      if (run) {
+        run.enable = script.status === SCRIPT_STATUS_ENABLE;
+        run.hasMatchOverride = script.selfMetadata?.match !== undefined;
+        run.hasUserConfig = !!script.config;
+      } else {
+        run = scriptToMenu(script);
+      }
+      run.isEffective = frameMatching.get(uuid)!;
       run.matchesTopFrame = false;
-      scriptMenuMap.set(run.uuid, run);
+      scriptMenuMap.set(uuid, run);
     }
   }
 
