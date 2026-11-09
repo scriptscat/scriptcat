@@ -131,11 +131,6 @@ export type TScriptsForTab = {
 
 const bgScriptStorageNames = new Set<string>();
 
-// For Firefox, StorageArea.setAccessLevel is not implemented.
-// See https://bugzilla.mozilla.org/show_bug.cgi?id=1724754
-// const deliveryStorage = isFirefox() ? chrome.storage.local : chrome.storage.session;
-const deliveryStorage = chrome.storage.local; // 日后再处理
-
 export class RuntimeService {
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
@@ -475,15 +470,21 @@ export class RuntimeService {
     await this.loadPageScript(script, apiScript!);
   }
 
-  public async pushValueUpdate(script: Script, sendData: ValueUpdateDataEncoded) {
+  public async pushValueUpdate(script: Script, sendData: ValueUpdateDataEncoded, tabIds: number[]) {
     try {
-      // 前台腳本 （推送值到tab）
-      await deliveryStorage!.set({
-        valueUpdateDelivery: {
-          rId: `${Date.now()}.${Math.random()}`, // 用于区分不同的更新，确保 deliveryStorage.onChanged 必能触发
-          sendData,
-        },
-      });
+      // 前台脚本：只投递给运行了该 storageName 的标签页（不指定 frame，由各 frame 的 scripting 按 storageName 过滤）。
+      // 不能借 chrome.storage.local 广播：每个 frame 都要为此监听 local.onChanged，
+      // 任何一次 local 写入（包括整包的 value:*）的新旧值都会被投递并反序列化到所有 frame（#1834）
+      // 不等待页面回应：某个标签页失败不应阻塞其他标签页与下面的后台脚本投递
+      for (const tabId of tabIds) {
+        sendMessage(new ExtensionContentMessageSend(tabId), "scripting/runtime/valueUpdate", sendData).catch((e) => {
+          this.logger.error(
+            "push value update to tab failed",
+            { uuid: script.uuid, storageName: sendData.storageName, tabId },
+            Logger.E(e)
+          );
+        });
+      }
 
       // 後台腳本
       if (bgScriptStorageNames.has(sendData.storageName)) {
@@ -511,19 +512,7 @@ export class RuntimeService {
     }
   }
 
-  async setSessionAccessLevel() {
-    try {
-      // 让 scripting 存取 chrome.storage.session
-      await chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS" });
-    } catch (e) {
-      this.logger.error("set session storage access level failed", Logger.E(e));
-    }
-  }
-
   init() {
-    if (deliveryStorage === chrome.storage.session) {
-      this.setSessionAccessLevel();
-    }
     // 启动gm api
     const permission = new PermissionVerify(this.group.group("permission"), this.mq);
     this.gmApi = new GMApi(

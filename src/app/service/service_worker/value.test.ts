@@ -528,3 +528,51 @@ describe("ValueService —— 共享 storagename 的回收站感知", () => {
     expect(await valueDAO.get(lonely)).toBeUndefined();
   });
 });
+
+describe("ValueService pushValueUpdate 投递目标", () => {
+  const setup = (tabIds: number[]) => {
+    const server = new Server("test", new MockMessage(new EventEmitter<string, any>()));
+    const service = new ValueService(server.group("value"), new MessageQueue());
+    const runtime = { pushValueUpdate: vi.fn().mockResolvedValue(undefined) };
+    const popup = { getTabIdsByStorageName: vi.fn().mockResolvedValue(tabIds) };
+    service.init(runtime as unknown as RuntimeService, popup as unknown as PopupService);
+    return { service, runtime, popup };
+  };
+  const script = { uuid: "uuid-1", metadata: {} } as Script;
+  const sendData = (tabId: number) => ({
+    id: "id-1",
+    entries: [],
+    uuid: "uuid-1",
+    storageName: "store",
+    sender: { runFlag: "", tabId },
+    valueUpdated: true,
+  });
+
+  it("投递到运行该 storageName 的标签页，并补上发起写入的标签页", async () => {
+    const { service, runtime, popup } = setup([1]);
+
+    await service.pushValueUpdate(script, sendData(2));
+
+    expect(popup.getTabIdsByStorageName).toHaveBeenCalledWith("store");
+    expect(runtime.pushValueUpdate).toHaveBeenCalledWith(script, sendData(2), [1, 2]);
+  });
+
+  it("查询标签页失败时仍投递给发起方（并由 runtime 继续后台脚本投递）", async () => {
+    const { service, runtime, popup } = setup([]);
+    popup.getTabIdsByStorageName.mockRejectedValue(new Error("tabs.query failed"));
+
+    await expect(service.pushValueUpdate(script, sendData(2))).resolves.toBeUndefined();
+
+    expect(runtime.pushValueUpdate).toHaveBeenCalledWith(script, sendData(2), [2]);
+  });
+
+  it("发起方已在目标中或不是标签页（tabId -1）时不重复、不追加", async () => {
+    const { service, runtime } = setup([1]);
+
+    await service.pushValueUpdate(script, sendData(1));
+    await service.pushValueUpdate(script, sendData(-1));
+
+    expect(runtime.pushValueUpdate).toHaveBeenNthCalledWith(1, script, sendData(1), [1]);
+    expect(runtime.pushValueUpdate).toHaveBeenNthCalledWith(2, script, sendData(-1), [1]);
+  });
+});

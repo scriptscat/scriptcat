@@ -1,5 +1,5 @@
 import LoggerCore from "@App/app/logger/core";
-import type Logger from "@App/app/logger/logger";
+import Logger from "@App/app/logger/logger";
 import { type Script, ScriptDAO, type ValueStore } from "@App/app/repo/scripts";
 import { type Value, ValueDAO } from "@App/app/repo/value";
 import { TrashScriptDAO } from "@App/app/repo/trash_script";
@@ -77,7 +77,20 @@ export class ValueService {
   }
 
   async pushValueUpdate<T extends ValueUpdateDataEncoded>(script: Script, sendData: T) {
-    return this.runtime!.pushValueUpdate(script, sendData);
+    let tabIds: number[] = [];
+    try {
+      tabIds = await this.popup!.getTabIdsByStorageName(sendData.storageName);
+    } catch (e) {
+      // 查不到其他标签页时，发起方与后台脚本仍需收到更新
+      this.logger.error("get value update tabs failed", { storageName: sendData.storageName }, Logger.E(e));
+    }
+    // 发起方的运行记录由 popupPageLoadUpdate 异步写入，脚本在页面早期写值时可能还查不到；
+    // 漏掉它会让该页的 GM.setValue Promise 等不到回执
+    const senderTabId = sendData.sender.tabId;
+    if (senderTabId !== undefined && senderTabId > 0 && !tabIds.includes(senderTabId)) {
+      tabIds.push(senderTabId);
+    }
+    return this.runtime!.pushValueUpdate(script, sendData, tabIds);
   }
 
   // 批量设置

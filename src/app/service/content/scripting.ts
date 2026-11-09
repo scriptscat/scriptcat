@@ -16,11 +16,6 @@ const PageOrContent = {
 
 type PageOrContent = ValueOf<typeof PageOrContent>;
 
-// For Firefox, StorageArea.setAccessLevel is not implemented.
-// See https://bugzilla.mozilla.org/show_bug.cgi?id=1724754
-// const deliveryStorage = isFirefox() ? chrome.storage.local : chrome.storage.session;
-const deliveryStorage = chrome.storage.local; // 日后再处理
-
 // scripting页的处理
 export default class ScriptingRuntime {
   private activeStorageNames: Map<string, PageOrContent> | null = null;
@@ -54,35 +49,18 @@ export default class ScriptingRuntime {
       // 转发给inject和content
       return this.broadcastToPage("runtime/emitEvent", data);
     });
-    this.extServer.on("runtime/valueUpdate", (data) => {
-      // 转发给inject和content
-      return this.broadcastToPage("runtime/valueUpdate", data);
+    this.extServer.on("runtime/valueUpdate", (data: ValueUpdateDataEncoded) => {
+      // SW 按标签页投递，同一标签页里没有运行该脚本的 frame 也会收到，需按 storageName 过滤；
+      // pageLoad 返回前还不知道本 frame 运行哪些脚本，两侧都转发
+      const activeOn =
+        this.activeStorageNames === null
+          ? PageOrContent.PAGE_AND_CONTENT
+          : this.activeStorageNames.get(data.storageName);
+      if (!activeOn) return;
+      return this.broadcastToPage("runtime/valueUpdate", data, activeOn);
     });
     this.server.on("logger", (data: Logger) => {
       LoggerCore.logger().log(data.level, data.message, data.label);
-    });
-
-    // ================================
-    // 来自 service_worker 的投递：storage 广播（类似 UDP）
-    // ================================
-
-    // 接收 service_worker 的 chrome.storage.local 值改变通知 （一对多广播）
-    // 类似 UDP 原理，service_worker 不会有任何「等待处理」
-    // 由于 changes 会包括新旧值 (Chrome: JSON serialization, Firefox: Structured Clone)
-    // 因此需要注意资讯量不要过大导致 onChanged 的触发过慢
-    deliveryStorage.onChanged.addListener((changes) => {
-      const record = changes["valueUpdateDelivery"];
-      if (record?.newValue) {
-        const sendData = (record.newValue as { sendData: ValueUpdateDataEncoded }).sendData;
-        const activeOn =
-          this.activeStorageNames === null
-            ? PageOrContent.PAGE_AND_CONTENT
-            : this.activeStorageNames.get(sendData.storageName);
-        if (activeOn) {
-          // 转发给 content 和 inject
-          this.broadcastToPage("runtime/valueUpdate", sendData, activeOn);
-        }
-      }
     });
 
     forwardMessage("serviceWorker", "script/isInstalled", this.server, this.senderToExt);
