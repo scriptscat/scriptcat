@@ -847,19 +847,74 @@ describe("PopupService getPopupData 子 frame（iframe）内运行的脚本", ()
     expect(result.scriptList.map((s) => s.uuid)).toEqual([topUuid]);
   });
 
-  it("顶层匹配已覆盖的脚本不应触发 getAllFrames 查询", async () => {
-    const uuid = "top-script";
-    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu(uuid)]);
-    const getAllFrames = mockFrames([FRAME_URL]);
+  it("禁用且只匹配 iframe 网址的脚本（从未运行）应出现在列表，enable 为 false，便于在 Popup 里启用", async () => {
+    const uuid = "disabled-iframe-script";
+    mockFrames([FRAME_URL]);
 
     const { service } = createService({
-      runtime: { getPopupPageScriptMatchingResultByUrl: matcherFor(uuid, [TOP_URL]) },
-      scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
+      runtime: { getPopupPageScriptMatchingResultByUrl: matcherFor(uuid, [FRAME_URL]) },
+      scriptDAO: {
+        gets: vi.fn(async (uuids: string[]) => uuids.map((u) => createScript(u, { status: SCRIPT_STATUS_DISABLE }))),
+      },
     });
 
-    await service.getPopupData({ tabId: 1, url: TOP_URL });
+    const result = await service.getPopupData({ tabId: 1, url: TOP_URL });
 
-    expect(getAllFrames).not.toHaveBeenCalled();
+    expect(result.scriptList).toHaveLength(1);
+    expect(result.scriptList[0]).toMatchObject({ uuid, enable: false, matchesTopFrame: false, isEffective: true });
+  });
+
+  it("已启用但尚未在 iframe 运行过的脚本（例如在 Popup 里刚启用）仍应出现，不因开关切换而从列表消失", async () => {
+    const uuid = "just-enabled-iframe-script";
+    mockFrames([FRAME_URL]);
+
+    const { service } = createService({
+      runtime: { getPopupPageScriptMatchingResultByUrl: matcherFor(uuid, [FRAME_URL]) },
+      scriptDAO: { gets: vi.fn(async (uuids: string[]) => uuids.map((u) => createScript(u))) },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: TOP_URL });
+
+    expect(result.scriptList).toHaveLength(1);
+    expect(result.scriptList[0]).toMatchObject({ uuid, enable: true, matchesTopFrame: false, runNum: 0 });
+  });
+
+  it("带 @noframes 的脚本只匹配 iframe 网址时不应出现：它在 iframe 里永远不会运行", async () => {
+    const uuid = "noframes-script";
+    mockFrames([FRAME_URL]);
+
+    const { service } = createService({
+      runtime: { getPopupPageScriptMatchingResultByUrl: matcherFor(uuid, [FRAME_URL]) },
+      scriptDAO: {
+        gets: vi.fn(async (uuids: string[]) =>
+          uuids.map((u) => createScript(u, { status: SCRIPT_STATUS_DISABLE, metadata: { noframes: [""] } }))
+        ),
+      },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: TOP_URL });
+
+    expect(result.scriptList).toHaveLength(0);
+  });
+
+  it("同一脚本匹配多个 iframe 时只列一次，且任一 frame 生效即视为生效", async () => {
+    const uuid = "multi-frame-script";
+    const OTHER_FRAME_URL = "https://ads.example.net/slot";
+    mockFrames([FRAME_URL, OTHER_FRAME_URL]);
+
+    const { service } = createService({
+      runtime: {
+        getPopupPageScriptMatchingResultByUrl: vi.fn(async (url: string) =>
+          url === TOP_URL ? new Map() : new Map([[uuid, { uuid, effective: url === OTHER_FRAME_URL }]])
+        ),
+      },
+      scriptDAO: { gets: vi.fn(async (uuids: string[]) => uuids.map((u) => createScript(u))) },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: TOP_URL });
+
+    expect(result.scriptList).toHaveLength(1);
+    expect(result.scriptList[0].isEffective).toBe(true);
   });
 });
 
