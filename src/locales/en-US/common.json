@@ -83,6 +83,7 @@
   "no_subscribes": "No subscriptions",
   "no_subscribes_hint": "Subscribed script collections will appear here",
   "clear_filter": "Clear filter",
+  "clear_search": "Clear search",
   "batch_selected": "{{count}} selected",
   "stopped": "Stopped",
   "auth_type": "Authentication Type",

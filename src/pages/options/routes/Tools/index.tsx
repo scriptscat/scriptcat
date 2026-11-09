@@ -2,7 +2,6 @@ import { SettingsLayout } from "../../layout/SettingsLayout";
 import { getToolsCategories } from "./categories";
 import { LocalBackupSection } from "./sections/LocalBackupSection";
 import { CloudBackupSection } from "./sections/CloudBackupSection";
-import { AutoBackupSection } from "./sections/AutoBackupSection";
 import { MigrationSection } from "./sections/MigrationSection";
 import { DevToolsSection } from "./sections/DevToolsSection";
 import { NetworkRulesSection } from "./sections/NetworkRulesSection";
@@ -18,7 +17,6 @@ export default function Tools() {
         <>
           <LocalBackupSection register={register} />
           <CloudBackupSection register={register} />
-          <AutoBackupSection register={register} />
           <MigrationSection register={register} />
           <NetworkRulesSection register={register} />
           <DevToolsSection register={register} />

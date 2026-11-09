@@ -83,6 +83,7 @@
   "no_subscribes": "Nenhuma assinatura",
   "no_subscribes_hint": "Coleções de scripts assinados aparecerão aqui",
   "clear_filter": "Limpar filtro",
+  "clear_search": "Limpar busca",
   "batch_selected": "{{count}} selecionados",
   "stopped": "Parado",
   "auth_type": "Tipo de autenticação",

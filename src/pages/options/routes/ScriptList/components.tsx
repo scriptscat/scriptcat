@@ -13,6 +13,7 @@ import { Switch } from "@App/pages/components/ui/switch";
 import { Badge } from "@App/pages/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
 import { Button } from "@App/pages/components/ui/button";
+import { EmptyState } from "@App/pages/components/ui/empty-state";
 import { semTime } from "@App/locales/relative-date";
 import { i18nName } from "@App/locales/locales";
 import type { TFunction } from "i18next";
@@ -35,6 +36,9 @@ import {
   Pencil,
   Download,
   Trash2,
+  Package,
+  Plus,
+  SearchX,
 } from "lucide-react";
 import { preloadCloudScriptPlan } from "@App/pages/components/CloudScriptPlan";
 import {
@@ -148,6 +152,54 @@ function isSafeHttpUrl(url: string | undefined): boolean {
 // 打开外部链接（仅限 http/https）。脚本主页/站点图标等 URL 均来自脚本 metadata，不可信。
 export function openExternalUrl(url: string | undefined) {
   if (isSafeHttpUrl(url)) window.open(url, "_blank");
+}
+
+// ========== 列表空状态 ==========
+// 「一个脚本都没有」与「搜索/筛选没结果」要给不同出路：前者去新建或安装，后者清掉条件
+export function ScriptListEmpty({
+  filtered,
+  onClearFilters,
+  navigate,
+}: {
+  filtered: boolean;
+  onClearFilters: () => void;
+  navigate: (to: string) => void;
+}) {
+  const { t } = useTranslation();
+  if (filtered) {
+    return (
+      <EmptyState
+        data-testid="script-list-empty"
+        icon={SearchX}
+        title={t("script:no_matching_scripts")}
+        description={t("script:no_matching_scripts_desc")}
+        action={
+          <Button variant="outline" size="sm" onClick={onClearFilters}>
+            {t("clear_filter")}
+          </Button>
+        }
+      />
+    );
+  }
+  return (
+    <EmptyState
+      data-testid="script-list-empty"
+      icon={Package}
+      title={t("no_scripts")}
+      description={t("script:no_scripts_desc")}
+      action={
+        <div className="flex gap-2">
+          <Button size="sm" onClick={() => navigate("/script/editor")}>
+            <Plus />
+            {t("script:create_script")}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => openExternalUrl("https://scriptcat.org/search")}>
+            {t("get_script")}
+          </Button>
+        </div>
+      }
+    />
+  );
 }
 
 // ========== FaviconDots ==========
@@ -367,6 +419,8 @@ export function ScriptRowActionSlots({
   const { t } = useTranslation();
   const [trashEnabled] = useSystemConfig("trash_enabled");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // 回收站开启时删除可由撤销 toast 和回收站找回，不再二次确认；关闭或配置尚未读到时按不可撤销处理，先确认
+  const requestDelete = () => (trashEnabled === true ? onDelete(script) : setConfirmDelete(true));
   const home = getScriptHomePage(script.metadata);
   const support = getScriptSupportUrl(script.metadata);
   const isBackground = script.type !== SCRIPT_TYPE_NORMAL;
@@ -437,7 +491,7 @@ export function ScriptRowActionSlots({
         <ActionButton label={t("export")} onClick={exportSelf}>
           <Download className="w-3.5 h-3.5" />
         </ActionButton>
-        <ActionButton label={t("delete")} destructive onClick={() => setConfirmDelete(true)}>
+        <ActionButton label={t("delete")} destructive onClick={requestDelete}>
           <Trash2 className="w-3.5 h-3.5" />
         </ActionButton>
       </span>
@@ -485,10 +539,7 @@ export function ScriptRowActionSlots({
               <Download />
               {t("export")}
             </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onSelect={() => setConfirmDelete(true)}
-            >
+            <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={requestDelete}>
               <Trash2 />
               {t("delete")}
             </DropdownMenuItem>
@@ -501,9 +552,7 @@ export function ScriptRowActionSlots({
           <AlertDialogHeader>
             <AlertDialogTitle>{t("delete")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {(trashEnabled ?? true)
-                ? t("script:confirm_delete_script_trash_content", { name: i18nName(script) })
-                : t("script:confirm_delete_script_content", { name: i18nName(script) })}
+              {t("script:confirm_delete_script_content", { name: i18nName(script) })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -26,7 +26,7 @@ vi.mock("@App/pkg/utils/cron", async (importOriginal) => {
   return { ...actual, nextTimeDisplay: vi.fn(() => "2026-06-25 08:00:00") };
 });
 // useSystemConfig("trash_enabled") 读的是这个 store；默认给回收站「开启」，
-// 关闭态相关用例（见「回收站关闭时的删除确认文案」describe）再各自切到 false。
+// 关闭态相关用例（见「宽窄两套排布」里的删除用例）再各自切到 false。
 vi.mock("@App/pages/store/global", async () => {
   const { createGlobalStoreMock } = await import("@Tests/mocks/pageStores.ts");
   return createGlobalStoreMock({
@@ -40,6 +40,7 @@ import {
   getScriptSupportUrl,
   getTagColor,
   ScheduleNextRun,
+  ScriptListEmpty,
   ScriptRowActionSlots,
   scriptTypeLabel,
   UpdateTimeCell,
@@ -297,25 +298,42 @@ describe("ScriptRowActionSlots 宽窄两套排布", () => {
     expect(onRunStop).toHaveBeenCalledWith(script);
   });
 
-  it("删除收进更多菜单，点击后先弹确认框，确认前不调用 onDelete（回收站默认开启，文案说可还原）", async () => {
+  // trash_enabled 经 store 异步读取，点击前先等它落地
+  const flushConfig = () => act(async () => {});
+  const trashOff = () => get.mockImplementation((key: string) => Promise.resolve(key === "trash_enabled" ? false : 30));
+
+  it("回收站开启时，点击删除直接触发 onDelete，不弹确认框（由撤销 toast 兜底）", async () => {
+    const onDelete = vi.fn();
+    const { script } = renderSlots({}, { onDelete });
+    await flushConfig();
+
+    fireEvent.click(wide().getByLabelText(t("delete")));
+
+    expect(onDelete).toHaveBeenCalledWith(script);
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("回收站关闭时，更多菜单里的删除先弹「此操作无法撤销」确认框，确认前不调用 onDelete", async () => {
+    trashOff();
     const onDelete = vi.fn();
     renderSlots({}, { onDelete });
+    await flushConfig();
     openMore();
 
     fireEvent.click(screen.getByText(t("delete")));
 
-    expect(
-      await screen.findByText(t("script:confirm_delete_script_trash_content", { name: "脚本A" }))
-    ).toBeInTheDocument();
+    expect(await screen.findByText(t("script:confirm_delete_script_content", { name: "脚本A" }))).toBeInTheDocument();
     expect(onDelete).not.toHaveBeenCalled();
   });
 
-  it("确认框中点击删除后才触发 onDelete", async () => {
+  it("回收站关闭时，确认框中点击删除后才触发 onDelete", async () => {
+    trashOff();
     const onDelete = vi.fn();
     const { script } = renderSlots({}, { onDelete });
+    await flushConfig();
     openMore();
     fireEvent.click(screen.getByText(t("delete")));
-    await screen.findByText(t("script:confirm_delete_script_trash_content", { name: "脚本A" }));
+    await screen.findByText(t("script:confirm_delete_script_content", { name: "脚本A" }));
 
     // 菜单项与确认按钮同名（删除），确认按钮是最后出现的那个
     const buttons = screen.getAllByText(t("delete"), { selector: "button" });
@@ -324,15 +342,28 @@ describe("ScriptRowActionSlots 宽窄两套排布", () => {
     expect(onDelete).toHaveBeenCalledWith(script);
   });
 
-  it("确认框中点击取消不触发 onDelete", async () => {
+  it("回收站关闭时，确认框中点击取消不触发 onDelete", async () => {
+    trashOff();
     const onDelete = vi.fn();
     renderSlots({}, { onDelete });
+    await flushConfig();
     openMore();
     fireEvent.click(screen.getByText(t("delete")));
-    await screen.findByText(t("script:confirm_delete_script_trash_content", { name: "脚本A" }));
+    await screen.findByText(t("script:confirm_delete_script_content", { name: "脚本A" }));
 
     await act(async () => fireEvent.click(screen.getByText(t("editor:cancel"), { selector: "button" })));
 
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it("回收站配置尚未读到时按不可撤销处理，仍先弹确认框", async () => {
+    get.mockImplementation(() => new Promise(() => {}));
+    const onDelete = vi.fn();
+    renderSlots({}, { onDelete });
+
+    fireEvent.click(wide().getByLabelText(t("delete")));
+
+    expect(await screen.findByText(t("script:confirm_delete_script_content", { name: "脚本A" }))).toBeInTheDocument();
     expect(onDelete).not.toHaveBeenCalled();
   });
 
@@ -344,18 +375,39 @@ describe("ScriptRowActionSlots 宽窄两套排布", () => {
 
     expect(exportScripts).toHaveBeenCalledWith(["u1"]);
   });
+});
 
-  it("回收站关闭时，确认文案改回「此操作无法撤销」", async () => {
-    get.mockImplementation((key: string) => Promise.resolve(key === "trash_enabled" ? false : 30));
-    renderSlots();
-    openMore();
+describe("ScriptListEmpty 脚本列表空状态", () => {
+  it("没有任何脚本时给出新建入口，点击进入编辑器", () => {
+    const navigate = vi.fn();
+    render(<ScriptListEmpty filtered={false} onClearFilters={vi.fn()} navigate={navigate} />);
 
-    fireEvent.click(screen.getByText(t("delete")));
+    expect(screen.getByText(t("no_scripts"))).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: t("script:create_script") }));
 
-    expect(await screen.findByText(t("script:confirm_delete_script_content", { name: "脚本A" }))).toBeInTheDocument();
-    expect(
-      screen.queryByText(t("script:confirm_delete_script_trash_content", { name: "脚本A" }))
-    ).not.toBeInTheDocument();
+    expect(navigate).toHaveBeenCalledWith("/script/editor");
+    expect(screen.queryByRole("button", { name: t("clear_filter") })).not.toBeInTheDocument();
+  });
+
+  it("没有任何脚本时「获取脚本」打开脚本站", () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    render(<ScriptListEmpty filtered={false} onClearFilters={vi.fn()} navigate={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: t("get_script") }));
+
+    expect(openSpy).toHaveBeenCalledWith("https://scriptcat.org/search", "_blank");
+    openSpy.mockRestore();
+  });
+
+  it("搜索或筛选无结果时说明原因并提供清除筛选，而不是提示新建", () => {
+    const onClearFilters = vi.fn();
+    render(<ScriptListEmpty filtered onClearFilters={onClearFilters} navigate={vi.fn()} />);
+
+    expect(screen.getByText(t("script:no_matching_scripts"))).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: t("script:create_script") })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: t("clear_filter") }));
+
+    expect(onClearFilters).toHaveBeenCalledTimes(1);
   });
 });
 

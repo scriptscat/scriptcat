@@ -83,6 +83,7 @@
   "no_subscribes": "Abonelik yok",
   "no_subscribes_hint": "Abonelikler burada görünecektir.",
   "clear_filter": "Filtreyi temizle",
+  "clear_search": "Aramayı temizle",
   "batch_selected": "{{count}} seçildi",
   "stopped": "Durduruldu",
   "auth_type": "Kimlik Doğrulama Türü",

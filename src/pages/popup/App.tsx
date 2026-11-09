@@ -398,9 +398,10 @@ function SearchBar({ value, onChange }: { value: string; onChange: (v: string) =
       <SearchInput
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onClear={() => onChange("")}
         aria-label={t("script:search_scripts")}
         placeholder={t("script:search_scripts")}
-        className="h-8 rounded-lg bg-muted"
+        className="h-8 rounded-lg"
         inputClassName="text-[13px]"
       />
     </div>

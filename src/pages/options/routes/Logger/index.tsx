@@ -263,6 +263,7 @@ export default function Logger() {
           <SearchInput
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onClear={() => setSearch("")}
             placeholder={t("logs:search_regex")}
             aria-label={t("logs:search_regex")}
             className="h-8 w-full border border-input bg-secondary/50 md:w-[220px]"

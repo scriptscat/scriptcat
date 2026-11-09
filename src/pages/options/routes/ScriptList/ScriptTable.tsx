@@ -27,7 +27,6 @@ import {
   ListRowTrailing,
 } from "@App/pages/components/ui/list-row";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
-import { EmptyState } from "@App/pages/components/ui/empty-state";
 import { LoadingState } from "@App/pages/components/ui/loading-state";
 import { cn } from "@App/pkg/utils/cn";
 import { i18nName } from "@App/locales/locales";
@@ -44,6 +43,7 @@ import {
   scriptTypeLabel,
   getTagColor,
   ScriptRowActionSlots,
+  ScriptListEmpty,
 } from "./components";
 import type { SearchFilterRequest } from "./SearchFilter";
 import { scriptSortOptions, sortScriptList } from "./sort";
@@ -195,6 +195,11 @@ export default function ScriptTable({
 
   // 排序激活时禁用手动拖拽，状态由脚本列表偏好持久化。
   const isSorted = sortState.key !== null;
+  const filtered = searchRequest.keyword !== "" || Object.values(selectedFilters).some((v) => v !== null);
+  const clearFilters = () => {
+    setSearchRequest({ ...searchRequest, keyword: "" });
+    setSelectedFilters({ status: null, type: null, tags: null, source: null });
+  };
   const displayList = useMemo(() => sortScriptList(scriptList, sortState), [scriptList, sortState]);
 
   const sortableIds = useMemo(() => displayList.map((s) => s.uuid), [displayList]);
@@ -267,7 +272,7 @@ export default function ScriptTable({
 
         {/* 空状态 */}
         {!loadingList && scriptList.length === 0 && (
-          <EmptyState data-testid="script-list-empty" title={t("no_scripts")} compact />
+          <ScriptListEmpty filtered={filtered} onClearFilters={clearFilters} navigate={navigate} />
         )}
 
         {/* 脚本行：排序时只渲染普通行；默认顺序下才挂载 dnd-kit。 */}

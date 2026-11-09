@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, beforeAll, beforeEach, vi } from "vitest";
 import type { ReactNode } from "react";
-import { cleanup, screen, fireEvent } from "@testing-library/react";
+import { act, cleanup, screen, fireEvent, within } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { t } from "@App/locales/locales";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
@@ -79,8 +79,13 @@ vi.mock("./ScriptTable", () => ({
     <div data-testid="view-toggle">{leading ?? <span data-testid="default-installed-title" />}</div>
   ),
 }));
+// 行列表替身透出筛选态与「清除筛选」回调，供空状态用例断言 ScriptListMobile 的接线
 vi.mock("./ScriptRowsMobile", () => ({
-  default: () => <div data-testid="script-rows-mobile" />,
+  default: ({ filtered, onClearFilters }: { filtered: boolean; onClearFilters: () => void }) => (
+    <div data-testid="script-rows-mobile" data-filtered={String(filtered)}>
+      <button data-testid="rows-clear-filters" onClick={onClearFilters} />
+    </div>
+  ),
 }));
 vi.mock("./FilterBar", () => ({
   default: () => null,
@@ -297,6 +302,32 @@ describe("回收站 tab 消失时回落到已安装", () => {
   });
 });
 
+describe("ScriptListMobile 空状态接线", () => {
+  it("有搜索关键字时按筛选态渲染行列表，清除筛选会清空关键字并重置全部筛选", () => {
+    const setSearchRequest = vi.fn();
+    const setSelectedFilters = vi.fn();
+    renderWithRouter(
+      <ScriptListMobile
+        {...props}
+        searchRequest={{ keyword: "GHSA", type: "auto" }}
+        setSearchRequest={setSearchRequest}
+        setSelectedFilters={setSelectedFilters}
+      />
+    );
+
+    expect(screen.getByTestId("script-rows-mobile")).toHaveAttribute("data-filtered", "true");
+    fireEvent.click(screen.getByTestId("rows-clear-filters"));
+
+    expect(setSearchRequest).toHaveBeenCalledWith({ keyword: "", type: "auto" });
+    expect(setSelectedFilters).toHaveBeenCalledWith({ status: null, type: null, tags: null, source: null });
+  });
+
+  it("没有搜索与筛选时行列表处于非筛选态", () => {
+    renderWithRouter(<ScriptListMobile {...props} />);
+    expect(screen.getByTestId("script-rows-mobile")).toHaveAttribute("data-filtered", "false");
+  });
+});
+
 describe("移动端多选模式", () => {
   const oneScript = [{ uuid: "u1", name: "示例脚本" }] as never;
 
@@ -314,6 +345,33 @@ describe("移动端多选模式", () => {
     expect(bar.textContent).toContain(t("disable"));
     expect(bar.textContent).toContain(t("export"));
     expect(bar.textContent).toContain(t("delete"));
+  });
+
+  it("回收站开启时，批量删除直接执行并退出多选，不弹确认", async () => {
+    const onBatchDelete = vi.fn();
+    renderWithRouter(<ScriptListMobile {...props} scriptList={oneScript} onBatchDelete={onBatchDelete} />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: t("script:multi_select") }));
+
+    const bar = document.querySelector<HTMLElement>('[data-slot="mobile-batch-bar"]')!;
+    fireEvent.click(within(bar).getByText(t("delete")));
+
+    expect(onBatchDelete).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[data-slot="mobile-batch-bar"]')).toBeNull();
+  });
+
+  it("回收站关闭时，批量删除先弹「此操作无法撤销」确认", async () => {
+    get.mockImplementation((key: string) => Promise.resolve(key === "trash_enabled" ? false : 30));
+    const onBatchDelete = vi.fn();
+    renderWithRouter(<ScriptListMobile {...props} scriptList={oneScript} onBatchDelete={onBatchDelete} />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: t("script:multi_select") }));
+
+    const bar = document.querySelector<HTMLElement>('[data-slot="mobile-batch-bar"]')!;
+    fireEvent.click(within(bar).getByText(t("delete")));
+
+    expect(await screen.findByText(t("script:confirm_delete_scripts_content", { count: 0 }))).toBeInTheDocument();
+    expect(onBatchDelete).not.toHaveBeenCalled();
   });
 
   it("退出多选恢复原搜索栏并清空选择", () => {

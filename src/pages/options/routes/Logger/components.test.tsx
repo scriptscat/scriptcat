@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
-import { Calendar, LabelFilterBar, RefreshControl, TimeRangePicker } from "./components";
+import { Calendar, LabelFilterBar, LogRow, RefreshControl, TimeRangePicker } from "./components";
 
 beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(() => cleanup());
@@ -104,5 +104,33 @@ describe("高级标签筛选条 LabelFilterBar", () => {
 
     expect(screen.getByText("component")).toBeInTheDocument();
     expect(screen.getByText("external-access")).toBeInTheDocument();
+  });
+});
+
+describe("单条日志 LogRow 标签", () => {
+  const log = {
+    id: 1,
+    level: "info" as const,
+    message: "install success",
+    label: { env: "service_worker", service: "script", name: "脚本A", uuid: "u1", component: "install", step: 3 },
+    createtime: 0,
+  };
+
+  it("最多摊开 4 个标签，其余折成「+N」，不再静默丢弃", () => {
+    render(<LogRow log={log} expanded={false} onToggle={vi.fn()} onCopy={vi.fn()} />);
+
+    const row = screen.getByTestId("log-row-1");
+    expect(row.textContent).toContain("env:service_worker");
+    expect(row.textContent).toContain("uuid:u1");
+    expect(row.textContent).not.toContain("component:install");
+    expect(row.textContent).toContain("+2");
+  });
+
+  it("标签不超过 4 个时不显示「+N」", () => {
+    render(
+      <LogRow log={{ ...log, label: { env: "service_worker" } }} expanded={false} onToggle={vi.fn()} onCopy={vi.fn()} />
+    );
+
+    expect(screen.getByTestId("log-row-1").textContent).not.toMatch(/\+\d/);
   });
 });

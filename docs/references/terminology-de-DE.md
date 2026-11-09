@@ -58,7 +58,7 @@ Geprüfte Verwendungsquellen: `src/locales/de-DE/*.json`, `docs/architecture.md`
 
 | Konzept | Mögliche Formulierung | Entscheidungsregel | Aktuelle Beispiel-Keys |
 | --- | --- | --- | --- |
-| local / cloud | `Lokal` / `Cloud` | Für Quelle, Speicherort oder Synchronisationsziel verwenden; bei Bedarf Objekt ergänzen. | `local`, `cloud`, `source_local_script` |
+| local / cloud | `Lokal` / `Cloud` | Für Quelle, Speicherort oder Synchronisationsziel verwenden; bei Bedarf Objekt ergänzen. | `local`, `source_local_script` |
 | panel / console | `Panel` / `Konsole` | Bedienoberfläche als `Panel`, Entwicklerausgabe als `Konsole` benennen. | `scheduled_script_description_title`, `build_success_message` |
 | source | `Quelle`, `Installationsquelle`, `Abonnementquelle` | Benennen, was die Quelle liefert. | `source`, `importpage.col_source`, `source_subscribe_link` |
 | storage | `Speicher`, `Speicherplatz`, `Speicher-API` | Nach Datenablage, zugewiesenem Speicherplatz oder API unterscheiden. | `script_storage`, `script_operation_description`, `storage_api` |

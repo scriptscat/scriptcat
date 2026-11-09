@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { renderWithRouterTooltip } from "@Tests/renderWithTooltip";
@@ -21,9 +21,21 @@ vi.mock("@App/pages/store/features/script", async () => {
   });
 });
 
+// useSystemConfig("trash_enabled") 读的是这个 store；默认给回收站「开启」，删除用例里再按需切到 false
+const { get } = vi.hoisted(() => ({ get: vi.fn() }));
+vi.mock("@App/pages/store/global", async () => {
+  const { createGlobalStoreMock } = await import("@Tests/mocks/pageStores.ts");
+  return createGlobalStoreMock({
+    systemConfig: { get, getLanguage: vi.fn().mockResolvedValue("zh-CN"), set: vi.fn() },
+  });
+});
+
 import ScriptRowsMobile from "./ScriptRowsMobile";
 
 beforeAll(() => initTestLanguage("zh-CN"));
+beforeEach(() => {
+  get.mockImplementation((key: string) => Promise.resolve(key === "trash_enabled" ? true : 30));
+});
 afterEach(cleanup);
 
 const script = {
@@ -53,10 +65,13 @@ const baseProps = {
   selectedUuids: new Set<string>(),
   toggleSelect: vi.fn(),
   onEnterSelectionMode: vi.fn(),
+  filtered: false,
+  onClearFilters: vi.fn(),
 };
 
 // dnd-kit 会把 role="button" 挂到外层可拖拽容器上，按角色取会同时命中整行；
 // 这里直接点主体槽位，与真实点击落点一致。
+const sheet = () => document.querySelector<HTMLElement>('[data-slot="mobile-action-sheet"]')!;
 const tapRow = (index = 0) => fireEvent.click(document.querySelectorAll('[data-slot="mobile-list-row-main"]')[index]);
 
 describe("移动端脚本行", () => {
@@ -126,6 +141,34 @@ describe("移动端脚本行", () => {
     fireEvent.click(screen.getByText(t("export")));
 
     expect(exportMock).toHaveBeenCalledWith(["u1"]);
+  });
+
+  it("回收站开启时，面板里的删除直接执行，不弹确认框（由撤销 toast 兜底）", async () => {
+    const handleDelete = vi.fn();
+    renderWithRouterTooltip(<ScriptRowsMobile {...baseProps} handleDelete={handleDelete} />);
+    await act(async () => {});
+    tapRow();
+
+    fireEvent.click(within(sheet()).getByText(t("delete")));
+
+    expect(handleDelete).toHaveBeenCalledWith(script);
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("回收站关闭时，面板里的删除先弹「此操作无法撤销」确认框，确认后才执行", async () => {
+    get.mockImplementation((key: string) => Promise.resolve(key === "trash_enabled" ? false : 30));
+    const handleDelete = vi.fn();
+    renderWithRouterTooltip(<ScriptRowsMobile {...baseProps} handleDelete={handleDelete} />);
+    await act(async () => {});
+    tapRow();
+
+    fireEvent.click(within(sheet()).getByText(t("delete")));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain(t("script:confirm_delete_script_content", { name: script.name }));
+    expect(handleDelete).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByText(t("delete"), { selector: "button" }));
+    expect(handleDelete).toHaveBeenCalledWith(script);
   });
 
   it("左滑露出编辑与删除", () => {

@@ -114,7 +114,7 @@ export function CloudBackupSection({ register }: { register: (id: string) => (el
     <SettingCard
       id="cloud-backup"
       title={t("tools:cloud_backup")}
-      description={t("settings:cloud")}
+      description={t("tools:cloud_backup_desc")}
       register={register}
     >
       {draft && (

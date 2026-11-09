@@ -446,6 +446,11 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
               setPage(1);
               clearSelection();
             }}
+            onClear={() => {
+              setQuery("");
+              setPage(1);
+              clearSelection();
+            }}
           />
           <Select
             value={actionFilter}

@@ -58,7 +58,7 @@ Nguồn sử dụng đã kiểm tra: `src/locales/vi-VN/*.json`, `docs/architect
 
 | Khái niệm | Cách viết có thể dùng | Quy tắc chọn | Key ví dụ hiện tại |
 | --- | --- | --- | --- |
-| local / cloud | `Cục bộ` / `Đám mây` | Dùng cho nguồn, nơi lưu hoặc đích đồng bộ; thêm đối tượng nếu câu chưa rõ. | `local`, `cloud`, `source_local_script` |
+| local / cloud | `Cục bộ` / `Đám mây` | Dùng cho nguồn, nơi lưu hoặc đích đồng bộ; thêm đối tượng nếu câu chưa rõ. | `local`, `source_local_script` |
 | panel / console | `bảng điều khiển` / `console` | Thành phần điều khiển của sản phẩm dùng `bảng điều khiển`; đầu ra công cụ phát triển cần giữ nghĩa console. | `background_script_description`, `build_success_message` |
 | source | `Nguồn`, `Nguồn cài đặt`, `Nguồn đăng ký` | Nêu rõ nguồn cung cấp nội dung gì. | `source`, `importpage.col_source`, `source_subscribe_link` |
 | storage | `Lưu trữ`, `không gian lưu trữ`, `API lưu trữ` | Phân biệt dữ liệu script, vị trí được cấu hình và tên API. | `script_storage`, `script_operation_description`, `storage_api` |
