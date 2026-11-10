@@ -4,10 +4,18 @@ export type PermissionRisk = "normal" | "warn" | "danger";
 
 export type PermissionKind = "match" | "connect" | "grant" | "require";
 
+/** 同一外部资源只换了查询参数(通常是 ?v= 版本号) */
+export interface PermissionUpdate {
+  from: string;
+  to: string;
+}
+
 /** 相对已安装版本的取值增删；仅更新场景派生 */
 export interface PermissionDiff {
   added: string[];
   removed: string[];
+  /** 仅外部资源:能确定是同一资源的增删对,从 added/removed 中移出 */
+  updated: PermissionUpdate[];
 }
 
 export interface PermissionRow {
@@ -71,7 +79,7 @@ function buildRow(kind: PermissionKind, values: string[]): PermissionRow {
 
 /** 该行相对已安装版本是否发生了增删;全新安装(无 diff)恒为 false */
 export const isPermissionChanged = (row: PermissionRow) =>
-  !!row.diff && (row.diff.added.length > 0 || row.diff.removed.length > 0);
+  !!row.diff && (row.diff.added.length > 0 || row.diff.removed.length > 0 || row.diff.updated.length > 0);
 
 /**
  * 把脚本元数据派生为「权限行」,作为安装页信任决策的核心呈现。
@@ -82,6 +90,37 @@ export function derivePermissions(metadata: SCMetadata): PermissionRow[] {
   return KIND_ORDER.filter((kind) => values[kind].length)
     .map((kind) => buildRow(kind, values[kind]))
     .sort((a, b) => RISK_ORDER[a.risk] - RISK_ORDER[b.risk]);
+}
+
+const withoutQuery = (value: string) => value.split("?")[0];
+
+/**
+ * 许多脚本每次发版只把 @require 的 ?v=旧 改成 ?v=新,逐条比对会在每次更新都冒出一对增删。
+ * 去掉查询参数后地址(连同 @resource 的资源名)相同,且两侧各只有一条时才能确定是同一资源;
+ * 一侧出现多条就无法一一对应,宁可照常按增删呈现也不猜。
+ */
+function pairQueryOnlyUpdates(added: string[], removed: string[]): PermissionDiff {
+  const group = (values: string[]) => {
+    const map = new Map<string, string[]>();
+    for (const v of values) {
+      const key = withoutQuery(v);
+      map.set(key, [...(map.get(key) || []), v]);
+    }
+    return map;
+  };
+  const addedByBase = group(added);
+  const removedByBase = group(removed);
+  const updated: PermissionUpdate[] = [];
+  for (const [base, to] of addedByBase) {
+    const from = removedByBase.get(base);
+    if (to.length === 1 && from?.length === 1) updated.push({ from: from[0], to: to[0] });
+  }
+  const paired = new Set(updated.flatMap((u) => [u.from, u.to]));
+  return {
+    added: added.filter((v) => !paired.has(v)),
+    removed: removed.filter((v) => !paired.has(v)),
+    updated,
+  };
 }
 
 /**
@@ -103,7 +142,8 @@ export function derivePermissionDiff(oldMetadata: SCMetadata, newMetadata: SCMet
     const removed = prev.filter((v) => !nextSet.has(v));
     if (!next.length && !removed.length) continue;
     const row = buildRow(kind, next);
-    row.diff = { added: row.values.filter((v) => !prevSet.has(v)), removed };
+    const added = row.values.filter((v) => !prevSet.has(v));
+    row.diff = kind === "require" ? pairQueryOnlyUpdates(added, removed) : { added, removed, updated: [] };
     rows.push(row);
   }
 
