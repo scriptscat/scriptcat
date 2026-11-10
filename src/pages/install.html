@@ -11,6 +11,8 @@
         margin: 0;
         padding: 0;
         border: 0;
+        /* 页面本身不滚动,滚动全在正文容器里;否则 macOS 触控板滚到底后会把整页回弹,在吸底栏下面露出一截底色 */
+        overscroll-behavior: none;
       }
     </style>
   </head>
