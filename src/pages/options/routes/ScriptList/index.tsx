@@ -271,8 +271,25 @@ export default function ScriptList() {
   }, [selectedUuids, deleteScripts]);
 
   const handleBatchCheckUpdate = useCallback(() => {
-    selectedUuids.forEach((uuid) => void scriptClient.requestCheckUpdate(uuid));
-  }, [selectedUuids]);
+    // 没有更新地址的脚本服务端会直接跳过；先在这里筛掉，提示里的数量才是真正检查的数量
+    const targets = scriptList.filter((s) => selectedUuids.has(s.uuid) && s.checkUpdateUrl);
+    if (targets.length === 0) {
+      notify.info(t("script:batch_check_update_none"));
+      return;
+    }
+    const id = notify.loading(t("script:batch_check_update_checking", { count: targets.length }));
+    void Promise.allSettled(targets.map((s) => scriptClient.requestCheckUpdate(s.uuid))).then((results) => {
+      const failed = results.filter((r) => r.status === "rejected").length;
+      const found = results.filter((r) => r.status === "fulfilled" && r.value).length;
+      if (failed > 0) {
+        notify.error(t("script:batch_check_update_failed", { count: failed }), { id });
+      } else if (found > 0) {
+        notify.success(t("script:batch_check_update_found", { count: found }), { id });
+      } else {
+        notify.success(t("script:batch_check_update_latest", { count: targets.length }), { id });
+      }
+    });
+  }, [scriptList, selectedUuids, t]);
 
   // 按列表中的 sort 升序取出选中脚本的 uuid（导出/置顶均需保持显示顺序）
   const selectedUuidsBySort = useCallback(() => {

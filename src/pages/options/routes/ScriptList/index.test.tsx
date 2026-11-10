@@ -4,7 +4,7 @@ import { act, render, cleanup, screen, fireEvent, waitFor } from "@testing-libra
 import { MemoryRouter } from "react-router-dom";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
-import { requestDeleteScripts } from "@App/pages/store/features/script";
+import { requestDeleteScripts, scriptClient } from "@App/pages/store/features/script";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import { SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 
@@ -79,6 +79,7 @@ vi.mock("./ScriptTable", () => ({
     handleDelete: (s: unknown) => void;
     toggleSelect: (uuid: string) => void;
     onBatchDelete: () => void;
+    onBatchCheckUpdate: () => void;
     setViewMode: (mode: "table" | "card") => void;
     setSearchRequest: (req: { keyword: string; type: "auto" | "name" | "script_code" }) => void;
     setSelectedFilters: (updater: (prev: { status: unknown }) => { status: number }) => void;
@@ -89,6 +90,10 @@ vi.mock("./ScriptTable", () => ({
       <button onClick={() => props.handleDelete(testScript)}>{"trigger-delete"}</button>
       <button onClick={() => props.toggleSelect("u1")}>{"trigger-select"}</button>
       <button onClick={() => props.onBatchDelete()}>{"trigger-batch-delete"}</button>
+      <button onClick={() => ["u1", "u2", "u3"].forEach((uuid) => props.toggleSelect(uuid))}>
+        {"trigger-select-3"}
+      </button>
+      <button onClick={() => props.onBatchCheckUpdate()}>{"trigger-batch-check-update"}</button>
       <button onClick={() => props.setSearchRequest({ keyword: "helper", type: "name" })}>{"trigger-search"}</button>
       <button onClick={() => props.setSelectedFilters((prev) => ({ ...prev, status: 1 }))}>{"trigger-filter"}</button>
       <button onClick={() => props.setSortState(() => ({ key: "name", order: "asc" }))}>{"trigger-sort"}</button>
@@ -147,6 +152,73 @@ describe("脚本列表删除接口调用", () => {
     render(<ScriptList />, { wrapper: MemoryRouter });
     fireEvent.click(screen.getByText("trigger-batch-delete"));
     expect(requestDeleteScripts).not.toHaveBeenCalled();
+  });
+});
+
+describe("批量检查更新的反馈", () => {
+  const checkUpdate = vi.mocked(scriptClient.requestCheckUpdate);
+  const withUrl = (uuid: string) => ({
+    uuid,
+    name: uuid,
+    metadata: {},
+    sort: 0,
+    checkUpdateUrl: `https://e.com/${uuid}.js`,
+  });
+  const selectAndCheck = () => {
+    render(<ScriptList />, { wrapper: MemoryRouter });
+    fireEvent.click(screen.getByText("trigger-select-3"));
+    fireEvent.click(screen.getByText("trigger-batch-check-update"));
+  };
+
+  beforeEach(() => {
+    mockScriptData.scriptList = [
+      withUrl("u1"),
+      withUrl("u2"),
+      { uuid: "u3", name: "u3", metadata: {}, sort: 0 },
+    ] as unknown as ScriptLoading[];
+    vi.mocked(notify.loading).mockReturnValue("toast-1");
+  });
+
+  it("只检查有更新地址的脚本，开始即提示进行中，结束后报告发现的新版本数", async () => {
+    checkUpdate.mockImplementation((uuid) => Promise.resolve(uuid === "u1") as never);
+    selectAndCheck();
+
+    expect(checkUpdate.mock.calls.map(([uuid]) => uuid)).toEqual(["u1", "u2"]);
+    expect(notify.loading).toHaveBeenCalledWith(t("script:batch_check_update_checking", { count: 2 }));
+    await waitFor(() =>
+      expect(notify.success).toHaveBeenCalledWith(t("script:batch_check_update_found", { count: 1 }), { id: "toast-1" })
+    );
+  });
+
+  it("全部已是最新时报告检查了多少个脚本", async () => {
+    checkUpdate.mockResolvedValue(false as never);
+    selectAndCheck();
+
+    await waitFor(() =>
+      expect(notify.success).toHaveBeenCalledWith(t("script:batch_check_update_latest", { count: 2 }), {
+        id: "toast-1",
+      })
+    );
+  });
+
+  it("有请求失败时报告失败数，而不是说成已是最新", async () => {
+    checkUpdate.mockImplementation(
+      (uuid) => (uuid === "u1" ? Promise.reject(new Error("x")) : Promise.resolve(false)) as never
+    );
+    selectAndCheck();
+
+    await waitFor(() =>
+      expect(notify.error).toHaveBeenCalledWith(t("script:batch_check_update_failed", { count: 1 }), { id: "toast-1" })
+    );
+    expect(notify.success).not.toHaveBeenCalled();
+  });
+
+  it("选中的脚本都没有更新地址时直接说明，不发起检查", () => {
+    mockScriptData.scriptList = [{ uuid: "u3", name: "u3", metadata: {}, sort: 0 }] as unknown as ScriptLoading[];
+    selectAndCheck();
+
+    expect(checkUpdate).not.toHaveBeenCalled();
+    expect(notify.info).toHaveBeenCalledWith(t("script:batch_check_update_none"));
   });
 });
 
