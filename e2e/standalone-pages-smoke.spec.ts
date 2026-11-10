@@ -30,7 +30,6 @@ test.describe("独立扩展页面加载冒烟", () => {
     });
 
     await expect(page.getByTestId("update-empty")).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId("empty-recheck")).toBeVisible({ timeout: 10_000 });
     expect(errors).toEqual([]);
   });
 

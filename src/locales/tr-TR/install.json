@@ -119,6 +119,8 @@
     "tag_new_connect": "Yeni @connect",
     "empty_title": "Tüm betikler güncel",
     "empty_desc": "{{count}} betik denetlendi · Güncelleme yok",
+    "empty_none_title": "Denetlenecek betik yok",
+    "empty_none_desc": "Yüklü betiklerin hiçbirinde güncelleme URL'si yok veya güncelleme denetimi kapalı",
     "recheck": "Yeniden denetle",
     "tap_to_expand": "Genişletmek için tıklayın",
     "similarity": "Benzerlik",

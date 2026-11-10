@@ -118,20 +118,30 @@ describe("批量更新移动视图 检查中反馈", () => {
   });
 });
 
-describe("批量更新空状态 重新检查按钮", () => {
-  it("桌面空状态展示重新检查按钮并可触发检查", () => {
-    const onCheckNow = vi.fn();
-    renderDesktop({ updates: [], ignored: [], onCheckNow });
-    const btn = within(screen.getByTestId("update-empty")).getByTestId("empty-recheck");
-    fireEvent.click(btn);
-    expect(onCheckNow).toHaveBeenCalledTimes(1);
+describe("批量更新空状态", () => {
+  it("没有可检查更新的脚本时说明原因，而不是声称全部最新", () => {
+    renderDesktop({ updates: [], ignored: [], totalChecked: 0 });
+    const empty = screen.getByTestId("update-empty");
+    expect(empty).toHaveTextContent(t("install:updatepage.empty_none_title"));
+    expect(empty).toHaveTextContent(t("install:updatepage.empty_none_desc"));
+    expect(empty).not.toHaveTextContent(t("install:updatepage.empty_title"));
   });
 
-  it("移动空状态展示重新检查按钮并可触发检查", () => {
+  it("检查过脚本且没有更新时显示全部最新与检查数量", () => {
+    renderDesktop({ updates: [], ignored: [], totalChecked: 3 });
+    const empty = screen.getByTestId("update-empty");
+    expect(empty).toHaveTextContent(t("install:updatepage.empty_title"));
+    expect(empty).toHaveTextContent(t("install:updatepage.empty_desc", { count: 3 }));
+  });
+
+  it.each([
+    ["桌面", renderDesktop],
+    ["移动", renderMobile],
+  ])("%s空状态不重复提供检查按钮，检查入口只在顶栏", (_name, renderView) => {
     const onCheckNow = vi.fn();
-    renderMobile({ updates: [], ignored: [], onCheckNow });
-    const btn = within(screen.getByTestId("update-empty")).getByTestId("empty-recheck");
-    fireEvent.click(btn);
+    renderView({ updates: [], ignored: [], totalChecked: 3, onCheckNow });
+    expect(within(screen.getByTestId("update-empty")).queryByRole("button")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: t("install:updatepage.main_header") }));
     expect(onCheckNow).toHaveBeenCalledTimes(1);
   });
 });
@@ -415,7 +425,7 @@ describe("批量更新 空态下重新检查", () => {
 
     expect(screen.getByTestId("update-empty")).toBeTruthy();
     expect(screen.queryByTestId("update-skeleton")).toBeNull();
-    expect(screen.getByTestId("empty-recheck")).toBeDisabled();
+    expect(screen.getByRole("button", { name: t("install:updatepage.main_header") })).toBeDisabled();
   });
 });
 

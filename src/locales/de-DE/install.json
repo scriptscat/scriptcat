@@ -119,6 +119,8 @@
     "tag_new_connect": "Neuer @connect",
     "empty_title": "Alle Skripte sind aktuell",
     "empty_desc": "{{count}} Skripte geprüft · Keine Updates verfügbar",
+    "empty_none_title": "Keine Skripte zum Prüfen",
+    "empty_none_desc": "Keines der installierten Skripte hat eine Update-URL, oder die Update-Prüfung ist dafür deaktiviert",
     "recheck": "Erneut prüfen",
     "tap_to_expand": "Zum Ausklappen tippen",
     "similarity": "Ähnlichkeit",

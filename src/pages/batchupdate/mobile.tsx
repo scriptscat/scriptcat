@@ -334,7 +334,7 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
         ) : skeleton ? (
           <SkeletonCards />
         ) : empty ? (
-          <EmptyState totalChecked={view.totalChecked} checking={view.checking} onCheckNow={view.onCheckNow} />
+          <EmptyState totalChecked={view.totalChecked} />
         ) : (
           <div className="flex flex-col gap-2.5 p-4">
             {groups ? (

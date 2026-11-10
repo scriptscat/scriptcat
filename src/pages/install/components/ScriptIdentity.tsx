@@ -85,23 +85,32 @@ export function ScriptIdentity({
 
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-[22px] font-semibold leading-tight wrap-anywhere text-foreground">{name}</h1>
+            {/* 窄屏限 3 行：超长脚本名否则会把权限卡片挤出首屏；完整名称仍在 title 与下方代码的 @name 里 */}
+            <h1
+              title={name}
+              className="line-clamp-3 text-lg font-semibold leading-tight wrap-anywhere text-foreground md:line-clamp-none md:text-[22px]"
+            >
+              {name}
+            </h1>
             {version.kind === "install" ? (
               <span
                 data-testid="version-single"
-                className="rounded-md bg-input px-1.5 py-0.5 font-mono text-xs text-foreground"
+                className="whitespace-nowrap rounded-md bg-input px-1.5 py-0.5 font-mono text-xs text-foreground"
               >
                 {`v${version.version}`}
               </span>
             ) : (
-              <span className="flex items-center gap-1">
-                <span data-testid="version-old" className="font-mono text-xs text-muted-foreground line-through">
+              <span className="flex flex-wrap items-center gap-1">
+                <span
+                  data-testid="version-old"
+                  className="whitespace-nowrap font-mono text-xs text-muted-foreground line-through"
+                >
                   {`v${version.oldVersion}`}
                 </span>
                 <ArrowRight className="size-3 text-muted-foreground" />
                 <span
                   data-testid="version-new"
-                  className="rounded-md bg-primary-light px-1.5 py-0.5 font-mono text-xs text-primary"
+                  className="whitespace-nowrap rounded-md bg-primary-light px-1.5 py-0.5 font-mono text-xs text-primary"
                 >
                   {`v${version.newVersion}`}
                 </span>
@@ -109,15 +118,12 @@ export function ScriptIdentity({
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
             {author && (
-              <>
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <User className="size-3.5 shrink-0" />
-                  <span className="wrap-anywhere">{author}</span>
-                </span>
-                <span className="size-[3px] shrink-0 rounded-full bg-muted-foreground/70" aria-hidden="true" />
-              </>
+              <span className="flex min-w-0 items-center gap-1.5">
+                <User className="size-3.5 shrink-0" />
+                <span className="wrap-anywhere">{author}</span>
+              </span>
             )}
             <span className="flex min-w-0 items-center gap-1.5">
               <Globe className="size-3.5 shrink-0" />

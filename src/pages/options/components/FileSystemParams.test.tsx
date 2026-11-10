@@ -10,6 +10,7 @@ vi.mock("@Packages/filesystem/factory", () => ({
           title: "auth_type",
           type: "select",
           options: ["password", "digest", "none", "token"],
+          optionLabels: { password: "label-basic", digest: "label-digest", none: "label-none", token: "label-token" },
           minWidth: "140px",
         },
         url: { title: "url" },
@@ -75,6 +76,13 @@ describe("文件系统参数表单", () => {
     expect(screen.getByLabelText("username")).toBeInTheDocument();
     expect(screen.getByLabelText("password")).toBeInTheDocument();
     expect(screen.queryByLabelText("access_token_bearer")).not.toBeInTheDocument();
+  });
+
+  it("下拉显示选项的本地化名称，而不是内部取值", () => {
+    setup({ fileSystemType: "webdav", fileSystemParams: { authType: "token" } });
+    const trigger = screen.getByRole("combobox", { name: "auth_type" });
+    expect(trigger).toHaveTextContent("label-token");
+    expect(trigger).not.toHaveTextContent(/^token$/);
   });
 
   it("认证类型为 token 时显示 AccessToken，隐藏用户名/密码", () => {

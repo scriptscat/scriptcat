@@ -296,11 +296,13 @@ const ScriptRowMobile = React.memo(
     const { t } = useTranslation();
     const name = i18nName(script);
     const isBackground = script.type === SCRIPT_TYPE_BACKGROUND || script.type === SCRIPT_TYPE_CRONTAB;
-    const siteCount = script.favorite?.length ?? 0;
+    // favorite 由站点图标分批异步填充：未到达时是 undefined，此时不显示站点数，否则每行都会先闪一下「0 个站点」
     const meta = [
       versionDisplay(script.metadata?.version?.[0]),
       scriptTypeLabel(script.type, t),
-      script.type === SCRIPT_TYPE_NORMAL ? t("script:site_count", { count: siteCount }) : "",
+      script.type === SCRIPT_TYPE_NORMAL && script.favorite
+        ? t("script:site_count", { count: script.favorite.length })
+        : "",
     ]
       .filter(Boolean)
       .join(" · ");

@@ -119,6 +119,8 @@
     "tag_new_connect": "新增 @connect",
     "empty_title": "所有脚本均为最新",
     "empty_desc": "已检查 {{count}} 个脚本 · 暂无可用更新",
+    "empty_none_title": "没有可检查更新的脚本",
+    "empty_none_desc": "已安装的脚本都没有更新地址，或已关闭检查更新",
     "recheck": "重新检查",
     "tap_to_expand": "点击展开",
     "similarity": "相似度",

@@ -106,12 +106,15 @@ function CollapsedCard({
         className="flex w-full items-center gap-2.5 rounded-xl px-4 py-3.5 text-left hover:bg-muted"
       >
         <ShieldCheck className="size-[18px] shrink-0 text-primary" />
-        <span className="text-sm font-semibold text-foreground">{t("install:perm_card_title_short")}</span>
+        {/* 窄屏下这一行放不下：只让「与旧版相同」那段截断，其余不收缩不换行，否则中文会被挤成一字一行 */}
+        <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-foreground">
+          {t("install:perm_card_title_short")}
+        </span>
         <NoChangeTag />
-        <span className="truncate text-xs text-muted-foreground">
+        <span className="min-w-0 truncate text-xs text-muted-foreground">
           {t("install:perm_card_same_as", { version: baselineVersion })}
         </span>
-        <span className="text-xs text-muted-foreground">
+        <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
           {t("install:perm_card_summary", { kinds: rows.length, count: total })}
         </span>
         <ChevronDown className="ml-auto size-4 shrink-0 text-muted-foreground" />

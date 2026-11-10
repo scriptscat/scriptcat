@@ -119,12 +119,15 @@ export function CodePreview({
     <Dialog open={fullscreen} onOpenChange={setFullscreenMode}>
       <section ref={sectionRef} className="rounded-xl border border-border bg-card">
         <div className="flex items-center gap-2 border-b border-border px-4 py-1.5">
-          <CodeXml className="size-4 text-fg-secondary" />
-          <span className="text-sm font-semibold text-foreground">{t("editor:code")}</span>
-          <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-fg-secondary">
+          <CodeXml className="size-4 shrink-0 text-fg-secondary" />
+          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-foreground">{t("editor:code")}</span>
+          {/* 窄屏放不下整行：语言标签信息量最低，让位给行数与操作按钮 */}
+          <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-fg-secondary max-md:hidden">
             {language}
           </span>
-          <span className="text-xs text-muted-foreground">{t("install:code_lines", { count: lineCount })}</span>
+          <span className="min-w-0 truncate text-xs text-muted-foreground">
+            {t("install:code_lines", { count: lineCount })}
+          </span>
           {diffStat && (
             <span className="flex items-center gap-1.5 font-mono text-xs">
               <span className="text-success-fg">{`+${diffStat.added}`}</span>
@@ -178,12 +181,14 @@ export function CodePreview({
           className="left-0 top-0 flex h-dvh w-dvw max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 bg-background p-0 sm:rounded-none [&>button]:top-1.5 [&>button]:size-11 md:[&>button]:top-3 md:[&>button]:size-8"
         >
           <div className="flex min-h-14 shrink-0 items-center gap-2 border-b border-border px-4 py-1.5 pr-16">
-            <CodeXml aria-hidden="true" className="size-4 text-fg-secondary" />
-            <DialogTitle className="truncate text-sm font-semibold">{t("editor:code")}</DialogTitle>
-            <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-fg-secondary">
+            <CodeXml aria-hidden="true" className="size-4 shrink-0 text-fg-secondary" />
+            <DialogTitle className="shrink-0 whitespace-nowrap text-sm font-semibold">{t("editor:code")}</DialogTitle>
+            <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-fg-secondary max-md:hidden">
               {language}
             </span>
-            <span className="text-xs text-muted-foreground">{t("install:code_lines", { count: lineCount })}</span>
+            <span className="min-w-0 truncate text-xs text-muted-foreground">
+              {t("install:code_lines", { count: lineCount })}
+            </span>
             {diffStat && (
               <span className="flex items-center gap-1.5 font-mono text-xs">
                 <span className="text-success-fg">{`+${diffStat.added}`}</span>

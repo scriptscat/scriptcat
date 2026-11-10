@@ -122,7 +122,7 @@ export default function FileSystemParams({
                   <SelectContent>
                     {props.options!.map((option) => (
                       <SelectItem key={option} value={option}>
-                        {option}
+                        {props.optionLabels?.[option] ?? option}
                       </SelectItem>
                     ))}
                   </SelectContent>

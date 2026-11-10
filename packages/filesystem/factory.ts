@@ -17,6 +17,8 @@ export type FileSystemParams = {
     title: string;
     type?: "select" | "authorize" | "password";
     options?: string[];
+    /** 选项取值 → 展示名；取值本身是存储/协议用的标识，不直接给用户看 */
+    optionLabels?: Record<string, string>;
     visibilityFor?: string[];
     minWidth?: string;
   };
@@ -94,6 +96,12 @@ export default class FileSystemFactory {
           title: t("auth_type"),
           type: "select",
           options: ["password", "digest", "none", "token"],
+          optionLabels: {
+            password: t("auth_type_password"),
+            digest: t("auth_type_digest"),
+            none: t("auth_type_none"),
+            token: t("auth_type_token"),
+          },
           minWidth: "140px",
         },
         url: { title: t("url") },

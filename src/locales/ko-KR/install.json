@@ -119,6 +119,8 @@
     "tag_new_connect": "새 @connect",
     "empty_title": "모든 스크립트가 최신 상태입니다",
     "empty_desc": "{{count}}개 스크립트 확인 · 업데이트 없음",
+    "empty_none_title": "업데이트를 확인할 스크립트가 없습니다",
+    "empty_none_desc": "설치된 스크립트에 업데이트 URL이 없거나 업데이트 확인이 꺼져 있습니다",
     "recheck": "다시 확인",
     "tap_to_expand": "클릭하여 펼치기",
     "similarity": "유사도",

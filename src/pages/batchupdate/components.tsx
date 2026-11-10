@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   CircleCheckBig,
+  CircleSlash,
   Download,
   Globe,
   Loader2,
@@ -843,31 +844,24 @@ function SkeletonRows() {
   );
 }
 
-/** 空状态：所有脚本均为最新。重新检查时原地保留，只让按钮转圈，不整页闪回骨架 */
-export function EmptyState({
-  totalChecked,
-  checking,
-  onCheckNow,
-}: {
-  totalChecked: number;
-  checking: boolean;
-  onCheckNow: () => void;
-}) {
+/**
+ * 空状态。检查入口只在顶栏：这里再放一个按钮是同一个动作出现两次。
+ * 没有更新地址或关闭了检查更新的脚本不进检查记录，所以 totalChecked 为 0 表示「没有可检查的脚本」，
+ * 不能说成「所有脚本均为最新」。
+ */
+export function EmptyState({ totalChecked }: { totalChecked: number }) {
   const { t } = useTranslation();
+  const none = totalChecked === 0;
   return (
     <StateScreen
       data-testid="update-empty"
-      icon={CircleCheckBig}
-      tone="primary"
+      icon={none ? CircleSlash : CircleCheckBig}
+      tone={none ? "muted" : "primary"}
       compact
       className="py-24"
-      title={t("install:updatepage.empty_title")}
-      description={t("install:updatepage.empty_desc", { count: totalChecked })}
-      action={
-        <Button data-testid="empty-recheck" disabled={checking} onClick={onCheckNow}>
-          <RefreshCw className={cn(checking && "animate-spin")} />
-          {t("install:updatepage.recheck")}
-        </Button>
+      title={none ? t("install:updatepage.empty_none_title") : t("install:updatepage.empty_title")}
+      description={
+        none ? t("install:updatepage.empty_none_desc") : t("install:updatepage.empty_desc", { count: totalChecked })
       }
     />
   );
@@ -979,7 +973,7 @@ export function DesktopView({ view }: { view: BatchUpdateViewProps }) {
           ) : showSkeleton(view, empty) ? (
             <SkeletonTable />
           ) : empty ? (
-            <EmptyState totalChecked={view.totalChecked} checking={view.checking} onCheckNow={view.onCheckNow} />
+            <EmptyState totalChecked={view.totalChecked} />
           ) : (
             <>
               {view.updates.length > 0 && (

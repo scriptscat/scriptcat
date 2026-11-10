@@ -119,6 +119,8 @@
     "tag_new_connect": "@connect mới",
     "empty_title": "Tất cả tập lệnh đều là mới nhất",
     "empty_desc": "Đã kiểm tra {{count}} tập lệnh · Không có bản cập nhật",
+    "empty_none_title": "Không có tập lệnh nào để kiểm tra",
+    "empty_none_desc": "Các tập lệnh đã cài đặt không có URL cập nhật, hoặc đã tắt kiểm tra cập nhật",
     "recheck": "Kiểm tra lại",
     "tap_to_expand": "Nhấn để mở rộng",
     "similarity": "Độ tương đồng",

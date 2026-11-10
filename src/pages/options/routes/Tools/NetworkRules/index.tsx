@@ -435,9 +435,10 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
       </header>
 
       <div className="flex flex-1 flex-col gap-4 overflow-auto scrollbar-custom px-4 py-4 md:px-6">
-        <div className="flex flex-wrap items-center gap-2">
+        {/* 窄屏按两列网格排：搜索独占一行，两个筛选、两个按钮各等宽一行，而不是五个控件宽窄不一地自然换行 */}
+        <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap md:items-center">
           <SearchInput
-            className="min-w-[200px] flex-1"
+            className="col-span-2 md:min-w-[200px] md:flex-1"
             placeholder={t("tools:network_rules_search_placeholder")}
             aria-label={t("tools:network_rules_search_placeholder")}
             value={query}
@@ -460,7 +461,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
               clearSelection();
             }}
           >
-            <SelectTrigger className="w-[136px]" aria-label={t("tools:network_rules_filter_action")}>
+            <SelectTrigger className="w-full md:w-[136px]" aria-label={t("tools:network_rules_filter_action")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -480,7 +481,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
               clearSelection();
             }}
           >
-            <SelectTrigger className="w-[120px]" aria-label={t("tools:network_rules_filter_status")}>
+            <SelectTrigger className="w-full md:w-[120px]" aria-label={t("tools:network_rules_filter_status")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

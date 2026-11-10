@@ -119,6 +119,8 @@
     "tag_new_connect": "新增 @connect",
     "empty_title": "所有腳本皆為最新",
     "empty_desc": "已檢查 {{count}} 個腳本 · 暫無可用更新",
+    "empty_none_title": "沒有可檢查更新的腳本",
+    "empty_none_desc": "已安裝的腳本都沒有更新網址，或已關閉檢查更新",
     "recheck": "重新檢查",
     "tap_to_expand": "點擊展開",
     "similarity": "相似度",
