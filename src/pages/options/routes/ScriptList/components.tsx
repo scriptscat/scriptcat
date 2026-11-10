@@ -292,8 +292,11 @@ export const UpdateTimeCell = React.memo(({ script, emphasized }: { script: Scri
       .requestCheckUpdate(script.uuid)
       // res 为 true 时已自动打开更新页，并就近提示「存在新版本」；为 false 表示已是最新版本
       .then((res) => setState(res ? "has-update" : "latest"))
-      .catch(() => setState("idle"));
-  }, [state, script.uuid, script.checkUpdateUrl]);
+      .catch((e) => {
+        setState("idle");
+        notify.error(`${t("script:update_check_failed")}: ${e}`);
+      });
+  }, [state, script.uuid, script.checkUpdateUrl, t]);
 
   // 「已是最新」短暂提示后恢复默认
   useEffect(() => {

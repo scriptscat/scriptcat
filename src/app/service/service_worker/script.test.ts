@@ -1683,3 +1683,105 @@ describe("ScriptService.batchUpdateListAction —— 忽略更新", () => {
     expect(res?.items[0]).toMatchObject({ uuid: "missing", success: false });
   });
 });
+
+describe("ScriptService 检查更新 —— 推算的 meta.js 不可用时回退 (#1840)", () => {
+  // 未声明 @updateURL/@downloadURL 的脚本：检查地址由安装地址的 user.js 推算成 meta.js，
+  // GitHub raw、镜像站等托管方并不提供 meta.js
+  const USER_URL = "https://example.test/gh-pages/main.user.js";
+  const META_URL = "https://example.test/gh-pages/main.meta.js";
+  const userscript = (version: string) =>
+    [
+      "// ==UserScript==",
+      "// @name        回退目标",
+      "// @namespace   scriptcat-test",
+      `// @version     ${version}`,
+      "// ==/UserScript==",
+      "console.log(1);",
+    ].join("\n");
+
+  const saveTarget = (scriptDAO: ScriptDAO, overrides: Partial<Script> = {}, uuid = "u-fallback") =>
+    scriptDAO.save(
+      makeScript({
+        uuid,
+        name: "回退目标",
+        namespace: "scriptcat-test",
+        metadata: { name: ["回退目标"], namespace: ["scriptcat-test"], version: ["1.9.4.4-2026-11-01"] },
+        origin: USER_URL,
+        downloadUrl: USER_URL,
+        checkUpdateUrl: META_URL,
+        checkUpdate: true,
+        ...overrides,
+      })
+    );
+
+  const metaNotFound = (code: string) => async (url: string) => {
+    if (url === META_URL) throw new Error("fetch script info failed");
+    if (url === USER_URL) return code;
+    throw new Error(`unexpected url ${url}`);
+  };
+
+  beforeEach(() => {
+    h.fetchScriptBody.mockReset();
+  });
+
+  it("meta.js 请求失败时改用安装地址检查，仅日期后缀变化也判定为有更新", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveTarget(scriptDAO);
+    h.fetchScriptBody.mockImplementation(metaNotFound(userscript("1.9.4.4-2026-11-08")));
+
+    await expect(service.checkUpdateAvailable("u-fallback")).resolves.toMatchObject({ uuid: "u-fallback" });
+    expect(h.fetchScriptBody.mock.calls.map(([url]) => url)).toEqual([META_URL, USER_URL]);
+  });
+
+  it("回退拉到的版本未变化时判定为已是最新", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveTarget(scriptDAO);
+    h.fetchScriptBody.mockImplementation(metaNotFound(userscript("1.9.4.4-2026-11-01")));
+
+    await expect(service.checkUpdateAvailable("u-fallback")).resolves.toBe(false);
+  });
+
+  it("meta.js 可用时不再请求安装地址", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveTarget(scriptDAO);
+    h.fetchScriptBody.mockResolvedValue(userscript("1.9.4.4-2026-11-08"));
+
+    await expect(service.checkUpdateAvailable("u-fallback")).resolves.toMatchObject({ uuid: "u-fallback" });
+    expect(h.fetchScriptBody.mock.calls.map(([url]) => url)).toEqual([META_URL]);
+  });
+
+  it("推算地址与安装地址都失败时如实报告检查失败，而不是已是最新", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveTarget(scriptDAO);
+    h.fetchScriptBody.mockRejectedValue(new Error("fetch script info failed"));
+
+    await expect(service.checkUpdateAvailable("u-fallback")).rejects.toThrow("fetch script info failed");
+    expect(h.fetchScriptBody.mock.calls.map(([url]) => url)).toEqual([META_URL, USER_URL]);
+  });
+
+  it("作者显式声明的检查地址失败时不回退，直接报告失败", async () => {
+    const { service, scriptDAO } = buildService();
+    const explicitUpdateUrl = "https://updates.example.test/script.meta.js";
+    await saveTarget(scriptDAO, { checkUpdateUrl: explicitUpdateUrl });
+    h.fetchScriptBody.mockRejectedValue(new Error("fetch script info failed"));
+
+    await expect(service.checkUpdateAvailable("u-fallback")).rejects.toThrow("fetch script info failed");
+    expect(h.fetchScriptBody.mock.calls.map(([url]) => url)).toEqual([explicitUpdateUrl]);
+  });
+
+  it("批量检查中单个脚本失败不影响其它脚本的检查结果", async () => {
+    const { service, scriptDAO } = buildService();
+    const brokenUrl = "https://broken.example.test/a.meta.js";
+    await saveTarget(scriptDAO, { checkUpdateUrl: brokenUrl }, "u-broken");
+    await saveTarget(scriptDAO, {}, "u-fallback");
+    h.fetchScriptBody.mockImplementation(async (url: string) => {
+      if (url === brokenUrl) throw new Error("fetch script info failed");
+      return metaNotFound(userscript("1.9.4.4-2026-11-08"))(url);
+    });
+
+    const results = await service.checkUpdatesAvailable(["u-broken", "u-fallback"], { MIN_DELAY: 0, MAX_DELAY: 0 });
+
+    expect(results[0]).toBe(false);
+    expect(results[1]).toMatchObject({ updateAvailable: true, metadata: { version: ["1.9.4.4-2026-11-08"] } });
+  });
+});
