@@ -88,6 +88,7 @@ describe("ValueUpdatePorts 精准推送", () => {
     bad.sendMessage = () => {
       throw error;
     };
+    const disconnect = vi.spyOn(bad, "disconnect");
     good.sent = [];
 
     ports.push("a", update);
@@ -98,6 +99,8 @@ describe("ValueUpdatePorts 精准推送", () => {
     ]);
     expect(onError).toHaveBeenCalledOnce();
     expect(onError).toHaveBeenCalledWith({ kind: "push", storageName: "a" }, error);
+    // 只删除 SW 索引不够：客户端仍可能认为 Port 正常，无法自动重连并重新订阅。
+    expect(disconnect).toHaveBeenCalledOnce();
   });
 
   it("订阅确认发送失败时关闭 Port，不保留不能确认的订阅", () => {

@@ -123,6 +123,33 @@ describe("ScriptingValuePort 生命周期", () => {
     channel.stop();
   });
 
+  it("bfcache 恢复时旧连接仍在建立也能重连，迟到的旧 Port 不覆盖新 Port", async () => {
+    let resolveOld!: (port: MessageConnect) => void;
+    const oldPortPromise = new Promise<MessageConnect>((resolve) => (resolveOld = resolve));
+    const newPort = new TestPort();
+    const oldPort = new TestPort();
+    const oldDisconnect = vi.spyOn(oldPort, "disconnect");
+    const connect = vi.fn().mockReturnValueOnce(oldPortPromise).mockResolvedValueOnce(newPort);
+    const channel = new ScriptingValuePort({ connect } as unknown as MessageSend, vi.fn());
+    channel.start();
+    const ready = channel.subscribe(["a"]);
+
+    const pageshow = new PageTransitionEvent("pageshow");
+    Object.defineProperty(pageshow, "persisted", { value: true });
+    window.dispatchEvent(pageshow);
+    await vi.waitFor(() => expect(connect).toHaveBeenCalledTimes(2));
+
+    resolveOld(oldPort);
+    await Promise.resolve();
+    newPort.receive({ code: 0, data: { ready: true } });
+    expect(newPort.sent).toEqual([{ action: "runtime/subscribeValueUpdates", data: ["a"] }]);
+    expect(oldPort.sent).toEqual([]);
+    expect(oldDisconnect).toHaveBeenCalledOnce();
+    newPort.receive({ action: "runtime/valueSubscriptionsReady" });
+    await ready;
+    channel.stop();
+  });
+
   it("订阅发送时 Port 已经断开则重试，而非永久卡住 pageLoad", async () => {
     vi.useFakeTimers();
     const oldPort = new TestPort();

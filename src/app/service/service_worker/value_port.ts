@@ -51,6 +51,12 @@ export default class ValueUpdatePorts {
       } catch (error) {
         // Port 关闭可能先于 onDisconnect 事件；一次失败不影响其他 frame。
         this.removeSubscriptions(port);
+        // 连接仍可能存活（如 postMessage 序列化失败），必须通知 frame 重连。
+        try {
+          port.disconnect(true);
+        } catch {
+          // 清理索引已完成；断开失败也不能阻碍其他 frame。
+        }
         this.onSendError({ kind: "push", storageName }, error);
       }
     }

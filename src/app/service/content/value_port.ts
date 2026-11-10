@@ -5,6 +5,7 @@ import type { ValueUpdateDataEncoded } from "./types";
 export default class ScriptingValuePort {
   private port: MessageConnect | undefined;
   private connecting = false;
+  private connectionGeneration = 0;
   private portReady = false;
   private stopped = false;
   private storageNames: string[] | undefined;
@@ -17,6 +18,9 @@ export default class ScriptingValuePort {
     const port = this.port;
     this.port = undefined;
     this.portReady = false;
+    // 冻结前发出的 connect Promise 可能在恢复后才完成，不能接受其旧 Port。
+    this.connectionGeneration++;
+    this.connecting = false;
     port?.disconnect(true);
     if (this.retryTimer !== undefined) clearTimeout(this.retryTimer);
     this.retryTimer = undefined;
@@ -47,6 +51,8 @@ export default class ScriptingValuePort {
 
   stop() {
     this.stopped = true;
+    this.connectionGeneration++;
+    this.connecting = false;
     window.removeEventListener("pageshow", this.onPageShow);
     if (this.retryTimer !== undefined) clearTimeout(this.retryTimer);
     this.retryTimer = undefined;
@@ -58,14 +64,15 @@ export default class ScriptingValuePort {
   private connect() {
     if (this.stopped || this.connecting || this.port) return;
     this.connecting = true;
+    const generation = this.connectionGeneration;
     this.sender
       .connect({ action: "serviceWorker/runtime/valueUpdates" })
       .then((port) => {
-        this.connecting = false;
-        if (this.stopped) {
+        if (this.stopped || generation !== this.connectionGeneration) {
           port.disconnect(true);
           return;
         }
+        this.connecting = false;
         this.port = port;
         this.portReady = false;
         port.onMessage((message) => {
@@ -91,6 +98,7 @@ export default class ScriptingValuePort {
         });
       })
       .catch((error: unknown) => {
+        if (this.stopped || generation !== this.connectionGeneration) return;
         this.connecting = false;
         console.error("value update Port connection failed", error);
         this.scheduleReconnect();
