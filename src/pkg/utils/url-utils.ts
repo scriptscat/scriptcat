@@ -75,11 +75,14 @@ const LOCALE_SEGMENT = "(?:[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]+)*/)?";
 // 详情页及其子页面（/code、/versions、/discussions/123 …）；带 "." 的路径已是脚本文件直链，不做转换
 const GREASYFORK_PAGE = new RegExp(`^/${LOCALE_SEGMENT}scripts/(\\d+)(?:-([^/]+))?(?:/[^.]*)?$`);
 const SCRIPTCAT_PAGE = new RegExp(`^/${LOCALE_SEGMENT}script-show-page/(\\d+)(?:/[^.]*)?$`);
+const OPENUSERJS_PAGE = /^\/scripts\/([^/]+)\/([^/]+)(?:\/[^.]*)?$/;
+// /{user}/{id}；多文件 Gist 的 /raw 只返回第一个文件，页面锚点 #file-xxx 是有损 slug，无法还原文件名
+const GIST_PAGE = /^\/([^/]+)\/([0-9a-f]+)(?:\/[^.]*)?$/;
 // /{owner}/{repo}/blob/{ref}/{path}；ref 可能含 "/"，raw 域名下去掉 blob 段后路径布局一致，无需拆分 ref 与 path
 const GITHUB_BLOB_PAGE = /^\/([^/]+\/[^/]+)\/blob\/(.+)$/;
 
 /**
- * 把 Greasy Fork / ScriptCat 的脚本详情页、GitHub 的文件页面链接转换为可直接下载脚本的安装链接，其余输入原样返回。
+ * 把 Greasy Fork / ScriptCat / OpenUserJS 的脚本详情页、GitHub 文件页面与 Gist 页面链接转换为可直接下载脚本的安装链接，其余输入原样返回。
  * Greasy Fork / ScriptCat 的安装链接只按脚本 ID 定位，文件名部分可任意，所以无需请求页面获取真实脚本名。
  */
 export const toScriptInstallUrl = (url: string): string => {
@@ -98,6 +101,12 @@ export const toScriptInstallUrl = (url: string): string => {
   } else if (u.hostname === "github.com") {
     const m = GITHUB_BLOB_PAGE.exec(u.pathname);
     if (m) return `https://raw.githubusercontent.com/${m[1]}/${m[2]}`;
+  } else if (u.hostname === "openuserjs.org") {
+    const m = OPENUSERJS_PAGE.exec(u.pathname);
+    if (m) return `https://openuserjs.org/install/${m[1]}/${m[2]}.user.js`;
+  } else if (u.hostname === "gist.github.com") {
+    const m = GIST_PAGE.exec(u.pathname);
+    if (m) return `https://gist.githubusercontent.com/${m[1]}/${m[2]}/raw`;
   }
   return url;
 };

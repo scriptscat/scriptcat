@@ -300,12 +300,32 @@ describe.concurrent("toScriptInstallUrl", () => {
     }
   );
 
+  it.concurrent("OpenUserJS 脚本页面及其子页面转换为 /install/ 安装链接", () => {
+    expect(toScriptInstallUrl("https://openuserjs.org/scripts/someone/My_Script")).toBe(
+      "https://openuserjs.org/install/someone/My_Script.user.js"
+    );
+    expect(toScriptInstallUrl("https://openuserjs.org/scripts/someone/My_Script/source")).toBe(
+      "https://openuserjs.org/install/someone/My_Script.user.js"
+    );
+  });
+
+  it.concurrent("Gist 页面及其子页面转换为最新版本的 raw 链接", () => {
+    expect(toScriptInstallUrl("https://gist.github.com/someone/bfa7efaad3d64e09ade2b27d8673397e")).toBe(
+      "https://gist.githubusercontent.com/someone/bfa7efaad3d64e09ade2b27d8673397e/raw"
+    );
+    expect(toScriptInstallUrl("https://gist.github.com/someone/bfa7efaad3d64e09ade2b27d8673397e/revisions")).toBe(
+      "https://gist.githubusercontent.com/someone/bfa7efaad3d64e09ade2b27d8673397e/raw"
+    );
+  });
+
   it.concurrent("已经是脚本文件的直链保持不变", () => {
     for (const url of [
       "https://update.greasyfork.org/scripts/419215/AutoPager.user.js",
       "https://greasyfork.org/scripts/419215/code/AutoPager.user.js",
       "https://scriptcat.org/scripts/code/2827/x.user.js",
       "https://github.com/scriptscat/scriptcat/raw/main/example/gm_xhr.js",
+      "https://openuserjs.org/install/someone/My_Script.user.js",
+      "https://gist.github.com/someone/bfa7efaad3d64e09ade2b27d8673397e/raw/abc123/a.user.js",
     ]) {
       expect(toScriptInstallUrl(url)).toBe(url);
     }
@@ -319,7 +339,9 @@ describe.concurrent("toScriptInstallUrl", () => {
       "https://github.com/scriptscat/scriptcat",
       "https://github.com/scriptscat/scriptcat/tree/main/example",
       "https://example.com/zh-CN/scripts/419215-autopager",
-      "https://openuserjs.org/scripts/someone/Script",
+      "https://openuserjs.org/users/someone/scripts",
+      "https://gist.github.com/someone",
+      "https://gist.github.com/someone/starred",
       "not a url",
     ]) {
       expect(toScriptInstallUrl(url)).toBe(url);
