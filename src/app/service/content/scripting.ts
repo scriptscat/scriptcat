@@ -106,7 +106,7 @@ export default class ScriptingRuntime {
         for (const [tabName, tab] of Object.entries(script.config ?? {})) {
           if (!tab || typeof tab !== "object") continue;
           for (const [key, option] of Object.entries(tab)) {
-            if (!option) continue;
+            if (!option || typeof option !== "object" || !("default" in option)) continue;
             const field = `${tabName}.${key}`;
             if (values[field] === undefined) values[field] = option.default;
           }
