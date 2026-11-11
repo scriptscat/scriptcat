@@ -203,6 +203,8 @@ class GM_Base implements IGM_Base {
   @GMContext.protected()
   protected reconcileValue(): Promise<void> {
     if (this.reconcilePromise) return this.reconcilePromise;
+    const requestedEpoch = this.scriptRes?.valueEpoch ?? "";
+    const requestedRevision = this.scriptRes?.valueRevision ?? 0;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const promise = Promise.race([
       this.sendMessage("GM_valueSnapshot", []),
@@ -214,6 +216,10 @@ class GM_Base implements IGM_Base {
         if (!snapshot || typeof snapshot.revision !== "number" || typeof snapshot.epoch !== "string") {
           throw new Error("Invalid GM value snapshot");
         }
+        const script = this.scriptRes;
+        // A newer storage generation may have arrived while this read was in flight.
+        if (script && script.valueEpoch !== snapshot.epoch &&
+          ((script.valueEpoch ?? "") !== requestedEpoch || (script.valueRevision ?? 0) !== requestedRevision)) return;
         this.valueSnapshot(snapshot);
       })
       .finally(() => {
