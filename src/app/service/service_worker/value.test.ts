@@ -99,6 +99,31 @@ describe("ValueService - setValue 方法测试", () => {
     vi.restoreAllMocks();
   });
 
+  it("用户配置默认值不应污染持久化 GM 数据或版本快照", async () => {
+    const script = createMockScript({
+      config: {
+        general: {
+          theme: { title: "Theme", description: "", index: 0, default: "light" },
+        },
+      },
+    });
+    const stored = {
+      uuid: script.uuid, storageName: getStorageName(script),
+      data: { x: 1 }, revision: 4, epoch: "g",
+      createtime: 1, updatetime: 1,
+    } satisfies Value;
+    vi.mocked(mockValueDAO.get).mockResolvedValue(stored);
+
+    const [pageValue] = await valueService.getScriptValueDetails(script);
+    expect(pageValue).toEqual({ x: 1, "general.theme": "light" });
+    expect(stored.data).toEqual({ x: 1 });
+
+    const snapshot = await valueService.getValueSnapshot(getStorageName(script));
+    expect(snapshot).toEqual({
+      storageName: getStorageName(script), values: { x: 1 }, revision: 4, epoch: "g",
+    });
+  });
+
   it("持久化 revision 随真实写入单调递增；同值更新不增加 revision", async () => {
     const script = createMockScript();
     let record: Value | undefined;
