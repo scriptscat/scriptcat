@@ -425,7 +425,9 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public "GM.setValues"(values: { [key: string]: any }): Promise<void> {
-    if (!values || typeof values !== "object") return Promise.reject(new Error("GM.setValues: values must be an object"));
+    if (!values || typeof values !== "object") {
+      return Promise.reject(new Error("GM.setValues: values must be an object"));
+    }
     return _GM_setValues(this, values);
   }
 

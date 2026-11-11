@@ -1300,6 +1300,10 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
+
+});
+
+describe("GM write acknowledgement timeout", () => {
   it("无回执时写入 Promise 有界超时，不在全局 Map 永久悬挂", async () => {
     vi.useFakeTimers();
     try {

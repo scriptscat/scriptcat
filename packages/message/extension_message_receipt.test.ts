@@ -7,7 +7,7 @@ describe("ExtensionMessage RPC response", () => {
   it("lastError rejects instead of resolving an absent response", async () => {
     const runtime = {
       lastError: { message: "Extension context invalidated" },
-      sendMessage: vi.fn((_request, callback) => callback(undefined)),
+      sendMessage: vi.fn((_request: unknown, callback: (response: unknown) => void) => callback(undefined)),
     };
     vi.stubGlobal("chrome", { runtime });
     await expect(new ExtensionMessage().sendMessage({ action: "test" })).rejects.toThrow(
@@ -18,7 +18,7 @@ describe("ExtensionMessage RPC response", () => {
   it("successful void payload remains a valid transport response", async () => {
     const runtime = {
       lastError: undefined,
-      sendMessage: vi.fn((_request, callback) => callback({ code: 0, data: undefined })),
+      sendMessage: vi.fn((_request: unknown, callback: (response: unknown) => void) => callback({ code: 0, data: undefined })),
     };
     vi.stubGlobal("chrome", { runtime });
     await expect(new ExtensionMessage().sendMessage({ action: "test" })).resolves.toEqual({

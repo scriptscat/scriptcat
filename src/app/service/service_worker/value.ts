@@ -6,7 +6,12 @@ import { TrashScriptDAO } from "@App/app/repo/trash_script";
 import type { IGetSender, Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
 import { getStorageName } from "@App/pkg/utils/utils";
-import type { ValueUpdateDataEncoded, ValueUpdateDataREntry, ValueUpdateSender, ValueWriteReceipt } from "../content/types";
+import type {
+  ValueUpdateDataEncoded,
+  ValueUpdateDataREntry,
+  ValueUpdateSender,
+  ValueWriteReceipt,
+} from "../content/types";
 import { type TDeleteScript } from "../queue";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { CACHE_KEY_SET_VALUE } from "@App/app/cache_key";
