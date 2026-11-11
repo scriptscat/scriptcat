@@ -233,7 +233,8 @@ describe("ScriptingRuntime 值更新投递", () => {
       snapshots: [{ storageName: "settings", revision: 2, epoch: "e", values: { x: 2 } }],
     } });
     await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/pageLoad"));
-    const script = toInject.sendMessage.mock.calls.find(([msg]) => msg.action === "inject/pageLoad")?.[0].data.scripts[0];
+    const script = toInject.sendMessage.mock.calls.find(([msg]) => msg.action === "inject/pageLoad")?.[0].data
+      .scripts[0];
     expect(script.value).toMatchObject({ x: 2, "general.theme": "light" });
   });
 
@@ -256,8 +257,8 @@ describe("ScriptingRuntime 值更新投递", () => {
       snapshots: [{ storageName: "shared", revision: 2, epoch: "epoch-1", values: { k: 2 } }],
     } });
     await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/pageLoad"));
-    expect(toInject.sendMessage.mock.calls.find(([msg]) => msg.action === "inject/pageLoad")?.[0].data.scripts[0].value.k)
-      .toBe(2);
+    const started = toInject.sendMessage.mock.calls.find(([msg]) => msg.action === "inject/pageLoad")?.[0];
+    expect(started?.data.scripts[0].value.k).toBe(2);
     toInject.sendMessage.mockClear();
     const update = (rev: number, k: number) => ({
       id: `revision-${rev}`, uuid: "a", storageName: "shared",

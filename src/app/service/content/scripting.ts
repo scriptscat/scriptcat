@@ -280,7 +280,9 @@ export default class ScriptingRuntime {
       await this.valuePort.subscribe([...pairs.keys()]);
       const starts: Promise<unknown>[] = [];
       if (contentScriptList.length) {
-        starts.push(new Client(this.senderToContent, "content").do("pageLoad", { scripts: contentScriptList, envInfo }));
+        starts.push(
+          new Client(this.senderToContent, "content").do("pageLoad", { scripts: contentScriptList, envInfo })
+        );
       }
       if (injectScriptList.length) {
         starts.push(new Client(this.senderToInject, "inject").do("pageLoad", { scripts: injectScriptList, envInfo }));
