@@ -362,7 +362,12 @@ export default class GMApi extends GM_Base {
       // A script's listener may throw after persistence succeeds. Do not turn a committed
       // write into a false failure; the listener error is local to that execution context.
       try {
-        await a.valueUpdate(receipt.update);
+        const update = a.valueUpdate(receipt.update);
+        if (update instanceof Promise) {
+          // The commit is already durable. Do not make its success depend on a
+          // subsequent snapshot RPC, which may fail during another SW restart.
+          void update.catch((error) => console.error("GM value reconciliation failed", error));
+        }
       } catch (error) {
         console.error("GM value update listener failed", error);
       }
