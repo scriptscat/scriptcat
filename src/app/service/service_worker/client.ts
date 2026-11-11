@@ -18,6 +18,7 @@ import type {
   TPopupPageStatus,
 } from "./types";
 import { Client } from "@Packages/message/client";
+import { MessageResponseLostError } from "@Packages/message/errors";
 import type { MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
 import { type UserConfirm } from "./permission_verify";
@@ -122,6 +123,9 @@ export class NetworkRuleClient extends Client {
     try {
       result = await this.do<T>(action, data);
     } catch (error) {
+      if (error instanceof MessageResponseLostError && action !== "getState") {
+        throw new NetworkRuleAmbiguousResponseError();
+      }
       throw parseNetworkRuleError(error);
     }
     if (result === undefined) {

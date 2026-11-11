@@ -1,6 +1,7 @@
 import EventEmitter from "eventemitter3";
 import type { Message, MessageConnect, MessageSend, RuntimeMessageSender, TMessage, TMessageCommAction } from "./types";
 import { uuidv4 } from "@App/pkg/utils/uuid";
+import { MessageResponseLostError } from "./errors";
 
 const listenerMgr = new EventEmitter<string, any>(); // 单一管理器
 
@@ -21,7 +22,7 @@ export class ExtensionMessage implements Message {
       chrome.runtime.sendMessage(data, (resp: T) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
-          reject(new Error(lastError.message || "Extension message delivery failed"));
+          reject(new MessageResponseLostError(lastError.message || "Extension message delivery failed"));
           return;
         }
         resolve(resp);

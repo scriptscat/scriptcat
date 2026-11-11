@@ -557,7 +557,7 @@ export default class GMApi extends GM_Base {
     if (typeof message !== "string") {
       message = Native.jsonStringify(message);
     }
-    this.sendMessage("GM_log", [`${message}`, `${level}`, labels]);
+    void this.sendMessage("GM_log", [`${message}`, `${level}`, labels]).catch(() => undefined);
   }
 
   @GMContext.API({ depend: ["GM_log"] })
