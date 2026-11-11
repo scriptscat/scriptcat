@@ -15,6 +15,7 @@ export default class ScriptingValuePort {
   private subscriptionTimer: ReturnType<typeof setTimeout> | undefined;
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private retryDelay = 250;
+  private refreshInFlight = false;
   private readonly onPageShow = (event: PageTransitionEvent) => {
     if (!event.persisted || this.isStopped()) return;
     if (this.invalidContext()) return this.terminate();
@@ -153,9 +154,15 @@ export default class ScriptingValuePort {
             this.sendSubscriptions();
           } else if (message.action === "runtime/valueSubscriptionsReady") {
             const snapshots = message.data?.snapshots as ValueSnapshot[] | undefined;
-            if (Array.isArray(snapshots)) {
-              for (const snapshot of snapshots) this.onSnapshot?.(snapshot);
+            try {
+              if (Array.isArray(snapshots)) {
+                for (const snapshot of snapshots) this.onSnapshot?.(snapshot);
+              }
+            } catch (error) {
+              this.failPort(port, error);
+              return;
             }
+            this.refreshInFlight = false;
             this.retryDelay = 250;
             this.state = "active";
             const subscription = this.subscription;
@@ -173,6 +180,7 @@ export default class ScriptingValuePort {
           if (this.port !== port) return;
           this.port = undefined;
           this.portReady = false;
+          this.refreshInFlight = false;
           if (this.invalidContext()) this.terminate();
           else this.connect(); // First recovery attempt is immediate; back off only after failure.
         });
@@ -214,13 +222,16 @@ export default class ScriptingValuePort {
 
   /** Re-register and request snapshots only if server revisions have diverged. */
   refresh() {
-    if (this.portReady && this.port) this.sendSubscriptions();
+    if (!this.portReady || !this.port || this.refreshInFlight) return;
+    this.refreshInFlight = true;
+    this.sendSubscriptions();
   }
 
   private failPort(port: MessageConnect, error: unknown) {
     if (this.port !== port) return;
     this.port = undefined;
     this.portReady = false;
+    this.refreshInFlight = false;
     this.disconnectPort(port);
     if (this.invalidContext(error)) this.terminate(new Error("Extension context invalidated"));
     else this.scheduleReconnect();

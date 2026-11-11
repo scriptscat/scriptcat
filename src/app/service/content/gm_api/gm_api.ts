@@ -189,7 +189,7 @@ class GM_Base implements IGM_Base {
           const field = `${tabKey}.${key}`;
           if (option.bind) {
             const bindKey = option.bind.substring(1);
-            if (values[bindKey] === undefined) values[bindKey] = script.value[bindKey];
+            if (values[bindKey] === undefined) values[bindKey] = undefined;
           }
           if (values[field] === undefined) values[field] = option.default;
         }

@@ -210,18 +210,21 @@ export default class ScriptingRuntime {
       });
     }
     // 向service_worker请求脚本列表及环境信息
-    // Initial page injection must be finite and must never replay an already started userscript.
+    // Retry only the initial fetch; never dispatch pageLoad into script worlds twice.
+    // Recoverable SW outages do not invalidate the existing document.
     const requestPageLoad = async () => {
-      for (let attempt = 0; attempt < 3; attempt++) {
+      let retryDelay = 250;
+      for (;;) {
         try {
           return await client.pageLoad();
         } catch (error) {
-          if (/Extension context (?:was )?invalidated/i.test(String(error)) ||
-              !chrome.runtime?.id || attempt === 2) throw error;
-          await new Promise<void>((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+          if (/Extension context (?:was )?invalidated/i.test(String(error)) || !chrome.runtime?.id) throw error;
+          await new Promise<void>((resolve) =>
+            setTimeout(resolve, retryDelay + Math.random() * retryDelay)
+          );
+          retryDelay = Math.min(retryDelay * 2, 10000);
         }
       }
-      throw new Error("pageLoad failed");
     };
     void requestPageLoad().then(async (o) => {
       if (!o.ok) {
@@ -258,7 +261,12 @@ export default class ScriptingRuntime {
       if (injectScriptList.length) {
         starts.push(new Client(this.senderToInject, "inject").do("pageLoad", { scripts: injectScriptList, envInfo }));
       }
-      await Promise.allSettled(starts);
+      const outcomes = await Promise.allSettled(starts);
+      for (const outcome of outcomes) {
+        if (outcome.status === "rejected") {
+          LoggerCore.logger().error("script world startup failed", { error: outcome.reason });
+        }
+      }
       this.scriptsStarted = true;
       // Changes which raced with the world startup are reconciled once, not replayed as listeners.
       for (const name of this.stagedDirty) {
@@ -266,11 +274,11 @@ export default class ScriptingRuntime {
         const version = this.versions.get(name);
         const activeOn = pairs.get(name);
         if (script && version && activeOn) {
-          void this.broadcastToPage("runtime/valueSnapshot", {
-            storageName: name,
-            ...version,
-            values: script.value,
-          } satisfies ValueSnapshot, activeOn);
+          void this.broadcastToPage(
+            "runtime/valueSnapshot",
+            { storageName: name, ...version, values: script.value } satisfies ValueSnapshot,
+            activeOn
+          ).catch((error) => LoggerCore.logger().error("startup value snapshot failed", { error }));
         }
       }
       this.stagedDirty.clear();
