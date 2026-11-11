@@ -10,6 +10,7 @@ import { pageAddEventListener, pageDispatchEvent } from "@Packages/message/commo
 import { isUrlExcluded } from "@App/pkg/utils/match";
 import type { ScriptEnvTag } from "@Packages/message/consts";
 import { localizeObject } from "./global";
+import { decodeRValue } from "@App/pkg/utils/message_value";
 
 export type ExecScriptEntry = {
   scriptLoadInfo: TScriptInfo;
@@ -34,6 +35,9 @@ export const initEnvInfo: GMInfoEnv = {
 export class ScriptExecutor {
   earlyScriptFlag: Set<string> = new Set();
   execScriptMap: Map<string, ExecScript> = new Map();
+  // A pageLoad acknowledgement may precede the compiled userscript flag being set.
+  // Retain only the initial descriptor and its latest value state, never an event log.
+  private readonly pendingScripts = new Map<string, TScriptInfo>();
 
   constructor(
     private msg: Message,
@@ -48,27 +52,65 @@ export class ScriptExecutor {
     }
   }
 
-  valueUpdate(data: ValueUpdateDataEncoded) {
-    // runtime/valueUpdate
+  valueUpdate(data: ValueUpdateDataEncoded): void | Promise<void> {
     const { uuid, storageName } = data;
+    let handled = false;
+    const recoveries: Promise<void>[] = [];
     for (const val of this.execScriptMap.values()) {
-      if (val.scriptRes.uuid === uuid || getStorageName(val.scriptRes) === storageName) {
-        try {
-          const result = val.valueUpdate(data);
-          if (result instanceof Promise) {
-            void result.catch((error) => console.error("GM value reconciliation failed", error));
-          }
-        } catch (error) {
-          console.error("GM value update failed", error);
+      if (val.scriptRes.uuid !== uuid && getStorageName(val.scriptRes) !== storageName) continue;
+      handled = true;
+      const recovery = val.valueUpdate(data);
+      if (recovery instanceof Promise) recoveries.push(recovery);
+    }
+    for (const script of this.pendingScripts.values()) {
+      if (script.uuid !== uuid && getStorageName(script) !== storageName) continue;
+      handled = true;
+      if (data.revision !== undefined && data.epoch !== undefined) {
+        const oldRevision = script.valueRevision ?? 0;
+        const oldEpoch = script.valueEpoch ?? "";
+        if (data.epoch === oldEpoch && data.revision <= oldRevision) continue;
+        if ((oldEpoch && data.epoch !== oldEpoch) || data.revision > oldRevision + 1) {
+          throw new Error("Pending GM script requires a full value snapshot");
         }
+        script.valueRevision = data.revision;
+        script.valueEpoch = data.epoch;
+      }
+      if (!data.valueUpdated) continue;
+      for (const [key, encoded] of data.entries) {
+        const value = decodeRValue(encoded);
+        if (value === undefined) delete script.value[key];
+        else script.value[key] = value;
       }
     }
+    if (!handled) throw new Error("No script world recipient for GM value update");
+    if (recoveries.length) return Promise.all(recoveries).then(() => undefined);
   }
 
   valueSnapshot(snapshot: ValueSnapshot) {
+    let handled = false;
     for (const exec of this.execScriptMap.values()) {
-      if (getStorageName(exec.scriptRes) === snapshot.storageName) exec.valueSnapshot(snapshot);
+      if (getStorageName(exec.scriptRes) !== snapshot.storageName) continue;
+      handled = true;
+      exec.valueSnapshot(snapshot);
     }
+    for (const script of this.pendingScripts.values()) {
+      if (getStorageName(script) !== snapshot.storageName) continue;
+      handled = true;
+      if (script.valueEpoch === snapshot.epoch && (script.valueRevision ?? 0) > snapshot.revision) continue;
+      const values = { ...snapshot.values };
+      for (const [tabName, tab] of Object.entries(script.config ?? {})) {
+        if (!tab || typeof tab !== "object") continue;
+        for (const [key, option] of Object.entries(tab)) {
+          if (!option || typeof option !== "object" || !("default" in option)) continue;
+          const field = `${tabName}.${key}`;
+          if (values[field] === undefined) values[field] = option.default;
+        }
+      }
+      script.value = values;
+      script.valueRevision = snapshot.revision;
+      script.valueEpoch = snapshot.epoch;
+    }
+    if (!handled) throw new Error("No script world recipient for GM value snapshot");
   }
 
   startScripts(scripts: TScriptInfo[], envInfo: GMInfoEnv) {
@@ -100,6 +142,7 @@ export class ScriptExecutor {
           }
         }
       }
+      this.pendingScripts.set(script.uuid, script);
       definePropertyListener(window, flag, (val: ScriptFunc) => {
         loadExec(script, val);
       });
@@ -173,6 +216,7 @@ export class ScriptExecutor {
       envInfo,
     });
     this.execScriptMap.set(scriptLoadInfo.uuid, execScript);
+    this.pendingScripts.delete(scriptLoadInfo.uuid);
     const metadata = scriptLoadInfo.metadata || {};
     const resource = scriptLoadInfo.requireCssResource ?? scriptLoadInfo.resource;
     // 注入css
