@@ -279,6 +279,92 @@ describe("ScriptingRuntime 值更新投递", () => {
     await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/runtime/valueSnapshot"));
   });
 
+  it("r3 snapshot 被延迟而 r5 缺口到达时，必须补做第二次 refresh", async () => {
+    const { runtime, receive, onPortMessage, portSend, toInject } = setup({
+      ok: true,
+      injectScriptList: [{ uuid: "a", metadata: { storagename: ["shared"] },
+        value: { k: 1 }, valueRevision: 1, valueEpoch: "g" }],
+      contentScriptList: [],
+      envInfo: {},
+    });
+    runtime.pageLoad();
+    await vi.waitFor(() => expect(onPortMessage).toHaveBeenCalledOnce());
+    receive({ code: 0, data: { ready: true } });
+    receive({ action: "runtime/valueSubscriptionsReady", data: { requestId: 1 } });
+    await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/pageLoad"));
+    toInject.sendMessage.mockClear();
+    const update = (revision: number) => ({
+      id: `gap-${revision}`, uuid: "a", storageName: "shared",
+      entries: [["k", revision, revision - 1] as any],
+      sender: { runFlag: "other", tabId: 1 }, valueUpdated: true,
+      revision, epoch: "g",
+    });
+    receive({ action: "runtime/valueUpdate", data: update(3) });
+    expect(portSend).toHaveBeenCalledTimes(2);
+    receive({ action: "runtime/valueUpdate", data: update(5) });
+    expect(portSend).toHaveBeenCalledTimes(2);
+    receive({ action: "runtime/valueSubscriptionsReady", data: {
+      requestId: 2,
+      snapshots: [{ storageName: "shared", epoch: "g", revision: 3, values: { k: 3 } }],
+    } });
+    await vi.waitFor(() => expect(portSend).toHaveBeenCalledTimes(3));
+    receive({ action: "runtime/valueSubscriptionsReady", data: {
+      requestId: 3,
+      snapshots: [{ storageName: "shared", epoch: "g", revision: 5, values: { k: 5 } }],
+    } });
+    await vi.waitFor(() => expect(actionsOf(toInject.sendMessage).filter((name) =>
+      name === "inject/runtime/valueSnapshot")).toHaveLength(2));
+    const values = toInject.sendMessage.mock.calls
+      .filter(([message]) => message.action === "inject/runtime/valueSnapshot")
+      .map(([message]) => message.data.values.k);
+    expect(values).toEqual([3, 5]);
+    expect(actionsOf(toInject.sendMessage)).not.toContain("inject/runtime/valueUpdate");
+  });
+
+  it("content 送达失败不会使 inject world 停摆；仅重新同步失败的 world", async () => {
+    const { runtime, receive, onPortMessage, portSend, toContent, toInject } = setup({
+      ok: true,
+      injectScriptList: [{ uuid: "page", metadata: { storagename: ["shared"] },
+        value: { k: 1 }, valueRevision: 1, valueEpoch: "g" }],
+      contentScriptList: [{ uuid: "content", metadata: { storagename: ["shared"] },
+        value: { k: 1 }, valueRevision: 1, valueEpoch: "g" }],
+      envInfo: {},
+    });
+    runtime.pageLoad();
+    await vi.waitFor(() => expect(onPortMessage).toHaveBeenCalledOnce());
+    receive({ code: 0, data: { ready: true } });
+    receive({ action: "runtime/valueSubscriptionsReady", data: { requestId: 1 } });
+    await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/pageLoad"));
+    toContent.sendMessage.mockClear();
+    toInject.sendMessage.mockClear();
+    toContent.sendMessage.mockRejectedValueOnce(new Error("content bridge unavailable"));
+    receive({ action: "runtime/valueUpdate", data: {
+      uuid: "page", storageName: "shared", id: "update-2",
+      entries: [["k", 2, 1] as any], sender: { runFlag: "other", tabId: 1 },
+      valueUpdated: true, revision: 2, epoch: "g",
+    } });
+    await vi.waitFor(() => expect(portSend).toHaveBeenCalledTimes(2));
+    expect(actionsOf(toInject.sendMessage)).toContain("inject/runtime/valueUpdate");
+    const refresh = portSend.mock.calls[1][0];
+    expect(refresh.data.versions.shared).toEqual({ epoch: "", revision: -1 });
+    receive({ action: "runtime/valueSubscriptionsReady", data: {
+      requestId: 2,
+      snapshots: [{ storageName: "shared", epoch: "g", revision: 2, values: { k: 2 } }],
+    } });
+    await vi.waitFor(() => expect(actionsOf(toContent.sendMessage)).toContain("content/runtime/valueSnapshot"));
+    expect(actionsOf(toInject.sendMessage)).not.toContain("inject/runtime/valueSnapshot");
+  });
+
+  it("永久协议错误仅调用一次 pageLoad，不能进入无限 SW retry", async () => {
+    const { runtime, senderToExt } = setup();
+    const send = vi.mocked(senderToExt.sendMessage);
+    send.mockRejectedValue(new Error("no such api serviceWorker/runtime/pageLoad"));
+    runtime.pageLoad();
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce());
+    await new Promise<void>((resolve) => setTimeout(resolve, 650));
+    expect(send).toHaveBeenCalledOnce();
+  });
+
   it("pageLoad 没有运行脚本的 frame 不会订阅，释放 Port", async () => {
     const { runtime, toContent, toInject, portSend } = setup();
     runtime.pageLoad();

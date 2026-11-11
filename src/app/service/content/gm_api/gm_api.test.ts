@@ -1432,6 +1432,36 @@ describe("GM value version ordering and reconciliation", () => {
     expect(listener).toHaveBeenCalledTimes(130);
   });
 
+  it("r3 reconcile 尚在飞行时又观察到 r5，必须再读直到 r5", async () => {
+    const script = {
+      ...scriptRes, uuid: "ordered-script", value: { x: 1 },
+      valueRevision: 1, valueEpoch: "epoch-1",
+    } as ScriptLoadInfo;
+    const reads: Array<(response: unknown) => void> = [];
+    const sender = vi.fn().mockImplementation((message) => {
+      if (message.data.api !== "GM_valueSnapshot") throw new Error("Unexpected GM API");
+      return new Promise((resolve) => reads.push(resolve));
+    });
+    const api = new GMApi("scripting", { sendMessage: sender } as unknown as Message, {} as Message, script);
+    const listener = vi.fn();
+    api.GM_addValueChangeListener("x", listener);
+    const first = api.valueUpdate(versioned("gap-r3", 3, 3));
+    await vi.waitFor(() => expect(reads).toHaveLength(1));
+    const second = api.valueUpdate(versioned("gap-r5", 5, 5));
+    reads[0]({ code: 0, data: {
+      storageName: "ordered-script", revision: 3, epoch: "epoch-1", values: { x: 3 },
+    } });
+    await vi.waitFor(() => expect(reads).toHaveLength(2));
+    reads[1]({ code: 0, data: {
+      storageName: "ordered-script", revision: 5, epoch: "epoch-1", values: { x: 5 },
+    } });
+    await Promise.all([first, second]);
+    expect(sender).toHaveBeenCalledTimes(2);
+    expect(api.GM_getValue("x")).toBe(5);
+    expect(script.valueRevision).toBe(5);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
   it("远端事件出现 revision 缺口时读取权威 snapshot，不伪造缺失 listener 事件", async () => {
     const script = {
       ...scriptRes, uuid: "ordered-script", value: { x: 1 }, valueRevision: 1, valueEpoch: "epoch-1",

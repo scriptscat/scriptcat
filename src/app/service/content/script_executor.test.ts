@@ -31,6 +31,51 @@ function makeScript(overrides: Partial<ScriptLoadInfo & Pick<TScriptInfo, "requi
 }
 
 describe("ScriptExecutor", () => {
+  it("一个尚未出现脚本 flag 的 userscript 可先接收 r2，再只执行一次", () => {
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    const script = makeScript({
+      uuid: "late-value-1",
+      flag: "late-executor-1",
+      value: { k: 1 }, valueRevision: 1, valueEpoch: "epoch",
+      metadata: { grant: ["GM_getValue"] },
+    });
+    const actual: unknown[] = [];
+    executor.startScripts([script as TScriptInfo], initEnvInfo);
+    expect(executor.execScriptMap.size).toBe(0);
+    executor.valueUpdate({
+      id: "r2", uuid: script.uuid, storageName: script.uuid,
+      entries: [["k", 2, 1] as any], valueUpdated: true,
+      sender: { runFlag: "other" }, revision: 2, epoch: "epoch",
+    });
+    (window as any)[script.flag] = function (this: any) {
+      actual.push(this.GM_getValue("k"));
+    };
+    expect(actual).toEqual([2]);
+    expect(executor.execScriptMap.size).toBe(1);
+  });
+
+  it("两个独立 world 等待同一 storageName，接收 snapshot 后首次运行均读到新值", () => {
+    const executions: unknown[] = [];
+    const worlds = ["content", "inject"].map((name) => {
+      const executor = new ScriptExecutor({} as Message, {} as Message);
+      const script = makeScript({
+        uuid: `late-${name}`, flag: `late-script-${name}`,
+        metadata: { storagename: ["shared"], grant: ["GM_getValue"], "run-at": ["document-body"] },
+        value: { k: 1 }, valueRevision: 1, valueEpoch: "epoch",
+      });
+      executor.startScripts([script as TScriptInfo], initEnvInfo);
+      executor.valueSnapshot({ storageName: "shared", epoch: "epoch", revision: 2, values: { k: 2 } });
+      return { executor, script, name };
+    });
+    for (const { script, name } of worlds) {
+      (window as any)[script.flag] = function (this: any) {
+        executions.push([name, this.GM_getValue("k")]);
+      };
+    }
+    expect(executions).toEqual([["content", 2], ["inject", 2]]);
+    expect(worlds.map(({ executor }) => executor.execScriptMap.size)).toEqual([1, 1]);
+  });
+
   describe("resource execution", () => {
     let adoptedSheets: CSSStyleSheet[];
 
