@@ -782,7 +782,9 @@ export default class GMApi extends GM_Base {
       this.EE.addListener("menuClick:" + menuKey, listener);
     }
     // 发送至 service worker 处理（唯一键，显示名字，不包括id的其他设定）
-    this.sendMessage("GM_registerMenuCommand", [menuKey, `${name}`, options] as GMRegisterMenuCommandParam);
+    void this.sendMessage("GM_registerMenuCommand", [menuKey, `${name}`, options] as GMRegisterMenuCommandParam).catch(
+      () => undefined
+    );
     return ret;
   }
 
@@ -923,7 +925,9 @@ export default class GMApi extends GM_Base {
     this.menuKeyRegistered!.delete(menuKey);
     this.EE.removeAllListeners("menuClick:" + menuKey);
     // 发送至 service worker 处理（唯一键）
-    this.sendMessage("GM_unregisterMenuCommand", [menuKey] as GMUnRegisterMenuCommandParam);
+    void this.sendMessage("GM_unregisterMenuCommand", [menuKey] as GMUnRegisterMenuCommandParam).catch(
+      () => undefined
+    );
   }
 
   @GMContext.API({ depend: ["GM_unregisterMenuCommand"] })
@@ -951,7 +955,7 @@ export default class GMApi extends GM_Base {
   })
   public async CAT_fileStorage(action: "list" | "download" | "upload" | "delete" | "config", details: any) {
     if (action === "config") {
-      this.sendMessage("CAT_fileStorage", ["config"]);
+      await this.sendMessage("CAT_fileStorage", ["config"]);
       return;
     }
     const sendDetails: CATType.CATFileStorageDetails = {
@@ -964,7 +968,7 @@ export default class GMApi extends GM_Base {
       const url = await toBlobURL(this, details.data);
       sendDetails.data = url;
     }
-    this.sendMessage("CAT_fileStorage", [`${action}`, sendDetails]).then(
+    void this.sendMessage("CAT_fileStorage", [`${action}`, sendDetails]).then(
       async (resp: { action: string; data: any }) => {
         switch (resp.action) {
           case "onload": {
@@ -986,7 +990,9 @@ export default class GMApi extends GM_Base {
           }
         }
       }
-    );
+    ).catch((error) => {
+      details.onerror?.({ code: -1, message: String(error) });
+    });
   }
 
   // 用于脚本跨域请求,需要@connect domain指定允许的域名
@@ -1337,7 +1343,7 @@ export default class GMApi extends GM_Base {
     if (typeof data.tag === "string") {
       notificationId = notificationTagMap.get(data.tag);
     }
-    gmApi.sendMessage("GM_notification", [customClone(data), notificationId]).then((id) => {
+    const request = gmApi.sendMessage("GM_notification", [customClone(data), notificationId]).then((id) => {
       if (!gmApi.EE) return;
       if (create) {
         create.apply({ id }, [id]);
@@ -1404,7 +1410,7 @@ export default class GMApi extends GM_Base {
         }
       });
     });
-    return Promise.resolve();
+    return request.then(() => undefined);
   }
 
   @GMContext.API()
@@ -1424,19 +1430,19 @@ export default class GMApi extends GM_Base {
     image?: string,
     onclick?: GMTypes.NotificationOnClick
   ): void {
-    _GM_notification(this, detail, ondone, image, onclick);
+    void _GM_notification(this, detail, ondone, image, onclick).catch(() => undefined);
   }
 
   // ScriptCat 额外API
   @GMContext.API({ alias: "GM.closeNotification" })
   public GM_closeNotification(id: string): void {
-    this.sendMessage("GM_closeNotification", [`${id}`]);
+    void this.sendMessage("GM_closeNotification", [`${id}`]).catch(() => undefined);
   }
 
   // ScriptCat 额外API
   @GMContext.API({ alias: "GM.updateNotification" })
   public GM_updateNotification(id: string, details: GMTypes.NotificationDetails): void {
-    this.sendMessage("GM_updateNotification", [`${id}`, customClone(details)]);
+    void this.sendMessage("GM_updateNotification", [`${id}`, customClone(details)]).catch(() => undefined);
   }
 
   @GMContext.API({ depend: ["GM_closeInTab"] })
@@ -1472,7 +1478,7 @@ export default class GMApi extends GM_Base {
       onclose() {},
     };
 
-    this.sendMessage("GM_openInTab", [url, option as GMTypes.SWOpenTabOptions]).then((id) => {
+    void this.sendMessage("GM_openInTab", [url, option as GMTypes.SWOpenTabOptions]).then((id) => {
       if (!this.EE) return;
       if (id) {
         tabid = id;
@@ -1498,6 +1504,8 @@ export default class GMApi extends GM_Base {
         ret.onclose && ret.onclose();
         ret.closed = true;
       }
+    }).catch(() => {
+      ret.closed = true;
     });
 
     return ret;
@@ -1521,18 +1529,14 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   public GM_getTab(callback: (tabData: object) => void) {
     if (this.isInvalidContext()) return;
-    this.sendMessage("GM_getTab", []).then((tabData) => {
+    void this.sendMessage("GM_getTab", []).then((tabData) => {
       callback(tabData ?? {});
-    });
+    }).catch(() => undefined);
   }
 
   @GMContext.API({ depend: ["GM_getTab"] })
   public "GM.getTab"(): Promise<object> {
-    return new Promise<object>((resolve) => {
-      this.GM_getTab((data) => {
-        resolve(data);
-      });
-    });
+    return this.sendMessage("GM_getTab", []).then((data) => data ?? {});
   }
 
   @GMContext.API()
@@ -1541,32 +1545,25 @@ export default class GMApi extends GM_Base {
     if (typeof tabData === "object") {
       tabData = customClone(tabData);
     }
-    this.sendMessage("GM_saveTab", [tabData]);
+    void this.sendMessage("GM_saveTab", [tabData]).catch(() => undefined);
   }
 
   @GMContext.API({ depend: ["GM_saveTab"] })
   public "GM.saveTab"(tabData: object): Promise<void> {
-    return new Promise<void>((resolve) => {
-      this.GM_saveTab(tabData);
-      resolve();
-    });
+    return this.sendMessage("GM_saveTab", [customClone(tabData)]).then(() => undefined);
   }
 
   @GMContext.API()
   public GM_getTabs(callback: (tabsData: { [key: number]: object }) => any) {
     if (this.isInvalidContext()) return;
-    this.sendMessage("GM_getTabs", []).then((tabsData) => {
+    void this.sendMessage("GM_getTabs", []).then((tabsData) => {
       callback(tabsData);
-    });
+    }).catch(() => undefined);
   }
 
   @GMContext.API({ depend: ["GM_getTabs"] })
   public "GM.getTabs"(): Promise<{ [key: number]: object }> {
-    return new Promise<{ [key: number]: object }>((resolve) => {
-      this.GM_getTabs((tabsData) => {
-        resolve(tabsData);
-      });
-    });
+    return this.sendMessage("GM_getTabs", []).then((tabsData) => tabsData ?? {});
   }
 
   @GMContext.API()
