@@ -99,6 +99,31 @@ describe("ValueService - setValue 方法测试", () => {
     vi.restoreAllMocks();
   });
 
+  it("持久化 revision 随真实写入单调递增；同值更新不增加 revision", async () => {
+    const script = createMockScript();
+    let record: Value | undefined;
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+    vi.mocked(mockValueDAO.get).mockImplementation(async () => record);
+    vi.mocked(mockValueDAO.save).mockImplementation(async (_key, value) => {
+      record = value;
+      return value;
+    });
+    const commit = (value: number) => valueService.setValues({
+      uuid: script.uuid,
+      id: `write-${value}`,
+      keyValuePairs: [["x", encodeRValue(value)]],
+      isReplace: false,
+    });
+    const first = await commit(1);
+    const repeated = await commit(1);
+    const second = await commit(2);
+    expect(first.update.revision).toBe(1);
+    expect(repeated.update.revision).toBe(1);
+    expect(second.update.revision).toBe(2);
+    expect(second.update.epoch).toBe(first.update.epoch);
+    expect(record?.revision).toBe(2);
+  });
+
   it("应该成功设置新脚本的值", async () => {
     // 准备测试数据
     const mockScript = createMockScript();

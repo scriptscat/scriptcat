@@ -1328,6 +1328,90 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
 
 });
 
+describe("GM value version ordering and reconciliation", () => {
+  const versioned = (id: string, revision: number, value: number) => ({
+    id,
+    uuid: "ordered-script",
+    storageName: "ordered-script",
+    entries: [["x", encodeRValue(value), encodeRValue(revision - 1)]],
+    sender: { runFlag: "writer", tabId: 1 },
+    valueUpdated: true,
+    revision,
+    epoch: "epoch-1",
+  } satisfies ValueUpdateDataEncoded);
+
+  it("B 的提交回执先于 A 到达，cache 不会回退且不会触发逆序事件", async () => {
+    const script = {
+      ...scriptRes, uuid: "ordered-script", value: { x: 0 }, valueRevision: 0, valueEpoch: "epoch-1",
+    } as ScriptLoadInfo;
+    const writers = new Map<string, (response: unknown) => void>();
+    const transport = vi.fn().mockImplementation((message) => {
+      if (message.data.api === "GM_valueSnapshot") {
+        return Promise.resolve({ code: 0, data: {
+          storageName: script.uuid, revision: 2, epoch: "epoch-1", values: { x: 2 },
+        } });
+      }
+      return new Promise((resolve) => writers.set(message.data.params[0], resolve));
+    });
+    const api = new GMApi("scripting", { sendMessage: transport } as unknown as Message, {} as Message, script);
+    Object.assign(api, { runFlag: "writer" });
+    const listener = vi.fn();
+    api.GM_addValueChangeListener("x", listener);
+    const first = api["GM.setValue"]("x", 1);
+    const second = api["GM.setValue"]("x", 2);
+    await vi.waitFor(() => expect(writers.size).toBe(2));
+    const [idA, idB] = [...writers.keys()];
+    writers.get(idB)?.({ code: 0, data: { committed: true, update: versioned(idB, 2, 2) } });
+    await second;
+    writers.get(idA)?.({ code: 0, data: { committed: true, update: versioned(idA, 1, 1) } });
+    await first;
+    expect(api.GM_getValue("x")).toBe(2);
+    expect(script.valueRevision).toBe(2);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("Port 先送 A，超过 128 条其他事件后才送 ACK(A)，不得再次应用 A", async () => {
+    const script = {
+      ...scriptRes, uuid: "ordered-script", value: {}, valueRevision: 0, valueEpoch: "epoch-1",
+    } as ScriptLoadInfo;
+    let finish!: (response: unknown) => void;
+    const transport = vi.fn().mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    const api = new GMApi("scripting", { sendMessage: transport } as unknown as Message, {} as Message, script);
+    Object.assign(api, { runFlag: "writer" });
+    const listener = vi.fn();
+    api.GM_addValueChangeListener("x", listener);
+    const pending = api["GM.setValue"]("x", 1);
+    await vi.waitFor(() => expect(transport).toHaveBeenCalledOnce());
+    const id = transport.mock.calls[0][0].data.params[0] as string;
+    api.valueUpdate(versioned(id, 1, 1));
+    for (let revision = 2; revision <= 130; revision++) {
+      api.valueUpdate(versioned(`other-${revision}`, revision, revision));
+    }
+    finish({ code: 0, data: { committed: true, update: versioned(id, 1, 1) } });
+    await pending;
+    expect(script.valueRevision).toBe(130);
+    expect(api.GM_getValue("x")).toBe(130);
+    expect(listener).toHaveBeenCalledTimes(130);
+  });
+
+  it("远端事件出现 revision 缺口时读取权威 snapshot，不伪造缺失 listener 事件", async () => {
+    const script = {
+      ...scriptRes, uuid: "ordered-script", value: { x: 1 }, valueRevision: 1, valueEpoch: "epoch-1",
+    } as ScriptLoadInfo;
+    const transport = vi.fn().mockResolvedValue({ code: 0, data: {
+      storageName: script.uuid, revision: 3, epoch: "epoch-1", values: { x: 3, y: 9 },
+    } });
+    const api = new GMApi("scripting", { sendMessage: transport } as unknown as Message, {} as Message, script);
+    const listener = vi.fn();
+    api.GM_addValueChangeListener("x", listener);
+    await api.valueUpdate(versioned("remote-3", 3, 3));
+    expect(api.GM_getValue("x")).toBe(3);
+    expect(api.GM_getValue("y")).toBe(9);
+    expect(listener).not.toHaveBeenCalled();
+    expect(transport.mock.calls[0][0].data.api).toBe("GM_valueSnapshot");
+  });
+});
+
 describe("GM write acknowledgement timeout", () => {
   it("无回执时写入 Promise 有界超时，不在全局 Map 永久悬挂", async () => {
     vi.useFakeTimers();
