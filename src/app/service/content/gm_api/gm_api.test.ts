@@ -591,6 +591,29 @@ describe.concurrent("GM_menu", () => {
   });
 });
 
+// A value write has a committed RPC receipt, even when its Port notification is absent.
+// Use realistic acknowledgements so the tests observe only the intended GM operations.
+const createCommittedValueSender = () =>
+  vi.fn().mockImplementation(async (message: { data: {
+    api: string;
+    params: unknown[];
+    uuid: string;
+    runFlag: string;
+  } }) => ({
+    code: 0,
+    data: {
+      committed: true,
+      update: {
+        id: message.data.params[0],
+        uuid: message.data.uuid,
+        storageName: message.data.uuid,
+        entries: [],
+        sender: { runFlag: message.data.runFlag },
+        valueUpdated: false,
+      },
+    },
+  }));
+
 describe.concurrent("GM_value", () => {
   it.concurrent("GM_setValue", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
@@ -608,7 +631,7 @@ describe.concurrent("GM_value", () => {
     let ret4 = GM_getValue("window");
     return {ret1, ret2, ret3, ret4};
     `;
-    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockSendMessage = createCommittedValueSender();
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
@@ -743,7 +766,7 @@ const value6 = GM_getValue("abc");
     
 return { value1, value2, value3, values1,values2, allValues1, allValues2, value4, value5, value6 };
     `;
-    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockSendMessage = createCommittedValueSender();
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
@@ -863,7 +886,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     let ret4 = GM_getValues(["window"]);
     return {ret1, ret2, ret3, ret4};
     `;
-    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockSendMessage = createCommittedValueSender();
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
@@ -991,7 +1014,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     let ret2 = GM_getValues(["a","b","c"]);
     return {ret1, ret2};
     `;
-    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockSendMessage = createCommittedValueSender();
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
@@ -1065,7 +1088,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     let ret2 = GM_getValues(["a","b","c"]);
     return {ret1, ret2};
     `;
-    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockSendMessage = createCommittedValueSender();
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
@@ -1146,7 +1169,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       GM_setValue("param1", 123);
     });
    `;
-    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockSendMessage = createCommittedValueSender();
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
@@ -1185,7 +1208,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       GM_setValue("param2", 456);
     });
    `;
-    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockSendMessage = createCommittedValueSender();
     const mockMessage = {
       sendMessage: mockSendMessage,
     } as unknown as Message;
