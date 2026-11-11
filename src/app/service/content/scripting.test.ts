@@ -74,6 +74,7 @@ describe("ScriptingRuntime 值更新投递", () => {
       toInject,
       portSend,
       onPortMessage,
+      senderToExt,
       receive: (message: TMessage) => portMessage(message),
     };
   };
@@ -156,6 +157,26 @@ describe("ScriptingRuntime 值更新投递", () => {
     await Promise.resolve();
     expect(toContent.sendMessage).not.toHaveBeenCalled();
     expect(toInject.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("初始 pageLoad 短暂失败时有限重试，并在恢复后停止重试", async () => {
+    const { runtime, senderToExt, toContent, toInject } = setup({ ok: false });
+    const send = vi.mocked(senderToExt.sendMessage);
+    send.mockRejectedValueOnce(new Error("Service Worker is starting"));
+    runtime.pageLoad();
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+    expect(toContent.sendMessage).not.toHaveBeenCalled();
+    expect(toInject.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("扩展 context 失效时不重试初始 pageLoad", async () => {
+    const { runtime, senderToExt } = setup();
+    const send = vi.mocked(senderToExt.sendMessage);
+    send.mockRejectedValue(new Error("Extension context invalidated"));
+    runtime.pageLoad();
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce());
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(send).toHaveBeenCalledOnce();
   });
 
   it("pageLoad 没有运行脚本的 frame 不会订阅，释放 Port", async () => {
