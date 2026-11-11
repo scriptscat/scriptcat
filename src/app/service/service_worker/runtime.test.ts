@@ -541,7 +541,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       };
 
       const mockValueService = {
-        getScriptValue: vi.fn().mockResolvedValue({}),
+        getScriptValueDetails: vi.fn().mockResolvedValue([{}, undefined]),
       };
 
       (mockScriptDAO as any).gets = vi.fn().mockResolvedValue([script]);
@@ -573,7 +573,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       expect(result).not.toBeNull();
       expect(mockCompiledResourceDAO.gets).toHaveBeenCalledTimes(1);
       expect(mockScriptCodeDAO.get).toHaveBeenCalledWith(script.uuid);
-      expect(mockValueService.getScriptValue).toHaveBeenCalledTimes(1);
+      expect(mockValueService.getScriptValueDetails).toHaveBeenCalledTimes(1);
       expect(result!.injectScriptList.length + result!.contentScriptList.length).toBe(1);
     });
 
@@ -587,7 +587,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
 
       expect(mockCompiledResourceDAO.gets).toHaveBeenCalledTimes(1);
       expect(mockScriptCodeDAO.get).toHaveBeenCalledTimes(1);
-      expect(mockValueService.getScriptValue).toHaveBeenCalledTimes(2);
+      expect(mockValueService.getScriptValueDetails).toHaveBeenCalledTimes(2);
     });
 
     it("deleteScriptRuntimeCache 后下一次请求重新从 DAO 获取 compiledResource", async () => {
@@ -995,7 +995,7 @@ describe("getScriptsForTab 附加边界场景", () => {
       getScriptResourceValue: vi.fn().mockResolvedValue({}),
       getScriptResourceValueByType: vi.fn().mockResolvedValue({ require: {}, "require-css": {}, resource: {} }),
     };
-    const mockValueService = { getScriptValue: vi.fn().mockResolvedValue({}) };
+    const mockValueService = { getScriptValueDetails: vi.fn().mockResolvedValue([{}, undefined]) };
 
     (mockScriptDAO as any).gets = vi.fn().mockResolvedValue([script]);
     (mockScriptDAO as any).scriptCodeDAO = mockScriptCodeDAO;
