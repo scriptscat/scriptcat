@@ -16,6 +16,8 @@ export default class ScriptingValuePort {
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private retryDelay = 250;
   private refreshInFlight = false;
+  private requestId = 0;
+  private requestedVersions: Record<string, ValueVersion> | undefined;
   private readonly onPageShow = (event: PageTransitionEvent) => {
     if (!event.persisted || this.isStopped()) return;
     if (this.invalidContext()) return this.terminate();
@@ -156,10 +158,21 @@ export default class ScriptingValuePort {
             this.portReady = true;
             this.sendSubscriptions();
           } else if (message.action === "runtime/valueSubscriptionsReady") {
+            // A previous snapshot read can finish after a newer request on the same Port.
+            if (this.getVersions && message.data?.requestId !== this.requestId) return;
             const snapshots = message.data?.snapshots as ValueSnapshot[] | undefined;
             try {
               if (Array.isArray(snapshots)) {
-                for (const snapshot of snapshots) this.onSnapshot?.(snapshot);
+                const current = this.getVersions?.();
+                for (const snapshot of snapshots) {
+                  const sent = this.requestedVersions?.[snapshot.storageName];
+                  const now = current?.[snapshot.storageName];
+                  if (
+                    now && now.epoch !== snapshot.epoch &&
+                    (!sent || now.epoch !== sent.epoch || now.revision !== sent.revision)
+                  ) continue;
+                  this.onSnapshot?.(snapshot);
+                }
               }
             } catch (error) {
               this.failPort(port, error);
@@ -205,9 +218,12 @@ export default class ScriptingValuePort {
   private sendSubscriptions() {
     if (!this.portReady || !this.port || !this.storageNames) return;
     try {
+      const versions = this.getVersions?.();
+      const requestId = ++this.requestId;
+      this.requestedVersions = versions;
       this.port.sendMessage({
         action: "runtime/subscribeValueUpdates",
-        data: this.getVersions ? { names: this.storageNames, versions: this.getVersions() } : this.storageNames,
+        data: versions ? { names: this.storageNames, versions, requestId } : this.storageNames,
       });
       this.armSubscriptionTimeout(this.port);
     } catch (error) {

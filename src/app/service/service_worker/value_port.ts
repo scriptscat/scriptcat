@@ -23,10 +23,11 @@ export default class ValueUpdatePorts {
       if (message.action !== "runtime/subscribeValueUpdates") return;
       const request = message.data as
         | string[]
-        | { names: string[]; versions?: Record<string, ValueVersion> };
+        | { names: string[]; versions?: Record<string, ValueVersion>; requestId?: number };
       const names = Array.isArray(request) ? request : request?.names;
       if (!Array.isArray(names)) return;
       const versions = Array.isArray(request) ? undefined : request.versions;
+      const requestId = Array.isArray(request) ? undefined : request.requestId;
       const storageNames = new Set<string>(names.filter((name): name is string => typeof name === "string"));
       this.removeSubscriptions(port);
       this.byPort.set(port, storageNames);
@@ -59,7 +60,10 @@ export default class ValueUpdatePorts {
           if (!this.byPort.has(port)) return;
           port.sendMessage({
             action: "runtime/valueSubscriptionsReady",
-            data: { snapshots: snapshots.filter((snapshot): snapshot is ValueSnapshot => !!snapshot) },
+            data: {
+              snapshots: snapshots.filter((snapshot): snapshot is ValueSnapshot => !!snapshot),
+              ...(requestId === undefined ? {} : { requestId }),
+            },
           });
         })
         .catch((error: unknown) => {
