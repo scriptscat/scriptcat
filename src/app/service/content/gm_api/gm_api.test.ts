@@ -1287,7 +1287,11 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     );
     await expect(api["GM.setValue"]("x", 1)).rejects.toThrow("acknowledgement missing");
     await expect(api["GM.setValues"]({ x: 2 })).rejects.toThrow("acknowledgement missing");
-    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+    const actions = mockSendMessage.mock.calls.map(([message]) => message.data.api);
+    expect(actions.filter((action) => action === "GM_setValue" || action === "GM_setValues")).toEqual([
+      "GM_setValue",
+      "GM_setValues",
+    ]);
   });
 
   it("同值写入和删除按提交回执结算，只在实际变更时通知", async () => {

@@ -203,16 +203,24 @@ class GM_Base implements IGM_Base {
   @GMContext.protected()
   protected reconcileValue(): Promise<void> {
     if (this.reconcilePromise) return this.reconcilePromise;
-    const promise = this.sendMessage("GM_valueSnapshot", []).then((snapshot: ValueSnapshot) => {
-      if (!snapshot || typeof snapshot.revision !== "number" || typeof snapshot.epoch !== "string") {
-        throw new Error("Invalid GM value snapshot");
-      }
-      this.valueSnapshot(snapshot);
-    });
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const promise = Promise.race([
+      this.sendMessage("GM_valueSnapshot", []),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("GM snapshot request timed out")), 30000);
+      }),
+    ])
+      .then((snapshot: ValueSnapshot) => {
+        if (!snapshot || typeof snapshot.revision !== "number" || typeof snapshot.epoch !== "string") {
+          throw new Error("Invalid GM value snapshot");
+        }
+        this.valueSnapshot(snapshot);
+      })
+      .finally(() => {
+        if (timeout !== undefined) clearTimeout(timeout);
+        if (this.reconcilePromise === promise) this.reconcilePromise = undefined;
+      });
     this.reconcilePromise = promise;
-    void promise.finally(() => {
-      if (this.reconcilePromise === promise) this.reconcilePromise = undefined;
-    }).catch(() => undefined);
     return promise;
   }
 

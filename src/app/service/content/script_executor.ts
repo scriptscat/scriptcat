@@ -89,6 +89,13 @@ export class ScriptExecutor {
           if (val.scriptRes.flag === flag) {
             // 处理早期脚本的沙盒环境
             val.updateEarlyScriptGMInfo(envInfo);
+            // Early-start code already runs; refresh its GM cache without running it again.
+            val.valueSnapshot({
+              storageName: getStorageName(script),
+              values: script.value,
+              revision: script.valueRevision ?? 0,
+              epoch: script.valueEpoch ?? "",
+            });
             return;
           }
         }
