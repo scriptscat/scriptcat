@@ -86,7 +86,8 @@ export default class ScriptingRuntime {
     const deliver = (bit: PageOrContent, target: CustomEventMessage, prefix: string) => {
       if (!(worlds & bit)) return;
       void sendMessage(target, prefix + "/" + action, data)
-        .then(() => {
+        .then((receipt) => {
+          if (receipt !== true) throw new Error("Script world did not acknowledge GM value delivery");
           if (action !== "runtime/valueSnapshot") return;
           const current = this.versions.get(storageName);
           // A late ACK from an older snapshot cannot mark a damaged world as repaired.

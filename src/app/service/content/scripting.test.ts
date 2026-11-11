@@ -4,6 +4,7 @@ import type { MessageConnect, MessageSend, TMessage } from "@Packages/message/ty
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import ScriptingRuntime from "./scripting";
 import type { ValueUpdateDataEncoded } from "./types";
+import { MessageResponseLostError } from "@Packages/message/errors";
 
 type Handler = (data: any) => any;
 
@@ -16,7 +17,7 @@ const createServer = () => {
 };
 
 const createPageSender = () => {
-  const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
+  const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: true });
   return { sender: { sendMessage } as unknown as CustomEventMessage, sendMessage };
 };
 
@@ -169,7 +170,7 @@ describe("ScriptingRuntime 值更新投递", () => {
   it("初始 pageLoad 短暂失败后恢复，且仅下发一次脚本初始化", async () => {
     const { runtime, senderToExt, toContent, toInject } = setup({ ok: false });
     const send = vi.mocked(senderToExt.sendMessage);
-    send.mockRejectedValueOnce(new Error("Service Worker is starting"));
+    send.mockRejectedValueOnce(new MessageResponseLostError("Service Worker is starting"));
     runtime.pageLoad();
     await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
     expect(toContent.sendMessage).not.toHaveBeenCalled();
