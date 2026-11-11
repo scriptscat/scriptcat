@@ -100,7 +100,18 @@ export default class ScriptingRuntime {
     this.versions.set(snapshot.storageName, { revision: snapshot.revision, epoch: snapshot.epoch });
     if (!this.scriptsStarted) {
       this.forEachStaged(snapshot.storageName, (script) => {
-        script.value = { ...snapshot.values };
+        const values = { ...snapshot.values };
+        // Initial pageLoad includes user-config defaults; preserve that same wire
+        // contract when a newer snapshot replaces values before script execution.
+        for (const [tabName, tab] of Object.entries(script.config ?? {})) {
+          if (!tab || typeof tab !== "object") continue;
+          for (const [key, option] of Object.entries(tab)) {
+            if (!option) continue;
+            const field = `${tabName}.${key}`;
+            if (values[field] === undefined) values[field] = option.default;
+          }
+        }
+        script.value = values;
         script.valueRevision = snapshot.revision;
         script.valueEpoch = snapshot.epoch;
       });
