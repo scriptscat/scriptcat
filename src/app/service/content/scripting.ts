@@ -138,7 +138,20 @@ export default class ScriptingRuntime {
       });
     }
     // 向service_worker请求脚本列表及环境信息
-    client.pageLoad().then(async (o) => {
+    // Initial page injection must be finite and must never replay an already started userscript.
+    const requestPageLoad = async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          return await client.pageLoad();
+        } catch (error) {
+          if (/Extension context (?:was )?invalidated/i.test(String(error)) ||
+              !chrome.runtime?.id || attempt === 2) throw error;
+          await new Promise<void>((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+        }
+      }
+      throw new Error("pageLoad failed");
+    };
+    void requestPageLoad().then(async (o) => {
       if (!o.ok) {
         this.valuePort.stop();
         return;
@@ -170,6 +183,8 @@ export default class ScriptingRuntime {
         // 根据@inject-into content过滤脚本
         injectClient.do("pageLoad", { scripts: injectScriptList, envInfo });
       }
+    }).catch((error) => {
+      LoggerCore.logger().error("pageLoad or value subscription failed", { error });
     });
   }
 }
