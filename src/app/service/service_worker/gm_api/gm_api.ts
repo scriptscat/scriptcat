@@ -589,6 +589,21 @@ export default class GMApi {
     return true;
   }
 
+  // Internal reconciliation for an already authorized GM context. The script identity
+  // comes from parseRequest, not from a storageName supplied by the page.
+  @PermissionVerify.API({
+    link: ["GM_getValue", "GM_getValues", "GM_setValue", "GM_setValues", "GM_deleteValue", "GM_deleteValues"],
+  })
+  async GM_valueSnapshot(request: GMApiRequest, _sender: IGetSender) {
+    const [values, model] = await this.value.getScriptValueDetails(request.script);
+    return {
+      storageName: getStorageName(request.script),
+      values,
+      revision: model?.revision ?? 0,
+      epoch: model?.epoch ?? "",
+    };
+  }
+
   @PermissionVerify.API({ link: ["GM_deleteValue", "GM_deleteValues"] })
   async GM_setValue(request: GMApiRequest<[string, string, any?]>, sender: IGetSender) {
     if (!request.params || request.params.length < 2) {
