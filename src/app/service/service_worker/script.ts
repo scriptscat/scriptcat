@@ -49,7 +49,8 @@ import {
   type TCheckScriptUpdateResult,
   type TOpenUpdatePageResult,
 } from "./types";
-import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
+import { ScriptUpdateCheck } from "./script_update_check";
+import { compareScriptUpdates } from "@App/pkg/utils/script_similarity";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { initRegularUpdateCheck, watchRegularUpdateCheck } from "./regular_updatecheck";
@@ -1413,13 +1414,8 @@ export class ScriptService {
       });
     }
 
-    const checkScriptsScores = await Promise.all(
-      checkResults.map(async (entry, i) => {
-        let oldCode: any = checkScriptsOldCode[i];
-        if (typeof oldCode === "object" && typeof oldCode.code === "string") oldCode = oldCode.code;
-        const score = await getSimilarityScore(oldCode, checkScriptsNewCode[i]);
-        return +(Math.floor(score * 1000) / 1000);
-      })
+    const checkScriptsComparisons = checkResults.map((_, i) =>
+      compareScriptUpdates(checkScriptsOldCode[i]?.code ?? "", checkScriptsNewCode[i])
     );
 
     const currentSites: ScriptSite = (await this.localStorageDAO.getValue<ScriptSite>("sites")) || ({} as ScriptSite);
@@ -1445,15 +1441,20 @@ export class ScriptService {
         } as TBatchUpdateRecord);
         continue;
       }
-      let oldCode: any = checkScriptsOldCode[i];
-      if (typeof oldCode === "object" && typeof oldCode.code === "string") oldCode = oldCode.code;
+      const oldCode = checkScriptsOldCode[i]?.code ?? "";
       const newCode = checkScriptsNewCode[i];
       batchUpdateRecord.push({
         uuid: script.uuid,
         checkUpdate: true,
         oldCode: oldCode,
         newCode: newCode,
-        codeSimilarity: checkScriptsScores[i],
+        codeSimilarity: Math.floor(checkScriptsComparisons[i].codeSimilarity * 1000) / 1000,
+        codeComparable: checkScriptsComparisons[i].codeComparable,
+        metadataComparison: {
+          metadataValid: checkScriptsComparisons[i].metadataValid,
+          metadataChanges: checkScriptsComparisons[i].metadataChanges,
+          userConfigChanged: checkScriptsComparisons[i].userConfigChanged,
+        },
         newMeta: {
           ...(result.metadata || {}),
         },

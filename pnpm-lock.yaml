@@ -72,6 +72,9 @@ importers:
       i18next:
         specifier: ^26.0.3
         version: 26.3.1(typescript@6.0.3)
+      js-tokens:
+        specifier: 10.0.0
+        version: 10.0.0
       lucide-react:
         specifier: ^1.7.0
         version: 1.17.0(react@19.2.7)
@@ -105,9 +108,6 @@ importers:
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      string-similarity-js:
-        specifier: ^2.1.4
-        version: 2.1.4
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
@@ -4557,9 +4557,6 @@ packages:
 
   std-env@4.1.0:
     resolution: {integrity: sha512-Rq7ybcX2RuC55r9oaPVEW7/xu3tj8u4GeBYHBWCychFtzMIr86A7e3PPEBPT37sHStKX3+TiX/Fr/ACmJLVlLQ==}
-
-  string-similarity-js@2.1.4:
-    resolution: {integrity: sha512-uApODZNjCHGYROzDSAdCmAHf60L/pMDHnP/yk6TAbvGg7JSPZlSto/ceCI7hZEqzc53/juU2aOJFkM2yUVTMTA==}
 
   string-width@7.2.0:
     resolution: {integrity: sha512-tsaTIkKW9b4N+AEj+SVA+WhJzV7/zMhcSu78mLKWSk7cXMOSHsBKFWUs0fWwq8QyK3MgJBQRX6Gbi4kYbdvGkQ==}
@@ -10029,8 +10026,6 @@ snapshots:
   statuses@2.0.2: {}
 
   std-env@4.1.0: {}
-
-  string-similarity-js@2.1.4: {}
 
   string-width@7.2.0:
     dependencies:
