@@ -134,7 +134,11 @@ export default class ScriptingRuntime {
     // 只有顶层 frame 参与判定，子 frame 不必上报。
     if (window.top === window) {
       window.addEventListener("pageshow", (e) => {
-        if (e.persisted) client.pageShow();
+        if (e.persisted && chrome.runtime?.id) {
+          void client.pageShow().catch((error) => {
+            LoggerCore.logger().error("bfcache restore report failed", { error });
+          });
+        }
       });
     }
     // 向service_worker请求脚本列表及环境信息
