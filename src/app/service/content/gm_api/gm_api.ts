@@ -16,7 +16,7 @@ import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import GMContext from "./gm_context";
 import { type ScriptRunResource } from "@App/app/repo/scripts";
-import type { ValueSnapshot, ValueUpdateDataEncoded, ValueWriteReceipt } from "../types";
+import type { ValueSnapshot, ValueUpdateDataEncoded, ValueVersion, ValueWriteReceipt } from "../types";
 import { connect, sendMessage } from "@Packages/message/client";
 import { ScriptEnvTag } from "@Packages/message/consts";
 import { getStorageName } from "@App/pkg/utils/utils";
@@ -120,6 +120,9 @@ class GM_Base implements IGM_Base {
   @GMContext.protected()
   protected reconcilePromise?: Promise<void>;
 
+  @GMContext.protected()
+  protected desiredValueVersion?: ValueVersion;
+
   constructor(options: any = null, obj: any = null) {
     if (obj !== integrity) throw new TypeError("Illegal invocation");
     Object.assign(this, options);
@@ -198,34 +201,61 @@ class GM_Base implements IGM_Base {
     script.value = values;
     script.valueEpoch = snapshot.epoch;
     script.valueRevision = snapshot.revision;
+    const desired = this.desiredValueVersion;
+    if (desired?.epoch === snapshot.epoch && snapshot.revision >= desired.revision) {
+      this.desiredValueVersion = undefined;
+    }
   }
 
   @GMContext.protected()
   protected reconcileValue(): Promise<void> {
     if (this.reconcilePromise) return this.reconcilePromise;
-    const requestedEpoch = this.scriptRes?.valueEpoch ?? "";
-    const requestedRevision = this.scriptRes?.valueRevision ?? 0;
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-    const promise = Promise.race([
-      this.sendMessage("GM_valueSnapshot", []),
-      new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error("GM snapshot request timed out")), 30000);
-      }),
-    ])
-      .then((snapshot: ValueSnapshot) => {
+    const promise = (async () => {
+      let delay = 100;
+      // Bounded attempts, bounded wait, and no unbounded history of missed changes.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const current = this.scriptRes;
+        if (!current || this.isInvalidContext()) throw new Error("Extension context invalidated");
+        const requestedEpoch = current.valueEpoch ?? "";
+        const requestedRevision = current.valueRevision ?? 0;
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        let snapshot: ValueSnapshot;
+        try {
+          snapshot = await Promise.race([
+            this.sendMessage("GM_valueSnapshot", []),
+            new Promise<never>((_, reject) => {
+              timeout = setTimeout(() => reject(new Error("GM snapshot request timed out")), 30000);
+            }),
+          ]);
+        } finally {
+          if (timeout !== undefined) clearTimeout(timeout);
+        }
         if (!snapshot || typeof snapshot.revision !== "number" || typeof snapshot.epoch !== "string") {
           throw new Error("Invalid GM value snapshot");
         }
         const script = this.scriptRes;
-        // A newer storage generation may have arrived while this read was in flight.
-        if (script && script.valueEpoch !== snapshot.epoch &&
-          ((script.valueEpoch ?? "") !== requestedEpoch || (script.valueRevision ?? 0) !== requestedRevision)) return;
-        this.valueSnapshot(snapshot);
-      })
-      .finally(() => {
-        if (timeout !== undefined) clearTimeout(timeout);
-        if (this.reconcilePromise === promise) this.reconcilePromise = undefined;
-      });
+        if (!script || this.isInvalidContext()) throw new Error("Extension context invalidated");
+        // An older storage generation cannot overwrite a new one applied while the RPC was pending.
+        if (
+          script.valueEpoch === snapshot.epoch ||
+          ((script.valueEpoch ?? "") === requestedEpoch && (script.valueRevision ?? 0) === requestedRevision)
+        ) {
+          this.valueSnapshot(snapshot);
+        }
+        const desired = this.desiredValueVersion;
+        if (!desired) return;
+        if ((script.valueEpoch ?? "") === desired.epoch && (script.valueRevision ?? 0) >= desired.revision) {
+          this.desiredValueVersion = undefined;
+          return;
+        }
+        if (attempt === 4) break;
+        await new Promise<void>((resolve) => setTimeout(resolve, delay));
+        delay = Math.min(delay * 2, 1600);
+      }
+      throw new Error("GM snapshot did not reach observed value revision");
+    })().finally(() => {
+      if (this.reconcilePromise === promise) this.reconcilePromise = undefined;
+    });
     this.reconcilePromise = promise;
     return promise;
   }
@@ -240,12 +270,19 @@ class GM_Base implements IGM_Base {
       const epoch = script.valueEpoch ?? "";
       if (data.epoch === epoch && data.revision <= revision) return;
       if ((epoch && data.epoch !== epoch) || data.revision > revision + 1) {
-        // Updates arriving out of order cannot safely be replayed against an optimistic cache.
-        // Read the authoritative latest snapshot rather than rolling a key backward.
+        // Keep the highest observed revision while an older snapshot RPC is still pending.
+        const desired = this.desiredValueVersion;
+        if (!desired || desired.epoch !== data.epoch || data.revision > desired.revision) {
+          this.desiredValueVersion = { epoch: data.epoch, revision: data.revision };
+        }
         return this.reconcileValue();
       }
       script.valueRevision = data.revision;
       script.valueEpoch = data.epoch;
+      const desired = this.desiredValueVersion;
+      if (desired?.epoch === data.epoch && data.revision >= desired.revision) {
+        this.desiredValueVersion = undefined;
+      }
     }
     if (data.id) {
       if (this.recentValueUpdateIds.has(data.id)) return;
