@@ -1212,46 +1212,78 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const ret2 = await retPromise;
     expect(ret2).toEqual({ name: "param2", oldValue: undefined, newValue: 456, remote: true });
   });
-  it.concurrent("异步GM.setValue，等待回调", async () => {
-    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
-    script.metadata.grant = ["GM.getValue", "GM.setValue"];
-    script.code = `await GM.setValue("a", 123); return await GM.getValue("a");`;
-    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
-    const mockMessage = {
-      sendMessage: mockSendMessage,
-    } as unknown as Message;
-    const exec = new ExecScript(script, {
-      envPrefix: "scripting",
-      message: mockMessage,
-      contentMsg: undefined as any,
-      code: nilFn,
-      envInfo,
+  it("异步 GM.setValue 以持久化回执结算，即使 Port 通知未抵达", async () => {
+    const script = { ...scriptRes, uuid: uuidv4(), value: {}, metadata: { grant: ["GM.setValue"] } } as ScriptLoadInfo;
+    const updates: any[] = [];
+    const mockSendMessage = vi.fn().mockImplementation(async (request) => {
+      const update = {
+        id: request.data.params[0],
+        entries: [["a", encodeRValue(123), encodeRValue(undefined)]],
+        uuid: script.uuid,
+        storageName: script.uuid,
+        sender: { runFlag: "writer", tabId: 1 },
+        valueUpdated: true,
+      };
+      updates.push(update);
+      return { code: 0, data: { committed: true, update } };
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
-    const retPromise = exec.exec();
+    const api = new GMApi("scripting", { sendMessage: mockSendMessage } as unknown as Message, {} as Message, script);
+    (api as any).runFlag = "writer";
+    const listener = vi.fn();
+    api.GM_addValueChangeListener("a", listener);
 
-    await Promise.resolve(); // 等待一轮微任务，让GM.setValue执行
+    await expect(api["GM.setValue"]("a", 123)).resolves.toBeUndefined();
+    expect(listener).toHaveBeenCalledExactlyOnceWith("a", undefined, 123, false, 1);
+    api.valueUpdate(updates[0]); // Delayed delivery over the Port must not notify twice.
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
 
-    expect(mockSendMessage).toHaveBeenCalled();
-    expect(mockSendMessage).toHaveBeenCalledTimes(1);
-    // 获取调用参数
-    const actualCall = mockSendMessage.mock.calls[0][0];
-    const id = actualCall.data.params[0];
-
-    expect(id).toBeTypeOf("string");
-    expect(id.length).greaterThan(0);
-    // 触发valueUpdate
-    exec.valueUpdate({
-      id: id,
-      entries: [["a", encodeRValue(123), encodeRValue(undefined)]],
+  it("先到达 Port 通知、后到达写入回执时仍只触发一次 listener", async () => {
+    const script = { ...scriptRes, uuid: uuidv4(), value: {}, metadata: { grant: ["GM.setValue"] } } as ScriptLoadInfo;
+    let complete!: (value: unknown) => void;
+    const mockSendMessage = vi.fn().mockImplementation(() => new Promise((resolve) => { complete = resolve; }));
+    const api = new GMApi("scripting", { sendMessage: mockSendMessage } as unknown as Message, {} as Message, script);
+    (api as any).runFlag = "writer";
+    const listener = vi.fn();
+    api.GM_addValueChangeListener("a", listener);
+    const pending = api["GM.setValue"]("a", 2);
+    await vi.waitFor(() => expect(mockSendMessage).toHaveBeenCalledOnce());
+    const update = {
+      id: mockSendMessage.mock.calls[0][0].data.params[0],
+      entries: [["a", encodeRValue(2), encodeRValue(undefined)]],
       uuid: script.uuid,
       storageName: script.uuid,
-      sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+      sender: { runFlag: "writer", tabId: 1 },
       valueUpdated: true,
-    });
+    };
+    api.valueUpdate(update);
+    complete({ code: 0, data: { committed: true, update } });
+    await expect(pending).resolves.toBeUndefined();
+    expect(listener).toHaveBeenCalledOnce();
+  });
 
-    const ret = await retPromise;
-    expect(ret).toEqual(123);
+  it("缺失或虚假的写入回执不能视为持久化成功", async () => {
+    const script = { ...scriptRes, uuid: uuidv4(), value: {}, metadata: { grant: ["GM.setValue", "GM.setValues"] } } as ScriptLoadInfo;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
+    const api = new GMApi("scripting", { sendMessage: mockSendMessage } as unknown as Message, {} as Message, script);
+    await expect(api["GM.setValue"]("x", 1)).rejects.toThrow("acknowledgement missing");
+    await expect(api["GM.setValues"]({ x: 2 })).rejects.toThrow("acknowledgement missing");
+    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("无回执时写入 Promise 有界超时，不在全局 Map 永久悬挂", async () => {
+    vi.useFakeTimers();
+    try {
+      const script = { ...scriptRes, uuid: uuidv4(), value: {}, metadata: { grant: ["GM.setValue"] } } as ScriptLoadInfo;
+      const mockSendMessage = vi.fn().mockImplementation(() => new Promise(() => undefined));
+      const api = new GMApi("scripting", { sendMessage: mockSendMessage } as unknown as Message, {} as Message, script);
+      const pending = api["GM.setValue"]("x", 1);
+      const assertion = expect(pending).rejects.toThrow("acknowledgement timed out");
+      await vi.advanceTimersByTimeAsync(31000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

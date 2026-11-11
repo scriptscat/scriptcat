@@ -35,6 +35,7 @@ const createSender = (...ports: TestPort[]) => {
 describe("ScriptingValuePort 生命周期", () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it("启动即连接，待 SW 确认订阅后才放行页面脚本，按 Port 接收值更新", async () => {
@@ -176,4 +177,55 @@ describe("ScriptingValuePort 生命周期", () => {
       errorSpy.mockRestore();
     }
   });
+  it("被动断线立即重连，仅连接失败才退避", async () => {
+    const oldPort = new TestPort();
+    const newPort = new TestPort();
+    const { sender, connect } = createSender(oldPort, newPort);
+    const channel = new ScriptingValuePort(sender, vi.fn());
+    channel.start();
+    const ready = channel.subscribe(["a"]);
+    await Promise.resolve();
+    oldPort.receive({ code: 0, data: { ready: true } });
+    oldPort.receive({ action: "runtime/valueSubscriptionsReady" });
+    await ready;
+    oldPort.disconnect();
+    expect(connect).toHaveBeenCalledTimes(2);
+    await Promise.resolve();
+    newPort.receive({ code: 0, data: { ready: true } });
+    expect(newPort.sent).toEqual([{ action: "runtime/subscribeValueUpdates", data: ["a"] }]);
+    channel.stop();
+  });
+
+  it("旧扩展 context 失效后停止重试，并结算待确认订阅", async () => {
+    vi.useFakeTimers();
+    const connect = vi.fn().mockRejectedValue(new Error("Extension context invalidated"));
+    const channel = new ScriptingValuePort({ connect } as unknown as MessageSend, vi.fn());
+    channel.start();
+    const ready = channel.subscribe(["a"]);
+    const rejected = expect(ready).rejects.toThrow("Extension context invalidated");
+    await vi.advanceTimersByTimeAsync(120000);
+    await rejected;
+    expect(connect).toHaveBeenCalledOnce();
+    channel.stop();
+  });
+
+  it("bfcache 恢复遇到已撤销的 extension context 不再建立连接", async () => {
+    const port = new TestPort();
+    const { sender, connect } = createSender(port);
+    const channel = new ScriptingValuePort(sender, vi.fn());
+    channel.start();
+    const ready = channel.subscribe(["a"]);
+    await Promise.resolve();
+    port.receive({ code: 0, data: { ready: true } });
+    port.receive({ action: "runtime/valueSubscriptionsReady" });
+    await ready;
+    vi.stubGlobal("chrome", { runtime: { id: undefined } });
+    const pageshow = new PageTransitionEvent("pageshow");
+    Object.defineProperty(pageshow, "persisted", { value: true });
+    window.dispatchEvent(pageshow);
+    await Promise.resolve();
+    expect(connect).toHaveBeenCalledOnce();
+    channel.stop();
+  });
+
 });
