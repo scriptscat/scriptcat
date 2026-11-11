@@ -27,6 +27,8 @@ export default class ScriptingRuntime {
   private readonly desiredVersions = new Map<string, ValueVersion>();
   // Only worlds which failed delivery need a full snapshot; no event journal.
   private readonly dirtyWorlds = new Map<string, PageOrContent>();
+  private readonly failureGenerations = new Map<string, number>();
+  private failureSequence = 0;
   private stagedScripts?: { injectScriptList: TScriptInfo[]; contentScriptList: TScriptInfo[] };
   private readonly stagedDirty = new Set<string>();
   private scriptsStarted = false;
@@ -83,6 +85,7 @@ export default class ScriptingRuntime {
     const { storageName } = data;
     const revision = data.revision;
     const epoch = data.epoch;
+    const failureGeneration = this.failureGenerations.get(storageName);
     const deliver = (bit: PageOrContent, target: CustomEventMessage, prefix: string) => {
       if (!(worlds & bit)) return;
       void sendMessage(target, prefix + "/" + action, data)
@@ -91,15 +94,22 @@ export default class ScriptingRuntime {
           if (action !== "runtime/valueSnapshot") return;
           const current = this.versions.get(storageName);
           // A late ACK from an older snapshot cannot mark a damaged world as repaired.
-          if (current && current.epoch === epoch && current.revision === revision) {
+          if (
+            current && current.epoch === epoch && current.revision === revision &&
+            this.failureGenerations.get(storageName) === failureGeneration
+          ) {
             const remaining = (this.dirtyWorlds.get(storageName) ?? 0) & ~bit;
             if (remaining) this.dirtyWorlds.set(storageName, remaining as PageOrContent);
-            else this.dirtyWorlds.delete(storageName);
+            else {
+              this.dirtyWorlds.delete(storageName);
+              this.failureGenerations.delete(storageName);
+            }
           }
         })
         .catch((error) => {
           const dirty = (this.dirtyWorlds.get(storageName) ?? 0) | bit;
           this.dirtyWorlds.set(storageName, dirty as PageOrContent);
+          this.failureGenerations.set(storageName, ++this.failureSequence);
           LoggerCore.logger().error("forward GM value to script world failed", { storageName, prefix, error });
           this.valuePort.refresh();
         });

@@ -18,6 +18,7 @@ export default class ScriptingValuePort {
   private refreshInFlight = false;
   private refreshDirty = false;
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  private refreshDelay = 100;
   private requestId = 0;
   private requestedVersions: Record<string, ValueVersion> | undefined;
   private readonly onPageShow = (event: PageTransitionEvent) => {
@@ -188,6 +189,7 @@ export default class ScriptingValuePort {
             const refreshDirty = this.refreshDirty;
             this.refreshDirty = false;
             if (refreshDirty) this.scheduleRefresh();
+            else if (!this.needsRefresh?.()) this.refreshDelay = 100;
             this.retryDelay = 250;
             this.state = "active";
             const subscription = this.subscription;
@@ -265,17 +267,22 @@ export default class ScriptingValuePort {
   private scheduleRefresh() {
     if (this.refreshTimer !== undefined) return;
     // A follow-up read must not busy-loop if the database is still catching up.
+    const delay = this.refreshDelay + Math.random() * this.refreshDelay;
+    this.refreshDelay = Math.min(this.refreshDelay * 2, 10000);
     this.refreshTimer = setTimeout(() => {
       this.refreshTimer = undefined;
       if (!this.isStopped() && this.portReady && this.port && (this.needsRefresh?.() ?? true)) {
         this.sendSubscriptions();
+      } else {
+        this.refreshDelay = 100;
       }
-    }, 100);
+    }, delay);
   }
 
   private clearRefresh() {
     this.refreshInFlight = false;
     this.refreshDirty = false;
+    this.refreshDelay = 100;
     if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
     this.refreshTimer = undefined;
   }
