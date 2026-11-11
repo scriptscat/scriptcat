@@ -60,10 +60,12 @@ export class ScriptRuntime {
       this.scriptExecutor.emitEvent(data);
     });
     this.server.on("runtime/valueUpdate", (data: ValueUpdateDataEncoded) => {
-      return this.scriptExecutor.valueUpdate(data);
+      const result = this.scriptExecutor.valueUpdate(data);
+      return result instanceof Promise ? result.then(() => true) : true;
     });
     this.server.on("runtime/valueSnapshot", (data: ValueSnapshot) => {
-      return this.scriptExecutor.valueSnapshot(data);
+      this.scriptExecutor.valueSnapshot(data);
+      return true;
     });
 
     this.server.on("pageLoad", (data: { scripts: TScriptInfo[]; envInfo: GMInfoEnv }) => {
