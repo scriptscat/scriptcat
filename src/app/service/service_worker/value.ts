@@ -51,9 +51,11 @@ export class ValueService {
     if (ret) {
       data = ret.data;
     }
-    const newValues = data;
-    // 和userconfig组装
+    // User-config defaults belong to the page payload, not to persisted GM data.
+    // Avoid copying a potentially large store for scripts without custom config.
     const { config } = script;
+    const newValues = config ? { ...data } : data;
+    // 和userconfig组装
     if (config) {
       for (const tabKey of Object.keys(config)) {
         const tab = config![tabKey];
