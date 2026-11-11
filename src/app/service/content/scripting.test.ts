@@ -119,6 +119,7 @@ describe("ScriptingRuntime 值更新投递", () => {
         action: "runtime/subscribeValueUpdates",
         data: {
           names: ["page-store", "shared", "content-store", "__proto__"],
+          requestId: 1,
           versions: expect.objectContaining({
             "page-store": { epoch: "", revision: 0 },
             shared: { epoch: "", revision: 0 },
@@ -129,7 +130,7 @@ describe("ScriptingRuntime 值更新投递", () => {
     expect(toContent.sendMessage).not.toHaveBeenCalled();
     expect(toInject.sendMessage).not.toHaveBeenCalled();
 
-    receive({ action: "runtime/valueSubscriptionsReady" });
+    receive({ action: "runtime/valueSubscriptionsReady", data: { requestId: 1 } });
     await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/pageLoad"));
     toContent.sendMessage.mockClear();
     toInject.sendMessage.mockClear();
@@ -205,6 +206,7 @@ describe("ScriptingRuntime 值更新投递", () => {
     receive({ code: 0, data: { ready: true } });
     await vi.waitFor(() => expect(portSend).toHaveBeenCalledOnce());
     receive({ action: "runtime/valueSubscriptionsReady", data: {
+      requestId: 1,
       snapshots: [{ storageName: "shared", revision: 2, epoch: "epoch-1", values: { k: 2 } }],
     } });
     await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/pageLoad"));
@@ -223,6 +225,7 @@ describe("ScriptingRuntime 值更新投递", () => {
     receive({ action: "runtime/valueUpdate", data: update(5, 5) });
     expect(portSend).toHaveBeenCalledTimes(2); // The version gap requests a fresh subscription snapshot.
     receive({ action: "runtime/valueSubscriptionsReady", data: {
+      requestId: 2,
       snapshots: [{ storageName: "shared", revision: 5, epoch: "epoch-1", values: { k: 5 } }],
     } });
     await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/runtime/valueSnapshot"));

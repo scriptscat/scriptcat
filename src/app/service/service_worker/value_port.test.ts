@@ -117,6 +117,7 @@ describe("ValueUpdatePorts 精准推送", () => {
       action: "runtime/subscribeValueUpdates",
       data: {
         names: ["matching", "changed"],
+        requestId: 42,
         versions: {
           matching: { epoch: "generation-1", revision: 5 },
           changed: { epoch: "generation-1", revision: 4 },
@@ -127,7 +128,10 @@ describe("ValueUpdatePorts 精准推送", () => {
     expect(reader).toHaveBeenCalledTimes(2);
     expect(port.sent[0]).toEqual({
       action: "runtime/valueSubscriptionsReady",
-      data: { snapshots: [{ storageName: "changed", epoch: "generation-1", revision: 5, values: { k: 5 } }] },
+      data: {
+        requestId: 42,
+        snapshots: [{ storageName: "changed", epoch: "generation-1", revision: 5, values: { k: 5 } }],
+      },
     });
   });
 

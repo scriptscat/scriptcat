@@ -214,6 +214,33 @@ describe("ScriptingValuePort 生命周期", () => {
     channel.stop();
   });
 
+  it("新存储世代更新抢先送达时，忽略旧世代的迟到 snapshot", async () => {
+    const port = new TestPort();
+    const { sender } = createSender(port);
+    let version = { epoch: "old", revision: 2 };
+    const snapshots = vi.fn();
+    const channel = new ScriptingValuePort(
+      sender,
+      (update) => { version = { epoch: update.epoch!, revision: update.revision! }; },
+      snapshots,
+      () => ({ shared: version })
+    );
+    channel.start();
+    const ready = channel.subscribe(["shared"]);
+    await Promise.resolve();
+    port.receive({ code: 0, data: { ready: true } });
+    port.receive({ action: "runtime/valueUpdate", data: {
+      storageName: "shared", epoch: "new", revision: 1,
+    } });
+    port.receive({ action: "runtime/valueSubscriptionsReady", data: {
+      requestId: 1,
+      snapshots: [{ storageName: "shared", epoch: "old", revision: 3, values: { x: "stale" } }],
+    } });
+    await ready;
+    expect(snapshots).not.toHaveBeenCalled();
+    channel.stop();
+  });
+
   it("订阅握手超过 30 秒是可恢复的，不会永久终止 pageLoad", async () => {
     vi.useFakeTimers();
     const first = new TestPort();
@@ -229,12 +256,13 @@ describe("ScriptingValuePort 生命周期", () => {
     first.receive({ code: 0, data: { ready: true } });
     expect(first.sent[0]).toEqual({
       action: "runtime/subscribeValueUpdates",
-      data: { names: ["my-store"], versions: { "my-store": { epoch: "e", revision: 1 } } },
+      data: { names: ["my-store"], versions: { "my-store": { epoch: "e", revision: 1 } }, requestId: 1 },
     });
     await vi.advanceTimersByTimeAsync(31000);
     expect(connect).toHaveBeenCalledTimes(2);
     second.receive({ code: 0, data: { ready: true } });
     second.receive({ action: "runtime/valueSubscriptionsReady", data: {
+      requestId: 2,
       snapshots: [{ storageName: "my-store", epoch: "e", revision: 2, values: { k: 2 } }],
     } });
     await ready;
