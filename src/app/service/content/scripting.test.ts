@@ -191,6 +191,52 @@ describe("ScriptingRuntime 值更新投递", () => {
     }
   });
 
+  it("同一 storageName 的脚本在 pageLoad 读取到不同 revision 时统一为最新快照", async () => {
+    const { runtime, receive, onPortMessage, toInject } = setup({
+      ok: true,
+      injectScriptList: [
+        { uuid: "older", metadata: { storagename: ["shared"] }, value: { x: 1 },
+          valueRevision: 1, valueEpoch: "g" },
+        { uuid: "newer", metadata: { storagename: ["shared"] }, value: { x: 2 },
+          valueRevision: 2, valueEpoch: "g" },
+      ],
+      contentScriptList: [],
+      envInfo: {},
+    });
+    runtime.pageLoad();
+    await vi.waitFor(() => expect(onPortMessage).toHaveBeenCalledOnce());
+    receive({ code: 0, data: { ready: true } });
+    receive({ action: "runtime/valueSubscriptionsReady", data: { requestId: 1 } });
+    await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/pageLoad"));
+    const payload = toInject.sendMessage.mock.calls.find(([message]) => message.action === "inject/pageLoad")?.[0];
+    expect(payload.data.scripts.map((script: { value: { x: number }; valueRevision: number }) =>
+      [script.value.x, script.valueRevision]
+    )).toEqual([[2, 2], [2, 2]]);
+  });
+
+  it("注入前收到较新的 snapshot 时保留用户配置的默认值", async () => {
+    const { runtime, receive, onPortMessage, toInject } = setup({
+      ok: true,
+      injectScriptList: [{
+        uuid: "config", metadata: { storagename: ["settings"] },
+        value: { "general.theme": "light" }, valueRevision: 1, valueEpoch: "e",
+        config: { general: { theme: { default: "light" } } },
+      }],
+      contentScriptList: [],
+      envInfo: {},
+    });
+    runtime.pageLoad();
+    await vi.waitFor(() => expect(onPortMessage).toHaveBeenCalledOnce());
+    receive({ code: 0, data: { ready: true } });
+    receive({ action: "runtime/valueSubscriptionsReady", data: {
+      requestId: 1,
+      snapshots: [{ storageName: "settings", revision: 2, epoch: "e", values: { x: 2 } }],
+    } });
+    await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/pageLoad"));
+    const script = toInject.sendMessage.mock.calls.find(([msg]) => msg.action === "inject/pageLoad")?.[0].data.scripts[0];
+    expect(script.value).toMatchObject({ x: 2, "general.theme": "light" });
+  });
+
   it("Port snapshot 与后续 updates 按 revision 收敛，丢失中间事件时刷新权威状态", async () => {
     const { runtime, receive, onPortMessage, toInject, portSend } = setup({
       ok: true,
