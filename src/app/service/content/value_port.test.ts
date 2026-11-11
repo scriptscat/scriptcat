@@ -196,6 +196,24 @@ describe("ScriptingValuePort 生命周期", () => {
     channel.stop();
   });
 
+  it("Port 已连接但 SW 从未发送初始 ready 时也能恢复", async () => {
+    vi.useFakeTimers();
+    const first = new TestPort();
+    const second = new TestPort();
+    const { sender, connect } = createSender(first, second);
+    const channel = new ScriptingValuePort(sender, vi.fn());
+    channel.start();
+    const subscribed = channel.subscribe(["a"]);
+    await Promise.resolve();
+    expect(connect).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(31000);
+    expect(connect).toHaveBeenCalledTimes(2);
+    second.receive({ code: 0, data: { ready: true } });
+    second.receive({ action: "runtime/valueSubscriptionsReady" });
+    await subscribed;
+    channel.stop();
+  });
+
   it("订阅握手超过 30 秒是可恢复的，不会永久终止 pageLoad", async () => {
     vi.useFakeTimers();
     const first = new TestPort();
