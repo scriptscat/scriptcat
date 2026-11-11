@@ -230,6 +230,8 @@
   "search_google_api_key_desc": "Özel Arama JSON API'sini çağırmak için kullanılır.",
   "search_google_cse_id": "Özel Arama Motoru Kimliği",
   "search_google_cse_id_desc": "Programlanabilir Arama Motorunun cx parametresi.",
+  "search_google_api_base_url": "Özel Arama API Temel URL'si",
+  "search_google_api_base_url_desc": "İsteğe bağlı. Google'ın varsayılan adresini kullanmak için boş bırakın veya Özel Arama JSON API'si ile uyumlu başka bir hizmeti çağırmak için ayarlayın.",
   "settings_saved": "Ayarlar kaydedildi",
   "settings_save_failed": "Ayarlar kaydedilemedi",
   "search_engine_tip_bing": "Geniş küresel kapsama sahip varsayılan arama motoru, ek yapılandırma gerekmez.",

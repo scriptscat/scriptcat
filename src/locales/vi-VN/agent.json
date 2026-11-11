@@ -198,6 +198,8 @@
   "search_google_api_key_desc": "Dùng để gọi Custom Search JSON API.",
   "search_google_cse_id": "ID công cụ tìm kiếm tùy chỉnh",
   "search_google_cse_id_desc": "Tham số cx của Programmable Search Engine.",
+  "search_google_api_base_url": "Địa chỉ Custom Search API",
+  "search_google_api_base_url_desc": "Không bắt buộc. Để trống để dùng địa chỉ mặc định của Google, hoặc đặt giá trị để gọi một dịch vụ khác tương thích với Custom Search JSON API.",
   "settings_saved": "Đã lưu cài đặt",
   "settings_save_failed": "Lưu cài đặt thất bại",
   "search_engine_tip_bing": "Công cụ tìm kiếm mặc định, phạm vi toàn cầu rộng, không cần cấu hình thêm.",

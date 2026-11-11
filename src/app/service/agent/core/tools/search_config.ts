@@ -2,6 +2,7 @@ export type SearchEngineConfig = {
   engine: "bing" | "duckduckgo" | "baidu" | "google_custom";
   googleApiKey?: string;
   googleCseId?: string;
+  googleApiBaseUrl?: string;
 };
 
 const STORAGE_KEY = "agent_search_config";

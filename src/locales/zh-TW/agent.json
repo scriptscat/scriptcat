@@ -198,6 +198,8 @@
   "search_google_api_key_desc": "用於呼叫 Custom Search JSON API。",
   "search_google_cse_id": "自訂搜尋引擎 ID",
   "search_google_cse_id_desc": "Programmable Search Engine 的 cx 參數。",
+  "search_google_api_base_url": "Custom Search API 地址",
+  "search_google_api_base_url_desc": "選填。留空使用 Google 預設地址；填寫後請求將傳送至相容 Custom Search JSON API 的其他服務。",
   "settings_saved": "設定已儲存",
   "settings_save_failed": "儲存設定失敗",
   "search_engine_tip_bing": "預設搜尋引擎，全球覆蓋廣泛，無需額外設定。",

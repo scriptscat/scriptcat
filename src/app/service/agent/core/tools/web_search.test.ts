@@ -109,6 +109,52 @@ describe("WebSearchExecutor", () => {
     expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("googleapis.com/customsearch"), expect.any(Object));
   });
 
+  it("should use the default Google address when googleApiBaseUrl is not set", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ items: [] }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const executor = new WebSearchExecutor(mockSender, createMockConfigRepo("google_custom"));
+    await executor.execute({ query: "a b" });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://www.googleapis.com/customsearch/v1?key=test-key&cx=test-cse&q=a%20b&num=5",
+      expect.any(Object)
+    );
+  });
+
+  it("should send Google search to googleApiBaseUrl when set", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          items: [{ title: "Custom Result", link: "https://example.com", snippet: "Custom snippet" }],
+        }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const configRepo: SearchConfigRepo = {
+      getConfig: vi.fn().mockResolvedValue({
+        engine: "google_custom",
+        googleApiKey: "test-key",
+        googleCseId: "test-cse",
+        googleApiBaseUrl: " https://search.example.com/customsearch/v1/ ",
+      }),
+      saveConfig: vi.fn(),
+    };
+
+    const executor = new WebSearchExecutor(mockSender, configRepo);
+    const result = JSON.parse((await executor.execute({ query: "a b" })) as string);
+
+    expect(result.results[0].title).toBe("Custom Result");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://search.example.com/customsearch/v1?key=test-key&cx=test-cse&q=a%20b&num=5",
+      expect.any(Object)
+    );
+  });
+
   it("should throw when DuckDuckGo returns error", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: false,

@@ -230,6 +230,8 @@
   "search_google_api_key_desc": "Usado para chamar a API JSON de Pesquisa Personalizada.",
   "search_google_cse_id": "ID do mecanismo de pesquisa personalizada",
   "search_google_cse_id_desc": "O parâmetro cx do Mecanismo de Pesquisa Programável.",
+  "search_google_api_base_url": "URL base da API de Pesquisa Personalizada",
+  "search_google_api_base_url_desc": "Opcional. Deixe vazio para usar o endereço padrão do Google ou defina para chamar outro serviço compatível com a API JSON de Pesquisa Personalizada.",
   "settings_saved": "Configurações salvas",
   "settings_save_failed": "Falha ao salvar as configurações",
   "search_engine_tip_bing": "Mecanismo de pesquisa padrão com ampla cobertura global, sem necessidade de configuração extra.",

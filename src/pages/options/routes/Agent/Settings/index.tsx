@@ -307,6 +307,19 @@ export default function AgentSettings() {
                       onChange={(e) => updateSearch({ googleCseId: e.target.value })}
                     />
                   </SettingsField>
+                  <SettingsField
+                    label={t("agent:search_google_api_base_url")}
+                    description={t("agent:search_google_api_base_url_desc")}
+                    isMobile={isMobile}
+                  >
+                    <Input
+                      data-testid="search-google-api-base-url"
+                      className="w-full font-mono"
+                      placeholder="https://www.googleapis.com/customsearch/v1"
+                      value={searchConfig.googleApiBaseUrl ?? ""}
+                      onChange={(e) => updateSearch({ googleApiBaseUrl: e.target.value })}
+                    />
+                  </SettingsField>
                 </>
               )}
             </SettingsCard>

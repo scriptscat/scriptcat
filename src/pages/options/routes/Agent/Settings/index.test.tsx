@@ -82,6 +82,16 @@ describe("AgentSettings 页面", () => {
     expect(agentClient.saveSearchConfig).toHaveBeenCalledWith(expect.objectContaining({ googleCseId: "cse123" }));
   });
 
+  it("修改 Custom Search API 地址触发 saveSearchConfig", async () => {
+    getSearchConfigMock.mockResolvedValueOnce({ engine: "google_custom", googleApiKey: "", googleCseId: "" });
+    render(<AgentSettings />);
+    const input = await screen.findByTestId("search-google-api-base-url");
+    fireEvent.change(input, { target: { value: "https://search.example.com/customsearch/v1" } });
+    expect(agentClient.saveSearchConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ googleApiBaseUrl: "https://search.example.com/customsearch/v1" })
+    );
+  });
+
   it("保存搜索设置失败时提示错误而非静默吞掉", async () => {
     getSearchConfigMock.mockResolvedValueOnce({ engine: "google_custom", googleApiKey: "", googleCseId: "" });
     vi.mocked(agentClient.saveSearchConfig).mockRejectedValueOnce(new Error("boom"));

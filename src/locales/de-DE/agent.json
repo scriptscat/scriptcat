@@ -198,6 +198,8 @@
   "search_google_api_key_desc": "Wird zum Aufruf der Custom Search JSON API verwendet.",
   "search_google_cse_id": "Benutzerdefinierte Suchmaschinen-ID",
   "search_google_cse_id_desc": "Der cx-Parameter der Programmable Search Engine.",
+  "search_google_api_base_url": "Custom Search API-Basis-URL",
+  "search_google_api_base_url_desc": "Optional. Leer lassen, um die Standardadresse von Google zu verwenden, oder setzen, um einen anderen Dienst aufzurufen, der die Custom Search JSON API bereitstellt.",
   "settings_saved": "Einstellungen gespeichert",
   "settings_save_failed": "Einstellungen konnten nicht gespeichert werden",
   "search_engine_tip_bing": "Standard-Suchmaschine mit breiter globaler Abdeckung, keine zusätzliche Konfiguration erforderlich.",

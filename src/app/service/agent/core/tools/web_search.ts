@@ -11,6 +11,8 @@ import { throwIfAborted } from "../abort_utils";
 const AGENT_USER_AGENT = "Mozilla/5.0 (compatible; ScriptCat Agent)";
 // 搜索超时时间（毫秒）
 const SEARCH_TIMEOUT_MS = 15_000;
+// Google Custom Search JSON API 默认地址，未配置 googleApiBaseUrl 时使用
+const GOOGLE_CUSTOM_SEARCH_URL = "https://www.googleapis.com/customsearch/v1";
 
 export const WEB_SEARCH_DEFINITION: ToolDefinition = {
   name: "web_search",
@@ -58,7 +60,14 @@ export class WebSearchExecutor implements ToolExecutor {
 
     switch (config.engine) {
       case "google_custom":
-        return this.searchGoogle(query, maxResults, config.googleApiKey || "", config.googleCseId || "", signal);
+        return this.searchGoogle(
+          query,
+          maxResults,
+          config.googleApiKey || "",
+          config.googleCseId || "",
+          config.googleApiBaseUrl || "",
+          signal
+        );
       case "duckduckgo":
         return this.searchDuckDuckGo(query, maxResults, signal);
       case "baidu":
@@ -136,13 +145,15 @@ export class WebSearchExecutor implements ToolExecutor {
     maxResults: number,
     apiKey: string,
     cseId: string,
+    apiBaseUrl: string,
     signal?: AbortSignal
   ): Promise<string> {
     if (!apiKey || !cseId) {
       throw new Error("Google Custom Search requires API Key and CSE ID. Configure them in Agent Tool Settings.");
     }
 
-    const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cseId)}&q=${encodeURIComponent(query)}&num=${maxResults}`;
+    const endpoint = apiBaseUrl.trim().replace(/\/+$/, "") || GOOGLE_CUSTOM_SEARCH_URL;
+    const url = `${endpoint}?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cseId)}&q=${encodeURIComponent(query)}&num=${maxResults}`;
     const response = await fetch(url, {
       signal: signal
         ? AbortSignal.any([signal, AbortSignal.timeout(SEARCH_TIMEOUT_MS)])
