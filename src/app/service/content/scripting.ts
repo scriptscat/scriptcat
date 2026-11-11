@@ -23,6 +23,9 @@ type PageOrContent = ValueOf<typeof PageOrContent>;
 export default class ScriptingRuntime {
   private activeStorageNames = new Map<string, PageOrContent>();
   private readonly versions = new Map<string, ValueVersion>();
+  private readonly desiredVersions = new Map<string, ValueVersion>();
+  // Only worlds which failed delivery need a full snapshot; no event journal.
+  private readonly dirtyWorlds = new Map<string, PageOrContent>();
   private stagedScripts?: { injectScriptList: TScriptInfo[]; contentScriptList: TScriptInfo[] };
   private readonly stagedDirty = new Set<string>();
   private scriptsStarted = false;
@@ -43,7 +46,8 @@ export default class ScriptingRuntime {
       this.senderToExt,
       (data) => this.forwardValueUpdate(data),
       (snapshot) => this.forwardValueSnapshot(snapshot),
-      () => Object.fromEntries(this.versions)
+      () => this.subscriptionVersions(),
+      () => this.desiredVersions.size > 0 || this.dirtyWorlds.size > 0
     );
   }
 
@@ -54,6 +58,15 @@ export default class ScriptingRuntime {
     return version.revision > known.revision;
   }
 
+  private subscriptionVersions(): Record<string, ValueVersion> {
+    const versions = Object.fromEntries(this.versions);
+    for (const name of this.dirtyWorlds.keys()) {
+      // A successful frame-level receipt is not proof that either script world applied it.
+      versions[name] = { epoch: "", revision: -1 };
+    }
+    return versions;
+  }
+
   private forEachStaged(storageName: string, callback: (script: TScriptInfo) => void) {
     if (!this.stagedScripts) return;
     for (const script of [...this.stagedScripts.injectScriptList, ...this.stagedScripts.contentScriptList]) {
@@ -61,20 +74,60 @@ export default class ScriptingRuntime {
     }
   }
 
+  private deliverValue(
+    action: "runtime/valueUpdate" | "runtime/valueSnapshot",
+    data: ValueUpdateDataEncoded | ValueSnapshot,
+    worlds: PageOrContent
+  ) {
+    const { storageName } = data;
+    const revision = data.revision;
+    const epoch = data.epoch;
+    const deliver = (bit: PageOrContent, target: CustomEventMessage, prefix: string) => {
+      if (!(worlds & bit)) return;
+      void sendMessage(target, prefix + "/" + action, data)
+        .then(() => {
+          if (action !== "runtime/valueSnapshot") return;
+          const current = this.versions.get(storageName);
+          // A late ACK from an older snapshot cannot mark a damaged world as repaired.
+          if (current && current.epoch === epoch && current.revision === revision) {
+            const remaining = (this.dirtyWorlds.get(storageName) ?? 0) & ~bit;
+            if (remaining) this.dirtyWorlds.set(storageName, remaining as PageOrContent);
+            else this.dirtyWorlds.delete(storageName);
+          }
+        })
+        .catch((error) => {
+          const dirty = (this.dirtyWorlds.get(storageName) ?? 0) | bit;
+          this.dirtyWorlds.set(storageName, dirty as PageOrContent);
+          LoggerCore.logger().error("forward GM value to script world failed", { storageName, prefix, error });
+          this.valuePort.refresh();
+        });
+    };
+    deliver(PageOrContent.CONTENT, this.senderToContent, "content");
+    deliver(PageOrContent.PAGE, this.senderToInject, "inject");
+  }
+
   private forwardValueUpdate(data: ValueUpdateDataEncoded) {
     const activeOn = this.activeStorageNames.get(data.storageName);
     if (!activeOn) return;
     if (data.revision !== undefined && data.epoch !== undefined) {
       const known = this.versions.get(data.storageName);
-      if (!this.isNewer(data.storageName, { revision: data.revision, epoch: data.epoch })) return;
+      if (!this.isNewer(data.storageName, data)) return;
       if (
         (known?.epoch && known.epoch !== data.epoch) ||
         (known?.epoch === data.epoch && data.revision > known.revision + 1)
       ) {
+        const previous = this.desiredVersions.get(data.storageName);
+        if (!previous || previous.epoch !== data.epoch || data.revision > previous.revision) {
+          this.desiredVersions.set(data.storageName, { epoch: data.epoch, revision: data.revision });
+        }
         this.valuePort.refresh();
         return;
       }
       this.versions.set(data.storageName, { revision: data.revision, epoch: data.epoch });
+      const desired = this.desiredVersions.get(data.storageName);
+      if (desired?.epoch === data.epoch && data.revision >= desired.revision) {
+        this.desiredVersions.delete(data.storageName);
+      }
     }
     if (!this.scriptsStarted) {
       this.forEachStaged(data.storageName, (script) => {
@@ -89,20 +142,31 @@ export default class ScriptingRuntime {
       this.stagedDirty.add(data.storageName);
       return;
     }
-    void this.broadcastToPage("runtime/valueUpdate", data, activeOn).catch((error) => {
-      LoggerCore.logger().error("forward value update failed", { storageName: data.storageName, error });
-    });
+    this.deliverValue("runtime/valueUpdate", data, activeOn);
   }
 
   private forwardValueSnapshot(snapshot: ValueSnapshot) {
     const activeOn = this.activeStorageNames.get(snapshot.storageName);
-    if (!activeOn || !this.isNewer(snapshot.storageName, snapshot)) return;
-    this.versions.set(snapshot.storageName, { revision: snapshot.revision, epoch: snapshot.epoch });
+    if (!activeOn) return;
+    const current = this.versions.get(snapshot.storageName);
+    const newer = this.isNewer(snapshot.storageName, snapshot);
+    const same = current?.epoch === snapshot.epoch && current.revision === snapshot.revision;
+    if (!newer && !same) {
+      // A newer delta beat this snapshot; preserve the dirty/desired state.
+      if (this.desiredVersions.has(snapshot.storageName) || this.dirtyWorlds.has(snapshot.storageName)) {
+        this.valuePort.refresh();
+      }
+      return;
+    }
+    if (newer) this.versions.set(snapshot.storageName, { revision: snapshot.revision, epoch: snapshot.epoch });
+    const desired = this.desiredVersions.get(snapshot.storageName);
+    if (desired && (desired.epoch !== snapshot.epoch || snapshot.revision >= desired.revision)) {
+      // A fresh authoritative snapshot supersedes the requested old generation.
+      if (desired.epoch === snapshot.epoch || newer) this.desiredVersions.delete(snapshot.storageName);
+    }
     if (!this.scriptsStarted) {
       this.forEachStaged(snapshot.storageName, (script) => {
         const values = { ...snapshot.values };
-        // Initial pageLoad includes user-config defaults; preserve that same wire
-        // contract when a newer snapshot replaces values before script execution.
         for (const [tabName, tab] of Object.entries(script.config ?? {})) {
           if (!tab || typeof tab !== "object") continue;
           for (const [key, option] of Object.entries(tab)) {
@@ -118,9 +182,9 @@ export default class ScriptingRuntime {
       this.stagedDirty.add(snapshot.storageName);
       return;
     }
-    void this.broadcastToPage("runtime/valueSnapshot", snapshot, activeOn).catch((error) => {
-      LoggerCore.logger().error("forward value snapshot failed", { storageName: snapshot.storageName, error });
-    });
+    const dirty = this.dirtyWorlds.get(snapshot.storageName) ?? 0;
+    // A same-revision snapshot is still required by a world whose prior delivery failed.
+    if (newer || dirty) this.deliverValue("runtime/valueSnapshot", snapshot, (newer ? activeOn : dirty) as PageOrContent);
   }
 
   // 广播消息给 content 和 inject
