@@ -57,13 +57,13 @@ export class ScriptExecutor {
     let handled = false;
     let failed = false;
     let firstError: unknown;
-    const recoveries: Promise<void>[] = [];
+    let recoveries: Promise<void>[] | undefined;
     for (const val of this.execScriptMap.values()) {
       if (val.scriptRes.uuid !== uuid && getStorageName(val.scriptRes) !== storageName) continue;
       handled = true;
       try {
         const recovery = val.valueUpdate(data);
-        if (recovery instanceof Promise) recoveries.push(recovery);
+        if (recovery instanceof Promise) (recoveries ??= []).push(recovery);
       } catch (error) {
         if (!failed) firstError = error;
         failed = true;
@@ -97,10 +97,10 @@ export class ScriptExecutor {
     if (!handled) throw new Error("No script world recipient for GM value update");
     if (failed) {
       // A single failing script must not block peers; the frame still needs a repair snapshot.
-      for (const recovery of recoveries) void recovery.catch(() => undefined);
+      for (const recovery of recoveries ?? []) void recovery.catch(() => undefined);
       throw firstError;
     }
-    if (recoveries.length) return Promise.all(recoveries).then(() => undefined);
+    if (recoveries) return Promise.all(recoveries).then(() => undefined);
   }
 
   valueSnapshot(snapshot: ValueSnapshot) {
