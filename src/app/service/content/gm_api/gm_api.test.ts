@@ -1326,21 +1326,25 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
-
 });
 
 describe("GM write acknowledgement timeout", () => {
   it("无回执时写入 Promise 有界超时，不在全局 Map 永久悬挂", async () => {
     vi.useFakeTimers();
     try {
-      const script = { ...scriptRes, uuid: uuidv4(), value: {}, metadata: { grant: ["GM.setValue"] } } as ScriptLoadInfo;
+      const script = {
+        ...scriptRes,
+        uuid: uuidv4(),
+        value: {},
+        metadata: { grant: ["GM.setValue"] },
+      } as ScriptLoadInfo;
       const mockSendMessage = vi.fn().mockImplementation(() => new Promise(() => undefined));
       const api = new GMApi(
-      "scripting",
-      { sendMessage: mockSendMessage } as unknown as Message,
-      {} as Message,
-      script as unknown as ScriptRunResource
-    );
+        "scripting",
+        { sendMessage: mockSendMessage } as unknown as Message,
+        {} as Message,
+        script as unknown as ScriptRunResource
+      );
       const pending = api["GM.setValue"]("x", 1);
       const assertion = expect(pending).rejects.toThrow("acknowledgement timed out");
       await vi.advanceTimersByTimeAsync(31000);
