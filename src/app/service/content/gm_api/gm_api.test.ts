@@ -58,7 +58,7 @@ describe("GM Resource API", () => {
         resource: { [name]: makeResource("https://example.com/data.txt", "declared resource", "resource") },
       },
     } as unknown as ScriptRunResource;
-    const api = new GMApi("test", {} as Message, {} as Message, script);
+    const api = new GMApi("test", {} as Message, {} as Message, script as unknown as ScriptRunResource);
 
     expect(api.GM_getResourceText(name)).toBe("declared resource");
     expect(api.GM_getResourceURL(name)).toContain("ZGVjbGFyZWQgcmVzb3VyY2U=");
@@ -1227,7 +1227,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       updates.push(update);
       return { code: 0, data: { committed: true, update } };
     });
-    const api = new GMApi("scripting", { sendMessage: mockSendMessage } as unknown as Message, {} as Message, script);
+    const api = new GMApi("scripting", { sendMessage: mockSendMessage } as unknown as Message, {} as Message, script as unknown as ScriptRunResource);
     (api as any).runFlag = "writer";
     const listener = vi.fn();
     api.GM_addValueChangeListener("a", listener);
@@ -1242,7 +1242,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const script = { ...scriptRes, uuid: uuidv4(), value: {}, metadata: { grant: ["GM.setValue"] } } as ScriptLoadInfo;
     let complete!: (value: unknown) => void;
     const mockSendMessage = vi.fn().mockImplementation(() => new Promise((resolve) => { complete = resolve; }));
-    const api = new GMApi("scripting", { sendMessage: mockSendMessage } as unknown as Message, {} as Message, script);
+    const api = new GMApi("scripting", { sendMessage: mockSendMessage } as unknown as Message, {} as Message, script as unknown as ScriptRunResource);
     (api as any).runFlag = "writer";
     const listener = vi.fn();
     api.GM_addValueChangeListener("a", listener);
@@ -1265,10 +1265,39 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
   it("缺失或虚假的写入回执不能视为持久化成功", async () => {
     const script = { ...scriptRes, uuid: uuidv4(), value: {}, metadata: { grant: ["GM.setValue", "GM.setValues"] } } as ScriptLoadInfo;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
-    const api = new GMApi("scripting", { sendMessage: mockSendMessage } as unknown as Message, {} as Message, script);
+    const api = new GMApi("scripting", { sendMessage: mockSendMessage } as unknown as Message, {} as Message, script as unknown as ScriptRunResource);
     await expect(api["GM.setValue"]("x", 1)).rejects.toThrow("acknowledgement missing");
     await expect(api["GM.setValues"]({ x: 2 })).rejects.toThrow("acknowledgement missing");
     expect(mockSendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("同值写入和删除按提交回执结算，只在实际变更时通知", async () => {
+    const script = { ...scriptRes, uuid: uuidv4(), value: { a: 1 }, metadata: { grant: ["GM.setValues", "GM.deleteValue"] } } as ScriptLoadInfo;
+    const replies: any[] = [];
+    const mockSendMessage = vi.fn().mockImplementation(async (request) => {
+      const params = request.data.params;
+      const isDelete = request.data.api === "GM_setValue";
+      const update = {
+        id: params[0],
+        entries: isDelete ? [["a", encodeRValue(undefined), encodeRValue(1)]] : [],
+        uuid: script.uuid,
+        storageName: script.uuid,
+        sender: { runFlag: "writer", tabId: 1 },
+        valueUpdated: isDelete,
+      };
+      replies.push(update);
+      return { code: 0, data: { committed: true, update } };
+    });
+    const api = new GMApi("scripting", { sendMessage: mockSendMessage } as unknown as Message, {} as Message, script as unknown as ScriptRunResource);
+    (api as any).runFlag = "writer";
+    const listener = vi.fn();
+    api.GM_addValueChangeListener("a", listener);
+    await api["GM.setValues"]({ a: 1 });
+    expect(listener).not.toHaveBeenCalled();
+    await api["GM.deleteValue"]("a");
+    expect(listener).toHaveBeenCalledExactlyOnceWith("a", 1, undefined, false, 1);
+    api.valueUpdate(replies[1]);
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 
   it("无回执时写入 Promise 有界超时，不在全局 Map 永久悬挂", async () => {
@@ -1276,7 +1305,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     try {
       const script = { ...scriptRes, uuid: uuidv4(), value: {}, metadata: { grant: ["GM.setValue"] } } as ScriptLoadInfo;
       const mockSendMessage = vi.fn().mockImplementation(() => new Promise(() => undefined));
-      const api = new GMApi("scripting", { sendMessage: mockSendMessage } as unknown as Message, {} as Message, script);
+      const api = new GMApi("scripting", { sendMessage: mockSendMessage } as unknown as Message, {} as Message, script as unknown as ScriptRunResource);
       const pending = api["GM.setValue"]("x", 1);
       const assertion = expect(pending).rejects.toThrow("acknowledgement timed out");
       await vi.advanceTimersByTimeAsync(31000);
