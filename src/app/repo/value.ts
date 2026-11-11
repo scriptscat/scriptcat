@@ -6,6 +6,10 @@ export interface Value {
   data: { [key: string]: any };
   createtime: number;
   updatetime: number;
+  /** Persisted per-storageName ordering. Old records implicitly start at revision zero. */
+  revision?: number;
+  /** Changes when a storageName record is deleted and recreated. */
+  epoch?: string;
 }
 
 export class ValueDAO extends Repo<Value> {
