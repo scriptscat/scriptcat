@@ -2,7 +2,7 @@ import type { Message } from "@Packages/message/types";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { EmitEventRequest } from "../service_worker/types";
 import ExecScript from "./exec_script";
-import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
+import type { GMInfoEnv, ScriptFunc, ValueSnapshot, ValueUpdateDataEncoded } from "./types";
 import { addStyleSheet, definePropertyListener, waitBody } from "./utils";
 import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { DefinedFlags } from "../service_worker/runtime.consts";
@@ -53,8 +53,21 @@ export class ScriptExecutor {
     const { uuid, storageName } = data;
     for (const val of this.execScriptMap.values()) {
       if (val.scriptRes.uuid === uuid || getStorageName(val.scriptRes) === storageName) {
-        val.valueUpdate(data);
+        try {
+          const result = val.valueUpdate(data);
+          if (result instanceof Promise) {
+            void result.catch((error) => console.error("GM value reconciliation failed", error));
+          }
+        } catch (error) {
+          console.error("GM value update failed", error);
+        }
       }
+    }
+  }
+
+  valueSnapshot(snapshot: ValueSnapshot) {
+    for (const exec of this.execScriptMap.values()) {
+      if (getStorageName(exec.scriptRes) === snapshot.storageName) exec.valueSnapshot(snapshot);
     }
   }
 
