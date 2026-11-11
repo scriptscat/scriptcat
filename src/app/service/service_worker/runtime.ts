@@ -133,9 +133,10 @@ export type TScriptsForTab = {
 const bgScriptStorageNames = new Set<string>();
 
 export class RuntimeService {
-  private readonly valuePorts = new ValueUpdatePorts((context, error) => {
-    this.logger.error("value update Port delivery failed", context, Logger.E(error));
-  });
+  private readonly valuePorts = new ValueUpdatePorts(
+    (context, error) => this.logger.error("value update Port delivery failed", context, Logger.E(error)),
+    (storageName) => this.value.getValueSnapshot(storageName)
+  );
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
   private gmApi?: GMApi;

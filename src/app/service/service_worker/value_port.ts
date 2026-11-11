@@ -1,6 +1,6 @@
 import type { IGetSender } from "@Packages/message/server";
 import type { MessageConnect } from "@Packages/message/types";
-import type { ValueUpdateDataEncoded } from "../content/types";
+import type { ValueSnapshot, ValueUpdateDataEncoded, ValueVersion } from "../content/types";
 
 // 每个 Port 对应一个 frame，索引只保存该 frame 实际运行的 storageName。
 export default class ValueUpdatePorts {
@@ -11,7 +11,8 @@ export default class ValueUpdatePorts {
     private readonly onSendError: (
       context: { kind: "subscribe" } | { kind: "push"; storageName: string },
       error: unknown
-    ) => void
+    ) => void,
+    private readonly readSnapshot?: (storageName: string) => Promise<ValueSnapshot>
   ) {}
 
   connect(sender: IGetSender) {
@@ -19,10 +20,14 @@ export default class ValueUpdatePorts {
     if (!port) throw new Error("valueUpdates requires a Port connection");
     this.byPort.set(port, new Set());
     port.onMessage((message) => {
-      if (message.action !== "runtime/subscribeValueUpdates" || !Array.isArray(message.data)) return;
-      const storageNames = new Set<string>(
-        message.data.filter((name: unknown): name is string => typeof name === "string")
-      );
+      if (message.action !== "runtime/subscribeValueUpdates") return;
+      const request = message.data as
+        | string[]
+        | { names: string[]; versions?: Record<string, ValueVersion> };
+      const names = Array.isArray(request) ? request : request?.names;
+      if (!Array.isArray(names)) return;
+      const versions = Array.isArray(request) ? undefined : request.versions;
+      const storageNames = new Set<string>(names.filter((name): name is string => typeof name === "string"));
       this.removeSubscriptions(port);
       this.byPort.set(port, storageNames);
       for (const name of storageNames) {
@@ -30,13 +35,32 @@ export default class ValueUpdatePorts {
         if (!ports) this.byStorageName.set(name, (ports = new Set()));
         ports.add(port);
       }
-      try {
-        port.sendMessage({ action: "runtime/valueSubscriptionsReady" });
-      } catch (error) {
-        this.removeSubscriptions(port);
-        this.onSendError({ kind: "subscribe" }, error);
-        port.disconnect(true);
-      }
+      // Register first, then read. Concurrent pushes cannot be lost; older snapshots
+      // are discarded by the receiver's version checks.
+      void Promise.all(
+        [...storageNames].map(async (name) => {
+          if (!this.readSnapshot || !versions) return undefined;
+          const snapshot = await this.readSnapshot(name);
+          const known = versions[name];
+          return known?.revision === snapshot.revision && known.epoch === snapshot.epoch ? undefined : snapshot;
+        })
+      )
+        .then((snapshots) => {
+          if (!this.byPort.has(port)) return;
+          port.sendMessage({
+            action: "runtime/valueSubscriptionsReady",
+            data: { snapshots: snapshots.filter((snapshot): snapshot is ValueSnapshot => !!snapshot) },
+          });
+        })
+        .catch((error: unknown) => {
+          this.removeSubscriptions(port);
+          this.onSendError({ kind: "subscribe" }, error);
+          try {
+            port.disconnect(true);
+          } catch {
+            // Port may already have been torn down by the browser.
+          }
+        });
     });
     port.onDisconnect(() => this.removeSubscriptions(port));
     return { ready: true };
