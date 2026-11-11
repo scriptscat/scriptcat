@@ -190,6 +190,44 @@ describe("ScriptingRuntime 值更新投递", () => {
     }
   });
 
+  it("Port snapshot 与后续 updates 按 revision 收敛，丢失中间事件时刷新权威状态", async () => {
+    const { runtime, receive, onPortMessage, toInject, portSend } = setup({
+      ok: true,
+      contentScriptList: [],
+      injectScriptList: [{
+        uuid: "a", metadata: { storagename: ["shared"] }, value: { k: 1 },
+        valueRevision: 1, valueEpoch: "epoch-1",
+      }],
+      envInfo: {},
+    });
+    runtime.pageLoad();
+    await vi.waitFor(() => expect(onPortMessage).toHaveBeenCalledOnce());
+    receive({ code: 0, data: { ready: true } });
+    await vi.waitFor(() => expect(portSend).toHaveBeenCalledOnce());
+    receive({ action: "runtime/valueSubscriptionsReady", data: {
+      snapshots: [{ storageName: "shared", revision: 2, epoch: "epoch-1", values: { k: 2 } }],
+    } });
+    await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/pageLoad"));
+    expect(toInject.sendMessage.mock.calls.find(([msg]) => msg.action === "inject/pageLoad")?.[0].data.scripts[0].value.k)
+      .toBe(2);
+    toInject.sendMessage.mockClear();
+    const update = (rev: number, k: number) => ({
+      id: `revision-${rev}`, uuid: "a", storageName: "shared",
+      entries: [["k", k, k - 1] as any], sender: { runFlag: "remote", tabId: 2 },
+      valueUpdated: true, revision: rev, epoch: "epoch-1",
+    });
+    receive({ action: "runtime/valueUpdate", data: update(3, 3) });
+    receive({ action: "runtime/valueUpdate", data: update(2, 2) });
+    await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/runtime/valueUpdate"));
+    expect(actionsOf(toInject.sendMessage).filter((action) => action === "inject/runtime/valueUpdate")).toHaveLength(1);
+    receive({ action: "runtime/valueUpdate", data: update(5, 5) });
+    expect(portSend).toHaveBeenCalledTimes(2); // The version gap requests a fresh subscription snapshot.
+    receive({ action: "runtime/valueSubscriptionsReady", data: {
+      snapshots: [{ storageName: "shared", revision: 5, epoch: "epoch-1", values: { k: 5 } }],
+    } });
+    await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/runtime/valueSnapshot"));
+  });
+
   it("pageLoad 没有运行脚本的 frame 不会订阅，释放 Port", async () => {
     const { runtime, toContent, toInject, portSend } = setup();
     runtime.pageLoad();

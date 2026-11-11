@@ -196,6 +196,36 @@ describe("ScriptingValuePort 生命周期", () => {
     channel.stop();
   });
 
+  it("订阅握手超过 30 秒是可恢复的，不会永久终止 pageLoad", async () => {
+    vi.useFakeTimers();
+    const first = new TestPort();
+    const second = new TestPort();
+    const { sender, connect } = createSender(first, second);
+    const snapshots = vi.fn();
+    const channel = new ScriptingValuePort(sender, vi.fn(), snapshots, () => ({
+      "my-store": { epoch: "e", revision: 1 },
+    }));
+    channel.start();
+    const ready = channel.subscribe(["my-store"]);
+    await Promise.resolve();
+    first.receive({ code: 0, data: { ready: true } });
+    expect(first.sent[0]).toEqual({
+      action: "runtime/subscribeValueUpdates",
+      data: { names: ["my-store"], versions: { "my-store": { epoch: "e", revision: 1 } } },
+    });
+    await vi.advanceTimersByTimeAsync(31000);
+    expect(connect).toHaveBeenCalledTimes(2);
+    second.receive({ code: 0, data: { ready: true } });
+    second.receive({ action: "runtime/valueSubscriptionsReady", data: {
+      snapshots: [{ storageName: "my-store", epoch: "e", revision: 2, values: { k: 2 } }],
+    } });
+    await ready;
+    expect(snapshots).toHaveBeenCalledExactlyOnceWith({
+      storageName: "my-store", epoch: "e", revision: 2, values: { k: 2 },
+    });
+    channel.stop();
+  });
+
   it("旧扩展 context 失效后停止重试，并结算待确认订阅", async () => {
     vi.useFakeTimers();
     const connect = vi.fn().mockRejectedValue(new Error("Extension context invalidated"));

@@ -103,6 +103,34 @@ describe("ValueUpdatePorts 精准推送", () => {
     expect(disconnect).toHaveBeenCalledOnce();
   });
 
+  it("版本相同不复制 snapshot，版本不同仅发送变化的存储空间", async () => {
+    const reader = vi.fn(async (storageName: string) => ({
+      storageName,
+      epoch: "generation-1",
+      revision: 5,
+      values: { k: 5 },
+    }));
+    const ports = new ValueUpdatePorts(vi.fn(), reader);
+    const port = new TestPort();
+    ports.connect(senderOf(port));
+    port.receive({
+      action: "runtime/subscribeValueUpdates",
+      data: {
+        names: ["matching", "changed"],
+        versions: {
+          matching: { epoch: "generation-1", revision: 5 },
+          changed: { epoch: "generation-1", revision: 4 },
+        },
+      },
+    });
+    await vi.waitFor(() => expect(port.sent).toHaveLength(1));
+    expect(reader).toHaveBeenCalledTimes(2);
+    expect(port.sent[0]).toEqual({
+      action: "runtime/valueSubscriptionsReady",
+      data: { snapshots: [{ storageName: "changed", epoch: "generation-1", revision: 5, values: { k: 5 } }] },
+    });
+  });
+
   it("订阅确认发送失败时关闭 Port，不保留不能确认的订阅", () => {
     const onError = vi.fn();
     const ports = new ValueUpdatePorts(onError);
