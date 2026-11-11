@@ -117,7 +117,13 @@ describe("ScriptingRuntime 值更新投递", () => {
     await vi.waitFor(() =>
       expect(portSend).toHaveBeenCalledWith({
         action: "runtime/subscribeValueUpdates",
-        data: ["page-store", "shared", "content-store", "__proto__"],
+        data: {
+          names: ["page-store", "shared", "content-store", "__proto__"],
+          versions: expect.objectContaining({
+            "page-store": { epoch: "", revision: 0 },
+            shared: { epoch: "", revision: 0 },
+          }),
+        },
       })
     );
     expect(toContent.sendMessage).not.toHaveBeenCalled();
@@ -159,7 +165,7 @@ describe("ScriptingRuntime 值更新投递", () => {
     expect(toInject.sendMessage).not.toHaveBeenCalled();
   });
 
-  it("初始 pageLoad 短暂失败时有限重试，并在恢复后停止重试", async () => {
+  it("初始 pageLoad 短暂失败后恢复，且仅下发一次脚本初始化", async () => {
     const { runtime, senderToExt, toContent, toInject } = setup({ ok: false });
     const send = vi.mocked(senderToExt.sendMessage);
     send.mockRejectedValueOnce(new Error("Service Worker is starting"));

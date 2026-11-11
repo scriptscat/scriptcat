@@ -35,6 +35,16 @@ export default class ValueUpdatePorts {
         if (!ports) this.byStorageName.set(name, (ports = new Set()));
         ports.add(port);
       }
+      if (!this.readSnapshot || !versions) {
+        try {
+          port.sendMessage({ action: "runtime/valueSubscriptionsReady" });
+        } catch (error) {
+          this.removeSubscriptions(port);
+          this.onSendError({ kind: "subscribe" }, error);
+          port.disconnect(true);
+        }
+        return;
+      }
       // Register first, then read. Concurrent pushes cannot be lost; older snapshots
       // are discarded by the receiver's version checks.
       void Promise.all(
