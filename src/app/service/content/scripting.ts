@@ -6,7 +6,9 @@ import { RuntimeClient } from "../service_worker/client";
 import { getStorageName, makeBlobURL } from "@App/pkg/utils/utils";
 import type { Logger } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
-import type { ValueUpdateDataEncoded } from "./types";
+import type { ValueSnapshot, ValueUpdateDataEncoded, ValueVersion } from "./types";
+import type { TScriptInfo } from "@App/app/repo/scripts";
+import { decodeRValue } from "@App/pkg/utils/message_value";
 import ScriptingValuePort from "./value_port";
 
 const PageOrContent = {
@@ -20,6 +22,10 @@ type PageOrContent = ValueOf<typeof PageOrContent>;
 // scripting页的处理
 export default class ScriptingRuntime {
   private activeStorageNames = new Map<string, PageOrContent>();
+  private readonly versions = new Map<string, ValueVersion>();
+  private stagedScripts?: { injectScriptList: TScriptInfo[]; contentScriptList: TScriptInfo[] };
+  private readonly stagedDirty = new Set<string>();
+  private scriptsStarted = false;
   private readonly valuePort: ScriptingValuePort;
   constructor(
     // 监听来自service_worker的消息
@@ -33,14 +39,76 @@ export default class ScriptingRuntime {
     // 发送给inject的消息接口
     private readonly senderToInject: CustomEventMessage
   ) {
-    this.valuePort = new ScriptingValuePort(this.senderToExt, (data) => this.forwardValueUpdate(data));
+    this.valuePort = new ScriptingValuePort(
+      this.senderToExt,
+      (data) => this.forwardValueUpdate(data),
+      (snapshot) => this.forwardValueSnapshot(snapshot),
+      () => Object.fromEntries(this.versions)
+    );
+  }
+
+  private isNewer(storageName: string, version: ValueVersion): boolean {
+    const known = this.versions.get(storageName);
+    if (!known) return true;
+    if (known.epoch !== version.epoch) return true;
+    return version.revision > known.revision;
+  }
+
+  private forEachStaged(storageName: string, callback: (script: TScriptInfo) => void) {
+    if (!this.stagedScripts) return;
+    for (const script of [...this.stagedScripts.injectScriptList, ...this.stagedScripts.contentScriptList]) {
+      if (getStorageName(script) === storageName) callback(script);
+    }
   }
 
   private forwardValueUpdate(data: ValueUpdateDataEncoded) {
     const activeOn = this.activeStorageNames.get(data.storageName);
     if (!activeOn) return;
+    if (data.revision !== undefined && data.epoch !== undefined) {
+      const known = this.versions.get(data.storageName);
+      if (!this.isNewer(data.storageName, { revision: data.revision, epoch: data.epoch })) return;
+      if (
+        (known?.epoch && known.epoch !== data.epoch) ||
+        (known?.epoch === data.epoch && data.revision > known.revision + 1)
+      ) {
+        this.valuePort.refresh();
+        return;
+      }
+      this.versions.set(data.storageName, { revision: data.revision, epoch: data.epoch });
+    }
+    if (!this.scriptsStarted) {
+      this.forEachStaged(data.storageName, (script) => {
+        for (const [key, encoded] of data.entries) {
+          const value = decodeRValue(encoded);
+          if (value === undefined) delete script.value[key];
+          else script.value[key] = value;
+        }
+        script.valueRevision = data.revision;
+        script.valueEpoch = data.epoch;
+      });
+      this.stagedDirty.add(data.storageName);
+      return;
+    }
     void this.broadcastToPage("runtime/valueUpdate", data, activeOn).catch((error) => {
       LoggerCore.logger().error("forward value update failed", { storageName: data.storageName, error });
+    });
+  }
+
+  private forwardValueSnapshot(snapshot: ValueSnapshot) {
+    const activeOn = this.activeStorageNames.get(snapshot.storageName);
+    if (!activeOn || !this.isNewer(snapshot.storageName, snapshot)) return;
+    this.versions.set(snapshot.storageName, { revision: snapshot.revision, epoch: snapshot.epoch });
+    if (!this.scriptsStarted) {
+      this.forEachStaged(snapshot.storageName, (script) => {
+        script.value = { ...snapshot.values };
+        script.valueRevision = snapshot.revision;
+        script.valueEpoch = snapshot.epoch;
+      });
+      this.stagedDirty.add(snapshot.storageName);
+      return;
+    }
+    void this.broadcastToPage("runtime/valueSnapshot", snapshot, activeOn).catch((error) => {
+      LoggerCore.logger().error("forward value snapshot failed", { storageName: snapshot.storageName, error });
     });
   }
 
@@ -171,22 +239,42 @@ export default class ScriptingRuntime {
         pairs.set(name, ((pairs.get(name) || 0) | PageOrContent.CONTENT) as PageOrContent);
       }
       this.activeStorageNames = pairs;
+      this.stagedScripts = { injectScriptList, contentScriptList };
+      for (const script of [...injectScriptList, ...contentScriptList]) {
+        const name = getStorageName(script);
+        const version = { revision: script.valueRevision ?? 0, epoch: script.valueEpoch ?? "" };
+        const known = this.versions.get(name);
+        if (!known || (known.epoch === version.epoch && version.revision < known.revision)) {
+          this.versions.set(name, version);
+        }
+      }
 
-      // 先确认中央已建立订阅，再启动页面脚本；早期 GM.setValue 的回执不会落入订阅空窗。
-      await this.valuePort.subscribe([...this.activeStorageNames.keys()]);
-
-      // 向页面 发送脚本列表及环境信息
+      // The subscription handshake covers updates between pageLoad's snapshot and script execution.
+      await this.valuePort.subscribe([...pairs.keys()]);
+      const starts: Promise<unknown>[] = [];
       if (contentScriptList.length) {
-        const contentClient = new Client(this.senderToContent, "content");
-        // 根据@inject-into content过滤脚本
-        contentClient.do("pageLoad", { scripts: contentScriptList, envInfo });
+        starts.push(new Client(this.senderToContent, "content").do("pageLoad", { scripts: contentScriptList, envInfo }));
       }
-
       if (injectScriptList.length) {
-        const injectClient = new Client(this.senderToInject, "inject");
-        // 根据@inject-into content过滤脚本
-        injectClient.do("pageLoad", { scripts: injectScriptList, envInfo });
+        starts.push(new Client(this.senderToInject, "inject").do("pageLoad", { scripts: injectScriptList, envInfo }));
       }
+      await Promise.allSettled(starts);
+      this.scriptsStarted = true;
+      // Changes which raced with the world startup are reconciled once, not replayed as listeners.
+      for (const name of this.stagedDirty) {
+        const script = [...injectScriptList, ...contentScriptList].find((item) => getStorageName(item) === name);
+        const version = this.versions.get(name);
+        const activeOn = pairs.get(name);
+        if (script && version && activeOn) {
+          void this.broadcastToPage("runtime/valueSnapshot", {
+            storageName: name,
+            ...version,
+            values: script.value,
+          } satisfies ValueSnapshot, activeOn);
+        }
+      }
+      this.stagedDirty.clear();
+      this.stagedScripts = undefined;
     }).catch((error) => {
       LoggerCore.logger().error("pageLoad or value subscription failed", { error });
     });

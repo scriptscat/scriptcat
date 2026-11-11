@@ -214,7 +214,7 @@ export default class ScriptingValuePort {
 
   /** Re-register and request snapshots only if server revisions have diverged. */
   refresh() {
-    if (this.state === "active") this.sendSubscriptions();
+    if (this.portReady && this.port) this.sendSubscriptions();
   }
 
   private failPort(port: MessageConnect, error: unknown) {
