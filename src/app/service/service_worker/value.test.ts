@@ -112,7 +112,7 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
 
     // 执行测试
-    await valueService.setValues({
+    const receipt = await valueService.setValues({
       uuid: mockScript.uuid,
       id: "testId-4021",
       keyValuePairs: [[key, encodeRValue(value)]],
@@ -124,6 +124,10 @@ describe("ValueService - setValue 方法测试", () => {
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
     expect(mockValueDAO.get).toHaveBeenCalled();
     expect(mockValueDAO.save).toHaveBeenCalled();
+    expect(receipt).toMatchObject({
+      committed: true,
+      update: { id: "testId-4021", uuid: mockScript.uuid, valueUpdated: true },
+    });
     expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1);
     expect(valueService.pushValueUpdate).toHaveBeenNthCalledWith(
       1,
@@ -148,6 +152,21 @@ describe("ValueService - setValue 方法测试", () => {
     expect(savedValue.data[key]).toBe(value);
     expect(savedValue.createtime).toBeTypeOf("number");
     expect(savedValue.updatetime).toBeTypeOf("number");
+  });
+
+  it("持久化失败必须拒绝写入，不能返回已提交的 receipt 或推送消息", async () => {
+    const script = createMockScript();
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+    vi.mocked(mockValueDAO.get).mockResolvedValue(undefined);
+    vi.mocked(mockValueDAO.save).mockRejectedValue(new Error("storage quota exceeded"));
+
+    await expect(valueService.setValues({
+      uuid: script.uuid,
+      id: "failed-write",
+      keyValuePairs: [["k", encodeRValue("v")]],
+      isReplace: false,
+    })).rejects.toThrow("storage quota exceeded");
+    expect(valueService.pushValueUpdate).not.toHaveBeenCalled();
   });
 
   it("应该成功设置新脚本的值 (storageName fallback)", async () => {
