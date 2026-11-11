@@ -283,7 +283,7 @@ export default class GMApi extends GM_Base {
 
   // The RPC receipt settles the promise independently of the Port subscription.
   // Retain notifications for other frames; process the writer receipt through the same listener path.
-  static async commitValueWrite(a: GMApi, api: "GM_setValue" | "GM_setValues", id: string, params: any[]) {
+  static async commitValueWrite(a: GMApi, api: "GM_setValue" | "GM_setValues", id: string, params: unknown[]) {
     let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
       const receipt = await Promise.race([

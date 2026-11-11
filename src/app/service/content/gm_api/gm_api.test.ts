@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import ExecScript from "../exec_script";
 import type { ScriptLoadInfo } from "@App/app/service/service_worker/types";
-import type { GMInfoEnv, ScriptFunc } from "../types";
+import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "../types";
 import { compileScript, compileScriptCode } from "../utils";
 import type { Message } from "@Packages/message/types";
 import { encodeRValue } from "@App/pkg/utils/message_value";
@@ -1214,9 +1214,9 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
   });
   it("异步 GM.setValue 以持久化回执结算，即使 Port 通知未抵达", async () => {
     const script = { ...scriptRes, uuid: uuidv4(), value: {}, metadata: { grant: ["GM.setValue"] } } as ScriptLoadInfo;
-    const updates: any[] = [];
+    const updates: ValueUpdateDataEncoded[] = [];
     const mockSendMessage = vi.fn().mockImplementation(async (request) => {
-      const update = {
+      const update: ValueUpdateDataEncoded = {
         id: request.data.params[0],
         entries: [["a", encodeRValue(123), encodeRValue(undefined)]],
         uuid: script.uuid,
@@ -1228,7 +1228,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       return { code: 0, data: { committed: true, update } };
     });
     const api = new GMApi("scripting", { sendMessage: mockSendMessage } as unknown as Message, {} as Message, script as unknown as ScriptRunResource);
-    (api as any).runFlag = "writer";
+    Object.assign(api, { runFlag: "writer" });
     const listener = vi.fn();
     api.GM_addValueChangeListener("a", listener);
 
@@ -1243,7 +1243,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     let complete!: (value: unknown) => void;
     const mockSendMessage = vi.fn().mockImplementation(() => new Promise((resolve) => { complete = resolve; }));
     const api = new GMApi("scripting", { sendMessage: mockSendMessage } as unknown as Message, {} as Message, script as unknown as ScriptRunResource);
-    (api as any).runFlag = "writer";
+    Object.assign(api, { runFlag: "writer" });
     const listener = vi.fn();
     api.GM_addValueChangeListener("a", listener);
     const pending = api["GM.setValue"]("a", 2);
@@ -1273,11 +1273,11 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
 
   it("同值写入和删除按提交回执结算，只在实际变更时通知", async () => {
     const script = { ...scriptRes, uuid: uuidv4(), value: { a: 1 }, metadata: { grant: ["GM.setValues", "GM.deleteValue"] } } as ScriptLoadInfo;
-    const replies: any[] = [];
+    const replies: ValueUpdateDataEncoded[] = [];
     const mockSendMessage = vi.fn().mockImplementation(async (request) => {
       const params = request.data.params;
       const isDelete = request.data.api === "GM_setValue";
-      const update = {
+      const update: ValueUpdateDataEncoded = {
         id: params[0],
         entries: isDelete ? [["a", encodeRValue(undefined), encodeRValue(1)]] : [],
         uuid: script.uuid,
@@ -1289,7 +1289,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       return { code: 0, data: { committed: true, update } };
     });
     const api = new GMApi("scripting", { sendMessage: mockSendMessage } as unknown as Message, {} as Message, script as unknown as ScriptRunResource);
-    (api as any).runFlag = "writer";
+    Object.assign(api, { runFlag: "writer" });
     const listener = vi.fn();
     api.GM_addValueChangeListener("a", listener);
     await api["GM.setValues"]({ a: 1 });

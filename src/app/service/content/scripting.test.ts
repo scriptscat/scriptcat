@@ -170,13 +170,18 @@ describe("ScriptingRuntime 值更新投递", () => {
   });
 
   it("扩展 context 失效时不重试初始 pageLoad", async () => {
-    const { runtime, senderToExt } = setup();
-    const send = vi.mocked(senderToExt.sendMessage);
-    send.mockRejectedValue(new Error("Extension context invalidated"));
-    runtime.pageLoad();
-    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce());
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    expect(send).toHaveBeenCalledOnce();
+    vi.useFakeTimers();
+    try {
+      const { runtime, senderToExt } = setup();
+      const send = vi.mocked(senderToExt.sendMessage);
+      send.mockRejectedValue(new Error("Extension context invalidated"));
+      runtime.pageLoad();
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(1200);
+      expect(send).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("pageLoad 没有运行脚本的 frame 不会订阅，释放 Port", async () => {
