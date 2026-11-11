@@ -77,6 +77,30 @@ describe("ScriptExecutor", () => {
     expect(worlds.map(({ executor }) => executor.execScriptMap.size)).toEqual([1, 1]);
   });
 
+  it("一个已运行脚本处理失败时，仍尝试通知共享存储的其他脚本", () => {
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    for (const uuid of ["bad", "good"]) {
+      const script = makeScript({ uuid, flag: `flag-${uuid}`,
+        metadata: { storagename: ["shared"], grant: [] } });
+      executor.execScriptEntry({
+        scriptLoadInfo: script as TScriptInfo,
+        scriptFlag: script.flag,
+        envInfo: initEnvInfo,
+        scriptFunc: () => undefined,
+      });
+    }
+    const bad = vi.spyOn(executor.execScriptMap.get("bad")!, "valueUpdate").mockImplementation(() => {
+      throw new Error("bad GM script");
+    });
+    const good = vi.spyOn(executor.execScriptMap.get("good")!, "valueUpdate").mockReturnValue(undefined);
+    expect(() => executor.valueUpdate({
+      id: "x", uuid: "bad", storageName: "shared", entries: [],
+      sender: { runFlag: "remote" }, valueUpdated: false, revision: 1, epoch: "e",
+    })).toThrow("bad GM script");
+    expect(bad).toHaveBeenCalledOnce();
+    expect(good).toHaveBeenCalledOnce();
+  });
+
   describe("resource execution", () => {
     let adoptedSheets: CSSStyleSheet[];
 

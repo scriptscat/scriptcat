@@ -355,6 +355,29 @@ describe("ScriptingRuntime 值更新投递", () => {
     expect(actionsOf(toInject.sendMessage)).not.toContain("inject/runtime/valueSnapshot");
   });
 
+  it("world 只返回空 reply 时不能确认值更新，必须申请修复 snapshot", async () => {
+    const { runtime, receive, onPortMessage, portSend, toContent } = setup({
+      ok: true,
+      injectScriptList: [],
+      contentScriptList: [{ uuid: "c", metadata: { storagename: ["shared"] },
+        value: { k: 1 }, valueRevision: 1, valueEpoch: "g" }],
+      envInfo: {},
+    });
+    runtime.pageLoad();
+    await vi.waitFor(() => expect(onPortMessage).toHaveBeenCalledOnce());
+    receive({ code: 0, data: { ready: true } });
+    receive({ action: "runtime/valueSubscriptionsReady", data: { requestId: 1 } });
+    await vi.waitFor(() => expect(actionsOf(toContent.sendMessage)).toContain("content/pageLoad"));
+    toContent.sendMessage.mockClear();
+    toContent.sendMessage.mockResolvedValueOnce({ code: 0, data: undefined });
+    receive({ action: "runtime/valueUpdate", data: {
+      uuid: "c", storageName: "shared", id: "r2", entries: [],
+      sender: { runFlag: "remote" }, valueUpdated: true, revision: 2, epoch: "g",
+    } });
+    await vi.waitFor(() => expect(portSend).toHaveBeenCalledTimes(2));
+    expect(portSend.mock.calls[1][0].data.versions.shared).toEqual({ epoch: "", revision: -1 });
+  });
+
   it("永久协议错误仅调用一次 pageLoad，不能进入无限 SW retry", async () => {
     const { runtime, senderToExt } = setup();
     const send = vi.mocked(senderToExt.sendMessage);
