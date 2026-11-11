@@ -16,7 +16,7 @@ import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import GMContext from "./gm_context";
 import { type ScriptRunResource } from "@App/app/repo/scripts";
-import type { ValueUpdateDataEncoded, ValueWriteReceipt } from "../types";
+import type { ValueSnapshot, ValueUpdateDataEncoded, ValueWriteReceipt } from "../types";
 import { connect, sendMessage } from "@Packages/message/client";
 import { ScriptEnvTag } from "@Packages/message/consts";
 import { getStorageName } from "@App/pkg/utils/utils";
@@ -44,7 +44,7 @@ void CATAgentOPFSApi;
 export interface IGM_Base {
   sendMessage(api: string, params: any[]): Promise<any>;
   connect(api: string, params: any[]): Promise<any>;
-  valueUpdate(data: ValueUpdateDataEncoded): void;
+  valueUpdate(data: ValueUpdateDataEncoded): void | Promise<void>;
   emitEvent(event: string, eventId: string, data: any): void;
 }
 
@@ -117,6 +117,9 @@ class GM_Base implements IGM_Base {
   @GMContext.protected()
   protected readonly recentValueUpdateIds = new Set<string>();
 
+  @GMContext.protected()
+  protected reconcilePromise?: Promise<void>;
+
   constructor(options: any = null, obj: any = null) {
     if (obj !== integrity) throw new TypeError("Illegal invocation");
     Object.assign(this, options);
@@ -167,36 +170,89 @@ class GM_Base implements IGM_Base {
   }
 
   @GMContext.protected()
-  public valueUpdate(data: ValueUpdateDataEncoded) {
-    if (!this.scriptRes || !this.valueChangeListener) return;
-    const scriptRes = this.scriptRes;
-    const { id, uuid, entries, storageName, sender, valueUpdated } = data;
-    if (uuid === scriptRes.uuid || storageName === getStorageName(scriptRes)) {
-      const valueStore = scriptRes.value;
-      const remote = sender.runFlag !== this.runFlag;
-      if (id) {
-        if (this.recentValueUpdateIds.has(id)) return;
-        if (this.recentValueUpdateIds.size >= 128) {
-          const oldest = this.recentValueUpdateIds.values().next().value;
-          if (oldest !== undefined) this.recentValueUpdateIds.delete(oldest);
-        }
-        this.recentValueUpdateIds.add(id);
-      }
-      if (valueUpdated) {
-        const valueChanges = entries;
-        for (const [key, rTyped1, rTyped2] of valueChanges) {
-          const value = decodeRValue(rTyped1);
-          const oldValue = decodeRValue(rTyped2);
-          // 触发,并更新值
-          if (value === undefined) {
-            if (valueStore[key] !== undefined) {
-              delete valueStore[key];
-            }
-          } else {
-            valueStore[key] = value;
+  public valueSnapshot(snapshot: ValueSnapshot) {
+    const script = this.scriptRes;
+    if (!script || snapshot.storageName !== getStorageName(script)) return;
+    const epoch = script.valueEpoch ?? "";
+    const revision = script.valueRevision ?? 0;
+    if (snapshot.epoch === epoch && snapshot.revision < revision) return;
+    // A snapshot replaces state without fabricating intermediate listener events.
+    const values = { ...snapshot.values };
+    const config = script.config;
+    if (config) {
+      for (const tabKey of Object.keys(config)) {
+        const tab = config[tabKey];
+        if (!(tab instanceof Object)) continue;
+        for (const key of Object.keys(tab)) {
+          const option = tab[key];
+          if (!option) continue;
+          const field = `${tabKey}.${key}`;
+          if (option.bind) {
+            const bindKey = option.bind.substring(1);
+            if (values[bindKey] === undefined) values[bindKey] = script.value[bindKey];
           }
-          this.valueChangeListener.execute(key, oldValue, value, remote, sender.tabId);
+          if (values[field] === undefined) values[field] = option.default;
         }
+      }
+    }
+    script.value = values;
+    script.valueEpoch = snapshot.epoch;
+    script.valueRevision = snapshot.revision;
+  }
+
+  @GMContext.protected()
+  protected reconcileValue(): Promise<void> {
+    if (this.reconcilePromise) return this.reconcilePromise;
+    const promise = this.sendMessage("GM_valueSnapshot", []).then((snapshot: ValueSnapshot) => {
+      if (!snapshot || typeof snapshot.revision !== "number" || typeof snapshot.epoch !== "string") {
+        throw new Error("Invalid GM value snapshot");
+      }
+      this.valueSnapshot(snapshot);
+    });
+    this.reconcilePromise = promise;
+    void promise.finally(() => {
+      if (this.reconcilePromise === promise) this.reconcilePromise = undefined;
+    }).catch(() => undefined);
+    return promise;
+  }
+
+  @GMContext.protected()
+  public valueUpdate(data: ValueUpdateDataEncoded): void | Promise<void> {
+    const script = this.scriptRes;
+    const listeners = this.valueChangeListener;
+    if (!script || !listeners || (data.uuid !== script.uuid && data.storageName !== getStorageName(script))) return;
+    if (data.revision !== undefined && data.epoch !== undefined) {
+      const revision = script.valueRevision ?? 0;
+      const epoch = script.valueEpoch ?? "";
+      if (data.epoch === epoch && data.revision <= revision) return;
+      if ((epoch && data.epoch !== epoch) || data.revision > revision + 1) {
+        // Updates arriving out of order cannot safely be replayed against an optimistic cache.
+        // Read the authoritative latest snapshot rather than rolling a key backward.
+        return this.reconcileValue();
+      }
+      script.valueRevision = data.revision;
+      script.valueEpoch = data.epoch;
+    }
+    if (data.id) {
+      if (this.recentValueUpdateIds.has(data.id)) return;
+      if (this.recentValueUpdateIds.size >= 128) {
+        const oldest = this.recentValueUpdateIds.values().next().value;
+        if (oldest !== undefined) this.recentValueUpdateIds.delete(oldest);
+      }
+      this.recentValueUpdateIds.add(data.id);
+    }
+    if (!data.valueUpdated) return;
+    const remote = data.sender.runFlag !== this.runFlag;
+    for (const [key, encoded, oldEncoded] of data.entries) {
+      const value = decodeRValue(encoded);
+      const oldValue = decodeRValue(oldEncoded);
+      if (value === undefined) delete script.value[key];
+      else script.value[key] = value;
+      try {
+        listeners.execute(key, oldValue, value, remote, data.sender.tabId);
+      } catch (error) {
+        // A listener throwing must not prevent the remaining keys from reaching committed state.
+        console.error("GM value-change listener failed", error);
       }
     }
   }
@@ -298,10 +354,17 @@ export default class GMApi extends GM_Base {
       // A script's listener may throw after persistence succeeds. Do not turn a committed
       // write into a false failure; the listener error is local to that execution context.
       try {
-        a.valueUpdate(receipt.update);
+        await a.valueUpdate(receipt.update);
       } catch (error) {
         console.error("GM value update listener failed", error);
       }
+    } catch (error) {
+      // The transport may have lost its reply after the write committed; never retry
+      // a potentially non-idempotent mutation. Re-read state when the context survives.
+      if (a.scriptRes && !a.isInvalidContext()) {
+        void a.reconcileValue().catch(() => undefined);
+      }
+      throw error;
     } finally {
       if (timeout !== undefined) clearTimeout(timeout);
     }
