@@ -16,6 +16,8 @@ export default class ScriptingValuePort {
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private retryDelay = 250;
   private refreshInFlight = false;
+  private refreshDirty = false;
+  private refreshTimer: ReturnType<typeof setTimeout> | undefined;
   private requestId = 0;
   private requestedVersions: Record<string, ValueVersion> | undefined;
   private readonly onPageShow = (event: PageTransitionEvent) => {
@@ -27,6 +29,7 @@ export default class ScriptingValuePort {
     this.generation++;
     this.connecting = false;
     this.disconnectPort(port);
+    this.clearRefresh();
     if (this.retryTimer !== undefined) clearTimeout(this.retryTimer);
     this.retryTimer = undefined;
     this.connect();
@@ -36,7 +39,8 @@ export default class ScriptingValuePort {
     private readonly sender: MessageSend,
     private readonly onValueUpdate: (data: ValueUpdateDataEncoded) => void,
     private readonly onSnapshot?: (snapshot: ValueSnapshot) => void,
-    private readonly getVersions?: () => Record<string, ValueVersion>
+    private readonly getVersions?: () => Record<string, ValueVersion>,
+    private readonly needsRefresh?: () => boolean
   ) {}
 
   start() {
@@ -63,6 +67,7 @@ export default class ScriptingValuePort {
   stop() {
     if (this.state === "stopped") return;
     this.state = "stopped";
+    this.clearRefresh();
     this.generation++;
     this.connecting = false;
     window.removeEventListener("pageshow", this.onPageShow);
@@ -105,6 +110,7 @@ export default class ScriptingValuePort {
   }
 
   private stopResources() {
+    this.clearRefresh();
     this.generation++;
     this.connecting = false;
     window.removeEventListener("pageshow", this.onPageShow);
@@ -179,6 +185,9 @@ export default class ScriptingValuePort {
               return;
             }
             this.refreshInFlight = false;
+            const refreshDirty = this.refreshDirty;
+            this.refreshDirty = false;
+            if (refreshDirty) this.scheduleRefresh();
             this.retryDelay = 250;
             this.state = "active";
             const subscription = this.subscription;
@@ -196,7 +205,7 @@ export default class ScriptingValuePort {
           if (this.port !== port) return;
           this.port = undefined;
           this.portReady = false;
-          this.refreshInFlight = false;
+          this.clearRefresh();
           if (this.subscriptionTimer !== undefined) clearTimeout(this.subscriptionTimer);
           this.subscriptionTimer = undefined;
           if (this.invalidContext()) this.terminate();
@@ -217,6 +226,8 @@ export default class ScriptingValuePort {
 
   private sendSubscriptions() {
     if (!this.portReady || !this.port || !this.storageNames) return;
+    this.refreshInFlight = true;
+    this.refreshDirty = false;
     try {
       const versions = this.getVersions?.();
       const requestId = ++this.requestId;
@@ -241,18 +252,39 @@ export default class ScriptingValuePort {
     }, 30000);
   }
 
-  /** Re-register and request snapshots only if server revisions have diverged. */
+  /** Coalesce gaps without forgetting one observed while a snapshot is in flight. */
   refresh() {
-    if (!this.portReady || !this.port || this.refreshInFlight) return;
-    this.refreshInFlight = true;
+    if (!this.portReady || !this.port || this.refreshInFlight) {
+      this.refreshDirty = true;
+      return;
+    }
+    if (this.refreshTimer !== undefined) return;
     this.sendSubscriptions();
+  }
+
+  private scheduleRefresh() {
+    if (this.refreshTimer !== undefined) return;
+    // A follow-up read must not busy-loop if the database is still catching up.
+    this.refreshTimer = setTimeout(() => {
+      this.refreshTimer = undefined;
+      if (!this.isStopped() && this.portReady && this.port && (this.needsRefresh?.() ?? true)) {
+        this.sendSubscriptions();
+      }
+    }, 100);
+  }
+
+  private clearRefresh() {
+    this.refreshInFlight = false;
+    this.refreshDirty = false;
+    if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
+    this.refreshTimer = undefined;
   }
 
   private failPort(port: MessageConnect, error: unknown) {
     if (this.port !== port) return;
     this.port = undefined;
     this.portReady = false;
-    this.refreshInFlight = false;
+    this.clearRefresh();
     if (this.subscriptionTimer !== undefined) clearTimeout(this.subscriptionTimer);
     this.subscriptionTimer = undefined;
     this.disconnectPort(port);
