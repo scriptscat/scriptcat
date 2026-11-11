@@ -14,6 +14,11 @@ vi.mock("./usePopupData", async (importOriginal) => {
   return { ...actual, usePopupData: () => mockData };
 });
 
+// happy-dom 下 DOMPurify 不能正确清洗（<img onerror>、<script> 原样保留），清洗规则本身无法在此环境验证；
+// 这里只约束面板渲染的是清洗函数的输出而不是存储原文
+const mockSanitizeHTML = vi.hoisted(() => vi.fn((html: string) => html));
+vi.mock("@App/pkg/utils/sanitize", () => ({ sanitizeHTML: mockSanitizeHTML }));
+
 import App from "./App";
 
 function makeData(overrides: Record<string, any> = {}) {
@@ -517,6 +522,20 @@ describe("Popup 菜单展开数量为 0 时的菜单位置", () => {
 
     expect(screen.getByText("菜单命令 1")).toBeInTheDocument();
     expect(screen.getByText("菜单命令 2")).toBeInTheDocument();
+  });
+});
+
+describe("Popup 通知公告面板", () => {
+  it("存储中的通知原文经 sanitizeHTML 清洗后才渲染", () => {
+    mockSanitizeHTML.mockReturnValueOnce("<strong>清洗后</strong>");
+    const notice = '<p>原文</p><img src="x" onerror="alert(1)">';
+    mockData = makeData({ showAlert: true, checkUpdate: { notice, version: "0.0.0", isRead: true } });
+
+    const { container } = render(<App />);
+    expect(mockSanitizeHTML).toHaveBeenCalledWith(notice);
+    expect(screen.getByText("清洗后").tagName).toBe("STRONG");
+    expect(screen.queryByText("原文")).toBeNull();
+    expect(container.querySelector('img[src="x"]')).toBeNull();
   });
 });
 

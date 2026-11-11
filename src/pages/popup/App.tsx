@@ -54,6 +54,7 @@ import { isChineseUser, localePath } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@App/pkg/utils/cn";
+import { sanitizeHTML } from "@App/pkg/utils/sanitize";
 import { collectUserAgentHints, describeUserAgent, type UserAgentHints } from "@App/pkg/utils/user_agent";
 import { usePreventEvent } from "../components/ui/use-prevent-event";
 
@@ -138,7 +139,10 @@ export default function App() {
         {data.showAlert && (
           <div className="px-4 py-2 border-b border-border bg-primary-light">
             {data.checkUpdate.notice ? (
-              <div className="text-xs text-foreground" dangerouslySetInnerHTML={{ __html: data.checkUpdate.notice }} />
+              <div
+                className="text-xs text-foreground"
+                dangerouslySetInnerHTML={{ __html: sanitizeHTML(data.checkUpdate.notice) }}
+              />
             ) : (
               <div className="text-xs text-muted-foreground">{t("no_data")}</div>
             )}

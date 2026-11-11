@@ -665,14 +665,13 @@ export class SystemConfig {
     });
   }
 
-  async getCheckUpdate(opts?: { sanitizeHTML?: (html: string) => string }) {
-    const result = await this._get<Parameters<typeof this.setCheckUpdate>[0]>("check_update", {
+  // 存储里的 notice 必须是服务端原文：后台检查更新按原文比较判定是否为新通知，清洗只在展示时做
+  getCheckUpdate() {
+    return this._get<Parameters<typeof this.setCheckUpdate>[0]>("check_update", {
       notice: "",
       isRead: false,
       version: ExtVersion,
     });
-    if (typeof opts?.sanitizeHTML === "function") result.notice = opts.sanitizeHTML(result.notice);
-    return result;
   }
 
   setEnableScript(enable: boolean) {
