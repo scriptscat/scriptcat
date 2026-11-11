@@ -1328,6 +1328,17 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
 
 });
 
+describe("GM fire-and-forget logging errors", () => {
+  it("GM_log catches a lost extension RPC without leaving a rejected promise", async () => {
+    const script = { ...scriptRes, uuid: uuidv4(), value: {} } as ScriptLoadInfo;
+    const sender = vi.fn().mockRejectedValue(new Error("Extension context invalidated"));
+    const api = new GMApi("scripting", { sendMessage: sender } as unknown as Message, {} as Message, script);
+    expect(() => api.GM_log("test")).not.toThrow();
+    await Promise.resolve();
+    expect(sender).toHaveBeenCalledOnce();
+  });
+});
+
 describe("GM value version ordering and reconciliation", () => {
   const versioned = (id: string, revision: number, value: number) => ({
     id,
