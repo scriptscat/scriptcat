@@ -1,5 +1,5 @@
 import type { MessageConnect, MessageSend } from "@Packages/message/types";
-import type { ValueUpdateDataEncoded } from "./types";
+import type { ValueSnapshot, ValueUpdateDataEncoded, ValueVersion } from "./types";
 
 type ConnectionState = "active" | "reconnecting" | "terminal" | "stopped";
 
@@ -31,7 +31,9 @@ export default class ScriptingValuePort {
 
   constructor(
     private readonly sender: MessageSend,
-    private readonly onValueUpdate: (data: ValueUpdateDataEncoded) => void
+    private readonly onValueUpdate: (data: ValueUpdateDataEncoded) => void,
+    private readonly onSnapshot?: (snapshot: ValueSnapshot) => void,
+    private readonly getVersions?: () => Record<string, ValueVersion>
   ) {}
 
   start() {
@@ -51,11 +53,6 @@ export default class ScriptingValuePort {
     if (this.subscriptionTimer !== undefined) clearTimeout(this.subscriptionTimer);
     return new Promise<void>((resolve, reject) => {
       this.subscription = { resolve, reject };
-      // Do not retain a pageLoad promise indefinitely if no SW accepts the subscription.
-      this.subscriptionTimer = setTimeout(() => {
-        this.subscriptionTimer = undefined;
-        this.terminate(new Error("Value update subscription timed out"));
-      }, 30000);
       this.sendSubscriptions();
     });
   }
@@ -155,6 +152,10 @@ export default class ScriptingValuePort {
             this.portReady = true;
             this.sendSubscriptions();
           } else if (message.action === "runtime/valueSubscriptionsReady") {
+            const snapshots = message.data?.snapshots as ValueSnapshot[] | undefined;
+            if (Array.isArray(snapshots)) {
+              for (const snapshot of snapshots) this.onSnapshot?.(snapshot);
+            }
             this.retryDelay = 250;
             this.state = "active";
             const subscription = this.subscription;
@@ -191,10 +192,29 @@ export default class ScriptingValuePort {
   private sendSubscriptions() {
     if (!this.portReady || !this.port || !this.storageNames) return;
     try {
-      this.port.sendMessage({ action: "runtime/subscribeValueUpdates", data: this.storageNames });
+      this.port.sendMessage({
+        action: "runtime/subscribeValueUpdates",
+        data: this.getVersions ? { names: this.storageNames, versions: this.getVersions() } : this.storageNames,
+      });
+      this.armSubscriptionTimeout(this.port);
     } catch (error) {
       this.failPort(this.port, error);
     }
+  }
+
+  // A stalled handshake is a recoverable failed attempt, not a terminal context.
+  // Keep the initial subscription promise alive across successive connections.
+  private armSubscriptionTimeout(port: MessageConnect) {
+    if (this.subscriptionTimer !== undefined) clearTimeout(this.subscriptionTimer);
+    this.subscriptionTimer = setTimeout(() => {
+      this.subscriptionTimer = undefined;
+      if (this.port === port) this.failPort(port, new Error("Value subscription handshake timed out"));
+    }, 30000);
+  }
+
+  /** Re-register and request snapshots only if server revisions have diverged. */
+  refresh() {
+    if (this.state === "active") this.sendSubscriptions();
   }
 
   private failPort(port: MessageConnect, error: unknown) {
