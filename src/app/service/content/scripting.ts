@@ -9,6 +9,7 @@ import LoggerCore from "@App/app/logger/core";
 import type { ValueSnapshot, ValueUpdateDataEncoded, ValueVersion } from "./types";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import { decodeRValue } from "@App/pkg/utils/message_value";
+import { MessageResponseLostError } from "@Packages/message/errors";
 import ScriptingValuePort from "./value_port";
 
 const PageOrContent = {
@@ -284,21 +285,59 @@ export default class ScriptingRuntime {
         }
       });
     }
-    // 向service_worker请求脚本列表及环境信息
-    // Retry only the initial fetch; never dispatch pageLoad into script worlds twice.
-    // Recoverable SW outages do not invalidate the existing document.
+    // Retry only typed transport ambiguity. Server-side protocol, permission and
+    // configuration failures must not repeatedly wake the service worker.
     const requestPageLoad = async () => {
       let retryDelay = 250;
-      for (;;) {
-        try {
-          return await client.pageLoad();
-        } catch (error) {
-          if (/Extension context (?:was )?invalidated/i.test(String(error)) || !chrome.runtime?.id) throw error;
-          await new Promise<void>((resolve) =>
-            setTimeout(resolve, retryDelay + Math.random() * retryDelay)
-          );
-          retryDelay = Math.min(retryDelay * 2, 10000);
+      let active = true;
+      let retryTimer: ReturnType<typeof setTimeout> | undefined;
+      let wakeRetry: (() => void) | undefined;
+      const onPageHide = (event: PageTransitionEvent) => {
+        if (event.persisted) return; // bfcache preserves this document.
+        active = false;
+        if (retryTimer !== undefined) clearTimeout(retryTimer);
+        wakeRetry?.();
+      };
+      window.addEventListener("pagehide", onPageHide);
+      try {
+        while (active) {
+          let requestTimer: ReturnType<typeof setTimeout> | undefined;
+          try {
+            const result = await Promise.race([
+              client.pageLoad(),
+              new Promise<never>((_, reject) => {
+                requestTimer = setTimeout(
+                  () => reject(new MessageResponseLostError("Initial pageLoad response timed out")),
+                  30000
+                );
+              }),
+            ]);
+            if (!active) throw new Error("pageLoad cancelled by document unload");
+            return result;
+          } catch (error) {
+            if (
+              !active ||
+              !chrome.runtime?.id ||
+              !(error instanceof MessageResponseLostError) ||
+              /Extension context (?:was )?invalidated|Extension has been disconnected/i.test(error.message)
+            ) {
+              throw error;
+            }
+            await new Promise<void>((resolve) => {
+              wakeRetry = resolve;
+              retryTimer = setTimeout(resolve, retryDelay + Math.random() * retryDelay);
+            });
+            wakeRetry = undefined;
+            retryTimer = undefined;
+            retryDelay = Math.min(retryDelay * 2, 10000);
+          } finally {
+            if (requestTimer !== undefined) clearTimeout(requestTimer);
+          }
         }
+        throw new Error("pageLoad cancelled by document unload");
+      } finally {
+        if (retryTimer !== undefined) clearTimeout(retryTimer);
+        window.removeEventListener("pagehide", onPageHide);
       }
     };
     void requestPageLoad().then(async (o) => {
@@ -374,6 +413,7 @@ export default class ScriptingRuntime {
       this.stagedDirty.clear();
       this.stagedScripts = undefined;
     }).catch((error) => {
+      if (!this.scriptsStarted) this.valuePort.stop();
       LoggerCore.logger().error("pageLoad or value subscription failed", { error });
     });
   }
