@@ -243,12 +243,25 @@ export default class ScriptingRuntime {
       }
       this.activeStorageNames = pairs;
       this.stagedScripts = { injectScriptList, contentScriptList };
+      const latestScripts = new Map<string, TScriptInfo>();
       for (const script of [...injectScriptList, ...contentScriptList]) {
         const name = getStorageName(script);
         const version = { revision: script.valueRevision ?? 0, epoch: script.valueEpoch ?? "" };
         const known = this.versions.get(name);
-        if (!known || (known.epoch === version.epoch && version.revision < known.revision)) {
+        if (!known || (known.epoch === version.epoch && version.revision > known.revision)) {
           this.versions.set(name, version);
+          latestScripts.set(name, script);
+        }
+      }
+      // Shared storageName scripts can be read at different revisions during pageLoad.
+      // Normalize only stale snapshots; do not duplicate large value objects on the common path.
+      for (const script of [...injectScriptList, ...contentScriptList]) {
+        const latest = latestScripts.get(getStorageName(script));
+        if (latest && latest !== script &&
+          latest.valueEpoch === script.valueEpoch &&
+          (latest.valueRevision ?? 0) > (script.valueRevision ?? 0)) {
+          script.value = { ...latest.value };
+          script.valueRevision = latest.valueRevision;
         }
       }
 
