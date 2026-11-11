@@ -188,8 +188,8 @@ export default class ScriptingValuePort {
             this.refreshInFlight = false;
             const refreshDirty = this.refreshDirty;
             this.refreshDirty = false;
-            if (refreshDirty) this.scheduleRefresh();
-            else if (!this.needsRefresh?.()) this.refreshDelay = 100;
+            if (refreshDirty || this.needsRefresh?.()) this.scheduleRefresh();
+            else this.refreshDelay = 100;
             this.retryDelay = 250;
             this.state = "active";
             const subscription = this.subscription;
