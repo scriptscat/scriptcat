@@ -6,7 +6,7 @@ import { TrashScriptDAO } from "@App/app/repo/trash_script";
 import type { IGetSender, Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
 import { getStorageName } from "@App/pkg/utils/utils";
-import type { ValueUpdateDataEncoded, ValueUpdateDataREntry, ValueUpdateSender } from "../content/types";
+import type { ValueUpdateDataEncoded, ValueUpdateDataREntry, ValueUpdateSender, ValueWriteReceipt } from "../content/types";
 import { type TDeleteScript } from "../queue";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { CACHE_KEY_SET_VALUE } from "@App/app/cache_key";
@@ -97,7 +97,7 @@ export class ValueService {
     let oldValueRecord: ValueStore = {};
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
     const entries = [] as ValueUpdateDataREntry[];
-    const _flag = await stackAsyncTask<boolean>(cacheKey, async () => {
+    await stackAsyncTask<boolean>(cacheKey, async () => {
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
       if (!valueModel) {
         const now = Date.now();
@@ -155,7 +155,7 @@ export class ValueService {
       await this.valueDAO.save(storageName, valueModel);
       return true;
     });
-    // 推送到所有加载了本脚本的tab中
+    // 保存成功后只通知在线订阅者；RPC 回执不依赖通知送达。
     const valueUpdated = entries.length > 0;
     const sendData = {
       id,
@@ -166,6 +166,7 @@ export class ValueService {
       valueUpdated,
     } as ValueUpdateDataEncoded;
     this.pushValueUpdate(script, sendData);
+    return { committed: true, update: sendData } satisfies ValueWriteReceipt;
   }
 
   setScriptValues(params: Pick<TSetValuesParams, "uuid" | "keyValuePairs" | "isReplace" | "ts">, _sender: IGetSender) {

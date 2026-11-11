@@ -32,6 +32,13 @@ export type ValueUpdateDataEncoded = {
   valueUpdated: boolean;
 };
 
+// An explicit write receipt, issued only after ValueDAO.save succeeds.
+// Value notifications are independent and may be lost while a Port reconnects.
+export type ValueWriteReceipt = {
+  committed: true;
+  update: ValueUpdateDataEncoded;
+};
+
 // gm_api.ts
 
 export interface ApiParam {
