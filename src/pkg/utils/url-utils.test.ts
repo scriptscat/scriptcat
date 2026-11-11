@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { prettyUrl } from "./url-utils";
+import { prettyUrl, toScriptInstallUrl } from "./url-utils";
 
 describe.concurrent("prettyUrl", () => {
   describe.concurrent("Domain / Punycode Handling", () => {
@@ -248,5 +248,81 @@ describe.concurrent("prettyUrl", () => {
       const input = "https://example.com/#a%2Fb";
       expect(prettyUrl(input)).toBe(input);
     });
+  });
+});
+
+describe.concurrent("toScriptInstallUrl", () => {
+  it.concurrent("Greasy Fork 脚本页面链接转换为 update 域名的安装链接，保留 slug 作为文件名", () => {
+    expect(toScriptInstallUrl("https://greasyfork.org/zh-CN/scripts/419215-autopager")).toBe(
+      "https://update.greasyfork.org/scripts/419215/autopager.user.js"
+    );
+    expect(toScriptInstallUrl("https://greasyfork.org/scripts/419215-autopager")).toBe(
+      "https://update.greasyfork.org/scripts/419215/autopager.user.js"
+    );
+  });
+
+  it.concurrent("Greasy Fork 无 slug 时用脚本 ID 作文件名", () => {
+    expect(toScriptInstallUrl("https://greasyfork.org/en/scripts/419215")).toBe(
+      "https://update.greasyfork.org/scripts/419215/419215.user.js"
+    );
+  });
+
+  it.concurrent("Greasy Fork 脚本子页面与查询参数、锚点同样识别", () => {
+    expect(toScriptInstallUrl("https://greasyfork.org/zh-CN/scripts/419215-autopager/code?version=1#top")).toBe(
+      "https://update.greasyfork.org/scripts/419215/autopager.user.js"
+    );
+    expect(toScriptInstallUrl("https://greasyfork.org/pt-BR/scripts/419215-autopager/discussions/12345")).toBe(
+      "https://update.greasyfork.org/scripts/419215/autopager.user.js"
+    );
+    expect(toScriptInstallUrl("https://greasyfork.org/en/scripts/419215-auto.pager")).toBe(
+      "https://update.greasyfork.org/scripts/419215/auto.pager.user.js"
+    );
+  });
+
+  it.concurrent("ScriptCat 脚本页面链接（含或不含语言前缀、子页面）转换为安装链接", () => {
+    expect(toScriptInstallUrl("https://scriptcat.org/zh-CN/script-show-page/2827")).toBe(
+      "https://scriptcat.org/scripts/code/2827/2827.user.js"
+    );
+    expect(toScriptInstallUrl("https://scriptcat.org/script-show-page/2827/code")).toBe(
+      "https://scriptcat.org/scripts/code/2827/2827.user.js"
+    );
+  });
+
+  it.concurrent(
+    "GitHub 文件页面（blob）链接转换为 raw.githubusercontent.com 原始文件链接，丢弃查询参数与行号锚点",
+    () => {
+      expect(toScriptInstallUrl("https://github.com/scriptscat/scriptcat/blob/main/example/gm_xhr.js")).toBe(
+        "https://raw.githubusercontent.com/scriptscat/scriptcat/main/example/gm_xhr.js"
+      );
+      expect(toScriptInstallUrl("https://github.com/owner/repo/blob/feature/x/dist/a.user.js?plain=1#L10")).toBe(
+        "https://raw.githubusercontent.com/owner/repo/feature/x/dist/a.user.js"
+      );
+    }
+  );
+
+  it.concurrent("已经是脚本文件的直链保持不变", () => {
+    for (const url of [
+      "https://update.greasyfork.org/scripts/419215/AutoPager.user.js",
+      "https://greasyfork.org/scripts/419215/code/AutoPager.user.js",
+      "https://scriptcat.org/scripts/code/2827/x.user.js",
+      "https://github.com/scriptscat/scriptcat/raw/main/example/gm_xhr.js",
+    ]) {
+      expect(toScriptInstallUrl(url)).toBe(url);
+    }
+  });
+
+  it.concurrent("非脚本详情页、其他站点和无法解析的输入保持不变", () => {
+    for (const url of [
+      "https://greasyfork.org/zh-CN/scripts/by-site/example.com",
+      "https://greasyfork.org/zh-CN/users/1-someone",
+      "https://scriptcat.org/zh-CN/search",
+      "https://github.com/scriptscat/scriptcat",
+      "https://github.com/scriptscat/scriptcat/tree/main/example",
+      "https://example.com/zh-CN/scripts/419215-autopager",
+      "https://openuserjs.org/scripts/someone/Script",
+      "not a url",
+    ]) {
+      expect(toScriptInstallUrl(url)).toBe(url);
+    }
   });
 });

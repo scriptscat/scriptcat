@@ -142,4 +142,23 @@ describe("importHandler 链接分流", () => {
     expect(vi.mocked(scriptClient.importByUrl)).toHaveBeenCalledWith("https://e.com/s.user.js");
     expect(vi.mocked(agentClient.prepareSkillFromUrl)).toHaveBeenCalledWith("https://e.com/k.zip");
   });
+
+  it("Greasy Fork / ScriptCat / GitHub 页面链接自动转换为安装链接后再导入", async () => {
+    await handleImportUrls([
+      "https://greasyfork.org/zh-CN/scripts/419215-autopager",
+      "https://scriptcat.org/zh-CN/script-show-page/2827",
+      "https://github.com/scriptscat/scriptcat/blob/main/example/gm_xhr.js",
+    ]);
+
+    expect(vi.mocked(scriptClient.importByUrl)).toHaveBeenCalledWith(
+      "https://update.greasyfork.org/scripts/419215/autopager.user.js"
+    );
+    expect(vi.mocked(scriptClient.importByUrl)).toHaveBeenCalledWith(
+      "https://scriptcat.org/scripts/code/2827/2827.user.js"
+    );
+    expect(vi.mocked(scriptClient.importByUrl)).toHaveBeenCalledWith(
+      "https://raw.githubusercontent.com/scriptscat/scriptcat/main/example/gm_xhr.js"
+    );
+    expect(vi.mocked(scriptClient.importByUrl)).toHaveBeenCalledTimes(3);
+  });
 });
