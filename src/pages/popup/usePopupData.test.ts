@@ -70,6 +70,7 @@ vi.mock("../store/features/script", async (importOriginal) => {
 });
 
 import { openInCurrentTab } from "@App/pkg/utils/utils";
+import { systemConfig } from "../store/global";
 import { getMoreScriptUrl, usePopupData } from "./usePopupData";
 import type * as ScriptStore from "../store/features/script";
 
@@ -145,6 +146,37 @@ describe("usePopupData 打开编辑器/用户配置", () => {
       await result.current.handleOpenScriptSettings("uuid-3");
     });
     expect(openInCurrentTab).toHaveBeenCalledWith("/src/options.html#/script/editor/uuid-3?view=setting");
+  });
+});
+
+describe("usePopupData 通知已读状态", () => {
+  // 服务端原文经 DOMPurify 序列化后必然不同（<br/>→<br>、&#39;→'），后台检查更新按原文比较
+  const serverNotice = "<p>It&#39;s new</p><br/><p>second</p>";
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ json: async () => ({ data: { notice: serverNotice, version: "9.9.9" } }) }))
+    );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("手动检查更新后点开通知：存储保留服务端原文并标记为已读", async () => {
+    const { result } = renderHook(() => usePopupData());
+
+    act(() => result.current.handleVersionClick());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
+    expect(await systemConfig.getCheckUpdate()).toEqual({ notice: serverNotice, version: "9.9.9", isRead: false });
+
+    act(() => result.current.handleNotificationClick());
+    expect(await systemConfig.getCheckUpdate()).toEqual({ notice: serverNotice, version: "9.9.9", isRead: true });
   });
 });
 

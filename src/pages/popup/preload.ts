@@ -2,7 +2,6 @@ import type { ScriptMenu, TPopupPageStatus } from "@App/app/service/service_work
 import type { GetPopupDataRes } from "@App/app/service/service_worker/client";
 import { ExtVersion } from "@App/app/const";
 import { cacheInstance } from "@App/app/cache";
-import { sanitizeHTML } from "@App/pkg/utils/sanitize";
 import { getCurrentTab } from "@App/pkg/utils/utils";
 import { createPreloadableQuery } from "@App/pages/preloadable-query";
 import { popupClient } from "../store/features/script";
@@ -39,7 +38,7 @@ const popupDataQuery = createPreloadableQuery<"popup", PopupInitialData>({
       await Promise.all([
         getCurrentTab(),
         systemConfig.getEnableScript(),
-        systemConfig.getCheckUpdate({ sanitizeHTML }),
+        systemConfig.getCheckUpdate(),
         systemConfig.getMenuExpandNum(),
         systemConfig.getScriptListExpandNum(),
         systemConfig.getPopupCompactLayout(),

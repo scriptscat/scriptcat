@@ -5,7 +5,6 @@ import { popupClient, scriptClient, runtimeClient, requestOpenBatchUpdatePage } 
 import { subscribeMessage, systemConfig } from "../store/global";
 import { SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import { ExtVersion, ExtServer } from "@App/app/const";
-import { sanitizeHTML } from "@App/pkg/utils/sanitize";
 import { openInCurrentTab } from "@App/pkg/utils/utils";
 import { cacheInstance } from "@App/app/cache";
 import { scriptListSorter, type ScriptProvider, usePopupDataQuery } from "./preload";
@@ -203,7 +202,7 @@ export function usePopupData() {
     ]).then(([resp]: [{ data: { notice: string; version: string } } | null, unknown]) => {
       let newStatus = 0;
       if (resp?.data) {
-        const notice = typeof resp.data.notice === "string" ? sanitizeHTML(resp.data.notice) : "";
+        const notice = typeof resp.data.notice === "string" ? resp.data.notice : "";
         const { version } = resp.data;
         setCheckUpdate((prev) => {
           if (version === prev.version) {
