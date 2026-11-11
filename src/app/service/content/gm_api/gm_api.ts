@@ -157,7 +157,7 @@ class GM_Base implements IGM_Base {
   // 长连接使用,connect只用于接受消息,不发送消息
   @GMContext.protected()
   public connect(api: string, params: any[]) {
-    if (!this.message || !this.scriptRes) return new Promise<MessageConnect>(() => {});
+    if (!this.message || !this.scriptRes) return Promise.reject(new Error("Extension context invalidated"));
     return connect(this.message, `${this.prefix}/runtime/gmApi`, {
       uuid: this.scriptRes.uuid,
       api,
@@ -295,7 +295,13 @@ export default class GMApi extends GM_Base {
       if (receipt?.committed !== true || receipt.update?.id !== id) {
         throw new Error("GM value write acknowledgement missing or invalid");
       }
-      a.valueUpdate(receipt.update);
+      // A script's listener may throw after persistence succeeds. Do not turn a committed
+      // write into a false failure; the listener error is local to that execution context.
+      try {
+        a.valueUpdate(receipt.update);
+      } catch (error) {
+        console.error("GM value update listener failed", error);
+      }
     } finally {
       if (timeout !== undefined) clearTimeout(timeout);
     }
@@ -416,7 +422,7 @@ export default class GMApi extends GM_Base {
   // Asynchronous wrapper for GM.getValues
   @GMContext.API({ depend: ["GM_getValues"] })
   public "GM.getValues"(keysOrDefaults: TGMKeyValue | string[] | null | undefined): Promise<TGMKeyValue> {
-    if (!this.scriptRes) return new Promise<TGMKeyValue>(() => {});
+    if (!this.scriptRes) return Promise.reject(new Error("Extension context invalidated"));
     return new Promise((resolve) => {
       const ret = this.GM_getValues(keysOrDefaults);
       resolve(ret);
@@ -1522,7 +1528,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ depend: ["GM_setClipboard"] })
   public "GM.setClipboard"(data: string, info?: string | { type?: string; mimetype?: string }): Promise<void> {
-    if (this.isInvalidContext()) return new Promise<void>(() => {});
+    if (this.isInvalidContext()) return Promise.reject(new Error("Extension context invalidated"));
     return new Promise<void>((resolve) => {
       this.GM_setClipboard(data, info, () => {
         resolve();
