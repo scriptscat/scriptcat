@@ -3,6 +3,7 @@ import type { Message } from "@Packages/message/types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import { initEnvInfo, ScriptExecutor } from "./script_executor";
+import { encodeRValue } from "@App/pkg/utils/message_value";
 
 const styleUrl = "https://example.com/style.css";
 const secondStyleUrl = "https://example.com/second-style.css";
@@ -44,7 +45,7 @@ describe("ScriptExecutor", () => {
     expect(executor.execScriptMap.size).toBe(0);
     executor.valueUpdate({
       id: "r2", uuid: script.uuid, storageName: script.uuid,
-      entries: [["k", 2, 1] as any], valueUpdated: true,
+      entries: [["k", encodeRValue(2), encodeRValue(1)]], valueUpdated: true,
       sender: { runFlag: "other" }, revision: 2, epoch: "epoch",
     });
     (window as any)[script.flag] = function (this: any) {
