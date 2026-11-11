@@ -146,6 +146,9 @@ export default class ScriptingValuePort {
       this.connecting = false;
       this.port = port;
       this.portReady = false;
+      // A connected Port may never send its initial ready message. Treat that as a
+      // failed attempt, not an indefinitely pending pageLoad or a terminal context.
+      this.armSubscriptionTimeout(port);
       try {
         port.onMessage((message) => {
           if (this.port !== port) return;
@@ -181,6 +184,8 @@ export default class ScriptingValuePort {
           this.port = undefined;
           this.portReady = false;
           this.refreshInFlight = false;
+          if (this.subscriptionTimer !== undefined) clearTimeout(this.subscriptionTimer);
+          this.subscriptionTimer = undefined;
           if (this.invalidContext()) this.terminate();
           else this.connect(); // First recovery attempt is immediate; back off only after failure.
         });
@@ -232,6 +237,8 @@ export default class ScriptingValuePort {
     this.port = undefined;
     this.portReady = false;
     this.refreshInFlight = false;
+    if (this.subscriptionTimer !== undefined) clearTimeout(this.subscriptionTimer);
+    this.subscriptionTimer = undefined;
     this.disconnectPort(port);
     if (this.invalidContext(error)) this.terminate(new Error("Extension context invalidated"));
     else this.scheduleReconnect();
