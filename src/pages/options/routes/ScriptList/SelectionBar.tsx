@@ -89,10 +89,11 @@ export const SelectionBarButton = ({
     ref={ref}
     type="button"
     className={cn(
-      "inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium border transition-colors hover:bg-accent/50",
-      color === "primary" && "border-primary text-primary",
-      color === "destructive" && "border-destructive text-destructive",
-      color === "muted" && "border-muted-foreground/50 text-muted-foreground",
+      // 实底 + 正常文字色：选择栏本身带底色，镂空灰边灰字的按钮在上面读起来像禁用态(#1839)
+      "inline-flex h-7 items-center justify-center gap-1.5 rounded-md border bg-background px-3 text-xs font-medium shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px",
+      color === "primary" && "border-primary/60 text-primary hover:bg-primary-light",
+      color === "destructive" && "border-destructive/50 text-destructive hover:bg-destructive/10",
+      color === "muted" && "border-border text-foreground hover:bg-accent",
       className
     )}
     {...rest}

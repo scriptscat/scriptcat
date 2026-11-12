@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type React from "react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { ChevronRight } from "lucide-react";
@@ -58,8 +59,11 @@ function DropdownMenuSubContent({
 function DropdownMenuContent({
   className,
   sideOffset = 4,
+  ref,
+  onFocusOutside,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+  const contentRef = useRef<HTMLDivElement | null>(null);
   return (
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
@@ -70,6 +74,21 @@ function DropdownMenuContent({
           className
         )}
         {...props}
+        ref={(node) => {
+          contentRef.current = node;
+          if (typeof ref === "function") return ref(node);
+          if (ref) ref.current = node;
+        }}
+        onFocusOutside={(event) => {
+          onFocusOutside?.(event);
+          // 触发按钮属于这个菜单，焦点落到它上面不算「移出菜单」。Radix 靠取消 pointerdown 来阻止触发按钮抢焦点，
+          // 但 Firefox 取消 pointerdown 后 mousedown 仍会把焦点给按钮：非模态菜单没有焦点陷阱把它拉回来，
+          // 于是在打开它的同一次点击里就被关掉(#1839)。Radix 的非模态 Popover 自带同样的豁免，DropdownMenu 没有。
+          const controls = (event.target as Element | null)
+            ?.closest?.("[aria-controls]")
+            ?.getAttribute("aria-controls");
+          if (controls && controls === contentRef.current?.id) event.preventDefault();
+        }}
       />
     </DropdownMenuPrimitive.Portal>
   );
