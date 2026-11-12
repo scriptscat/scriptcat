@@ -44,7 +44,8 @@ export class ValueService {
     if (ret) {
       data = ret.data;
     }
-    const newValues = data;
+    // 复制一份再合并：data 是 ValueDAO 缓存里的记录本身，直接改会让默认值混进其他脚本的值并被持久化
+    const newValues = { ...data };
     // 和userconfig组装
     const { config } = script;
     if (config) {

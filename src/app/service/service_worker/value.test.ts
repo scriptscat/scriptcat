@@ -574,3 +574,22 @@ describe("ValueService pushValueUpdate 投递目标", () => {
     expect(runtime.pushValueUpdate).toHaveBeenNthCalledWith(2, script, sendData(-1));
   });
 });
+
+describe("ValueService getScriptValue 合并用户配置默认值", () => {
+  it("不改写存储记录，共用 storageName 的脚本各自只带自己的默认值", async () => {
+    const service = new ValueService({ on: vi.fn() } as unknown as Group, new MessageQueue());
+    const record: Value = { uuid: "a", storageName: "shared", data: { k: "v" }, createtime: 0, updatetime: 0 };
+    service.valueDAO = { get: vi.fn(async () => record) } as unknown as ValueDAO;
+    const script = (uuid: string, config?: unknown) =>
+      ({ uuid, metadata: { storagename: ["shared"] }, config }) as unknown as Script;
+
+    const plain = await service.getScriptValue(script("a"));
+    const withConfig = await service.getScriptValue(
+      script("b", { group: { opt: { title: "opt", type: "text", default: "dflt" } } })
+    );
+
+    expect(withConfig).toEqual({ k: "v", "group.opt": "dflt" });
+    expect(plain).toEqual({ k: "v" });
+    expect(record.data).toEqual({ k: "v" });
+  });
+});
