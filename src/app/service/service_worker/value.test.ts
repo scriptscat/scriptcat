@@ -150,6 +150,24 @@ describe("ValueService - setValue 方法测试", () => {
     expect(savedValue.updatetime).toBeTypeOf("number");
   });
 
+  it("返回与推送相同的更新数据，写入方可凭 RPC 响应完成回执，不依赖推送到达", async () => {
+    const mockScript = createMockScript();
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue(undefined);
+    vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
+
+    const ret = await valueService.setValues({
+      uuid: mockScript.uuid,
+      id: "receipt-id",
+      keyValuePairs: [["k", encodeRValue(1)]],
+      valueSender: createMockValueSender(),
+      isReplace: false,
+    });
+
+    expect(ret).toBe(vi.mocked(valueService.pushValueUpdate).mock.calls[0][1]);
+    expect(ret).toMatchObject({ id: "receipt-id", valueUpdated: true });
+  });
+
   it("应该成功设置新脚本的值 (storageName fallback)", async () => {
     // 准备测试数据
     const mockScript = createMockScript();

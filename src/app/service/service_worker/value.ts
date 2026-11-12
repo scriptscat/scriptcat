@@ -166,6 +166,8 @@ export class ValueService {
       valueUpdated,
     } as ValueUpdateDataEncoded;
     this.pushValueUpdate(script, sendData);
+    // 写入方凭这份响应完成回执；Port 推送可能因 SW 重启、重连而丢失
+    return sendData;
   }
 
   setScriptValues(params: Pick<TSetValuesParams, "uuid" | "keyValuePairs" | "isReplace" | "ts">, _sender: IGetSender) {
