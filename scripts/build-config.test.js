@@ -141,4 +141,20 @@ describe("构建配置 - 浏览器专用 manifest", () => {
     expect(source.optional_permissions).toEqual(["background", "userScripts"]);
     expect(source.background).toHaveProperty("service_worker");
   });
+
+  it("Firefox 产物显式声明扩展页面 CSP，不带默认的 upgrade-insecure-requests（#1846）", () => {
+    const source = {
+      permissions: [],
+      optional_permissions: [],
+      background: { scripts: ["src/service_worker.js"] },
+      sandbox: { pages: ["src/sandbox.html"] },
+    };
+
+    const result = createFirefoxManifest(source, true, "{firefox-id}");
+
+    expect(result.content_security_policy).toEqual({
+      sandbox: FIREFOX_SANDBOX_CSP,
+      extension_pages: "script-src 'self';",
+    });
+  });
 });

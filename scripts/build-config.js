@@ -112,5 +112,9 @@ export function createFirefoxManifest(manifest, agentEnabled, firefoxId) {
     )
   );
   delete result.message_serialization;
+  // 不声明时 Firefox MV3 扩展页面默认 CSP 为 "script-src 'self'; upgrade-insecure-requests;"，
+  // 后台页发出的 GM_xmlhttpRequest 等 http:// 请求会被强制升级为 https:// 而失败（#1846）。
+  // 显式声明后脚本策略与默认一致，只去掉 upgrade-insecure-requests，与 Chrome MV3 行为对齐。
+  result.content_security_policy = { ...result.content_security_policy, extension_pages: "script-src 'self';" };
   return result;
 }
