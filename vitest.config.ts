@@ -70,7 +70,9 @@ export default defineConfig({
           ...sharedTest,
           pool: "vmThreads",
           isolate: false,
-          maxWorkers: process.env.CI ? "75%" : 1,
+          // vm 池本地至少 2 个 worker：Vitest 对 vm 池强制 isolate=false，maxWorkers 为 1 时会把整个项目
+          // 合并进同一个 VM 上下文（setup 只跑一次），模块缓存、vi.mock、chrome mock 在文件间互相泄漏。
+          maxWorkers: process.env.CI ? "75%" : 2,
           testTimeout: 340,
           sequence: {
             groupOrder: 0,
@@ -105,7 +107,8 @@ export default defineConfig({
           isolate: false,
           // UI renders and V8 coverage are CPU-bound; leave headroom for the fast/scripts projects
           // so the fixed 850ms per-test budget measures the test rather than worker starvation.
-          maxWorkers: process.env.CI ? "50%" : 1,
+          // 本地至少 2 个 worker，原因同 fast 项目
+          maxWorkers: process.env.CI ? "50%" : 2,
           testTimeout: 850,
           sequence: {
             groupOrder: process.env.CI ? 1 : 2,
