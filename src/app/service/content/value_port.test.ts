@@ -85,6 +85,88 @@ describe("ScriptingValuePort 生命周期", () => {
     channel.stop();
   });
 
+  const subscribeAndAck = async (channel: ScriptingValuePort, port: TestPort) => {
+    const ready = channel.subscribe(["a"]);
+    await Promise.resolve();
+    port.receive({ code: 0, data: { ready: true } });
+    port.receive({ action: "runtime/valueSubscriptionsReady" });
+    await ready;
+  };
+
+  it("已确认订阅的 Port 被动断开（SW 休眠或重启）后立即重连，不等待退避", async () => {
+    vi.useFakeTimers();
+    const oldPort = new TestPort();
+    const newPort = new TestPort();
+    const { sender, connect } = createSender(oldPort, newPort);
+    const channel = new ScriptingValuePort(sender, vi.fn());
+    channel.start();
+    await subscribeAndAck(channel, oldPort);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    oldPort.disconnect();
+    await Promise.resolve();
+    expect(connect).toHaveBeenCalledTimes(2);
+    channel.stop();
+  });
+
+  it("确认订阅后很快又断开时按退避重试，避免 SW 反复崩溃时陷入重连死循环", async () => {
+    vi.useFakeTimers();
+    const oldPort = new TestPort();
+    const newPort = new TestPort();
+    const { sender, connect } = createSender(oldPort, newPort);
+    const channel = new ScriptingValuePort(sender, vi.fn());
+    channel.start();
+    await subscribeAndAck(channel, oldPort);
+
+    oldPort.disconnect();
+    await Promise.resolve();
+    expect(connect).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(connect).toHaveBeenCalledTimes(2);
+    channel.stop();
+  });
+
+  describe("扩展上下文失效（扩展重载、更新或卸载）", () => {
+    const runtime = chrome.runtime as { id?: string };
+    const extensionId = runtime.id;
+    afterEach(() => {
+      runtime.id = extensionId;
+    });
+
+    it("连接失败后停止，不再设定重试", async () => {
+      vi.useFakeTimers();
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      try {
+        const { sender, connect } = createSender();
+        const channel = new ScriptingValuePort(sender, vi.fn());
+        runtime.id = undefined;
+        channel.start();
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(connect).toHaveBeenCalledOnce();
+        expect(vi.getTimerCount()).toBe(0);
+        expect(errorSpy).not.toHaveBeenCalled();
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+
+    it("Port 断开后停止，不再重连", async () => {
+      vi.useFakeTimers();
+      const port = new TestPort();
+      const { sender, connect } = createSender(port, new TestPort());
+      const channel = new ScriptingValuePort(sender, vi.fn());
+      channel.start();
+      await subscribeAndAck(channel, port);
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      runtime.id = undefined;
+      port.disconnect();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(connect).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+    });
+  });
+
   it("没有脚本的 frame 释放 Port，不再尝试重连", async () => {
     vi.useFakeTimers();
     const port = new TestPort();

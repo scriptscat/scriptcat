@@ -1,6 +1,12 @@
 import type { MessageConnect, MessageSend } from "@Packages/message/types";
 import type { ValueUpdateDataEncoded } from "./types";
 
+// 确认订阅后存活不到这么久就断开，视为 SW 异常，改为退避重试，避免反复崩溃时重连死循环。
+const STABLE_PORT_MS = 1000;
+
+// 扩展重载、更新或卸载后，旧页面里的 content script 失去扩展上下文，再也连不上新的 SW。
+const isContextInvalidated = () => !chrome.runtime?.id;
+
 // 由 scripting 持有；SW 重启后重连并重新上报 frame 的脚本订阅。
 export default class ScriptingValuePort {
   private port: MessageConnect | undefined;
@@ -12,6 +18,7 @@ export default class ScriptingValuePort {
   private subscribeDone: (() => void) | undefined;
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private retryDelay = 250;
+  private ackedAt: number | undefined;
   private readonly onPageShow = (event: PageTransitionEvent) => {
     if (!event.persisted || this.stopped) return;
     // bfcache 可冻结整个 JS 上下文；恢复后重新向新的 SW 建立索引。
@@ -82,6 +89,7 @@ export default class ScriptingValuePort {
             this.sendSubscriptions();
           } else if (message.action === "runtime/valueSubscriptionsReady") {
             this.retryDelay = 250;
+            this.ackedAt = Date.now();
             this.subscribeDone?.();
             this.subscribeDone = undefined;
           } else if (message.code === -1) {
@@ -94,12 +102,27 @@ export default class ScriptingValuePort {
           if (this.port !== port) return;
           this.port = undefined;
           this.portReady = false;
-          this.scheduleReconnect();
+          if (isContextInvalidated()) {
+            this.stop();
+            return;
+          }
+          const ackedAt = this.ackedAt;
+          this.ackedAt = undefined;
+          // SW 空闲回收或重启时 Port 被动断开；立刻重连能把漏收更新的窗口缩到一次握手
+          if (ackedAt !== undefined && Date.now() - ackedAt >= STABLE_PORT_MS) {
+            this.connect();
+          } else {
+            this.scheduleReconnect();
+          }
         });
       })
       .catch((error: unknown) => {
         if (this.stopped || generation !== this.connectionGeneration) return;
         this.connecting = false;
+        if (isContextInvalidated()) {
+          this.stop();
+          return;
+        }
         console.error("value update Port connection failed", error);
         this.scheduleReconnect();
       });
@@ -116,11 +139,15 @@ export default class ScriptingValuePort {
   }
 
   private failPort(port: MessageConnect, error: unknown) {
-    console.error("value update Port failed", error);
     if (this.port !== port) return;
     this.port = undefined;
     this.portReady = false;
     port.disconnect(true);
+    if (isContextInvalidated()) {
+      this.stop();
+      return;
+    }
+    console.error("value update Port failed", error);
     this.scheduleReconnect();
   }
 
