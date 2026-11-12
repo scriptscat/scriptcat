@@ -359,7 +359,7 @@ describe("PermissionRow 更新态的行头", () => {
   });
 });
 
-describe("PermissionRow 新增取值的配色", () => {
+describe("PermissionRow 变动取值的配色", () => {
   it("普通新增用新增色记号,危险与敏感的新增沿用风险色,不被染成新增色", () => {
     render(
       <>
@@ -388,6 +388,27 @@ describe("PermissionRow 新增取值的配色", () => {
     expect(glyph("GM_addStyle")).toHaveClass("text-success-fg");
     expect(glyph("*")).not.toHaveClass("text-success-fg");
     expect(glyph("GM_cookie")).not.toHaveClass("text-success-fg");
+  });
+
+  it("移除、更新、行头计数与折叠按钮都不用风险色或强调色——红色只留给危险取值", () => {
+    render(
+      <PermissionRow
+        row={{
+          kind: "require",
+          risk: "normal",
+          values: ["https://a.com/new.js", "https://cdn.a.com/lib.js?v2", "https://b.com/keep.js"],
+          sensitive: [],
+          diff: {
+            added: ["https://a.com/new.js"],
+            removed: ["https://old.com/gone.js"],
+            updated: [{ from: "https://cdn.a.com/lib.js?v1", to: "https://cdn.a.com/lib.js?v2" }],
+          },
+        }}
+      />
+    );
+    const row = screen.getByTestId("permission-row");
+    expect(screen.getByText("未变动 1 项")).toBeInTheDocument();
+    expect(row.querySelectorAll('[class*="destructive"], [class*="primary"]')).toHaveLength(0);
   });
 });
 

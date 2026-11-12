@@ -24,7 +24,7 @@ export const KIND_META: Record<PermissionKind, { icon: LucideIcon; labelKey: str
 
 /**
  * 风险只通过「图标块底色 + 计数徽章」表达,标题与普通取值 chip 保持中性;
- * 危险行(@connect *)的 chip 整体标红,敏感项(GM_cookie)单独描琥珀边(见 PermissionChips)。对照设计稿。
+ * 危险行(@connect *)的 chip 整体标红,敏感项(GM_cookie)单独用琥珀浅底与描边(见 Chip)。对照设计稿。
  */
 export const RISK_STYLE: Record<PermissionRisk, { icon: string; count: string; chip: string }> = {
   normal: {
@@ -108,19 +108,20 @@ function Chip({ value, row, change }: { value: string; row: PermissionRowData; c
   const isSensitive = row.sensitive.includes(value);
   // 装在脚本猫里能用，但换到别的脚本管理器就不行了；已移除的取值不再属于新版本，不标
   const isScriptCatOnly = row.kind === "grant" && change !== "removed" && isScriptCatOnlyGrant(value);
-  const base = isSensitive ? "border border-warning-fg bg-muted text-warning-fg" : RISK_STYLE[row.risk].chip;
-  // 底色与描边优先留给风险等级:新增的 @connect * 若被染成新增色,最该报警的情况就被伪装成了安全的
+  const base = isSensitive ? "border border-warning-fg/60 bg-warning-bg text-warning-fg" : RISK_STYLE[row.risk].chip;
+  // 色相只表达风险,变动只靠对比度与 +/− 记号:移除权限是好事,若也用红,就和 @connect * 这类真正该警觉的取值混在一起;
+  // 反过来新增的 @connect * 若被染成新增色,最该报警的情况就被伪装成了安全的
   const riskTone = isSensitive || row.risk === "danger";
 
   const changeClass =
     change === "removed"
-      ? "border border-dashed border-border bg-transparent text-muted-foreground"
+      ? "border border-transparent bg-transparent pl-1 text-muted-foreground"
       : change === "unchanged"
         ? "bg-muted border border-border text-muted-foreground"
         : change === "added"
           ? riskTone
-            ? cn(base, "font-semibold", row.risk === "danger" && !isSensitive ? "border-destructive" : "border-current")
-            : "border border-success-fg/55 bg-muted text-foreground"
+            ? cn(base, "font-semibold")
+            : "border border-border bg-muted text-foreground"
           : base;
 
   return (
@@ -136,13 +137,13 @@ function Chip({ value, row, change }: { value: string; row: PermissionRowData; c
         </span>
       )}
       {change === "removed" && (
-        <span aria-hidden="true" className="font-bold text-destructive">
+        <span aria-hidden="true" className="font-bold">
           {"−"}
         </span>
       )}
       {isSensitive && change !== "removed" && <TriangleAlert className="size-3 shrink-0" />}
       {change && <span className="sr-only">{t(CHANGE_LABEL_KEY[change])}</span>}
-      <span className={cn("flex min-w-0", change === "removed" && "line-through decoration-destructive/70")}>
+      <span className={cn("flex min-w-0", change === "removed" && "line-through")}>
         <UrlValue value={value} kind={row.kind} muted={change === "removed"} />
       </span>
       {isScriptCatOnly && <ScriptCatOnlyBadge docHref={catApiDocHref(value)} />}
@@ -161,9 +162,9 @@ function UpdatedChip({ update, row }: { update: PermissionUpdate; row: Permissio
     <span
       data-chip
       data-change="updated"
-      className="inline-flex max-w-full items-center gap-1 rounded-md border border-primary/50 bg-muted px-2 py-0.5 font-mono text-xs text-foreground"
+      className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 font-mono text-xs text-foreground"
     >
-      <span aria-hidden="true" className="font-bold text-primary">
+      <span aria-hidden="true" className="font-bold text-muted-foreground">
         {"~"}
       </span>
       <span className="sr-only">{t(CHANGE_LABEL_KEY.updated)}</span>
@@ -193,7 +194,7 @@ function MoreButton({
       type="button"
       data-testid={testId}
       onClick={onClick}
-      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-primary hover:bg-primary-light"
+      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
     >
       {label}
       <ChevronDown className="size-3" />
@@ -325,10 +326,13 @@ export function PermissionDelta({ row }: { row: PermissionRowData }) {
   if (!isPermissionChanged(row)) return null;
   const { added, removed, updated } = row.diff!;
   return (
-    <span data-testid="permission-delta" className="flex items-center gap-1.5 font-mono text-[11px] font-semibold">
-      {added.length > 0 && <span className="text-success-fg">{`+${added.length}`}</span>}
-      {removed.length > 0 && <span className="text-destructive">{`−${removed.length}`}</span>}
-      {updated.length > 0 && <span className="text-primary">{`~${updated.length}`}</span>}
+    <span
+      data-testid="permission-delta"
+      className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground"
+    >
+      {added.length > 0 && <span>{`+${added.length}`}</span>}
+      {removed.length > 0 && <span>{`−${removed.length}`}</span>}
+      {updated.length > 0 && <span>{`~${updated.length}`}</span>}
     </span>
   );
 }

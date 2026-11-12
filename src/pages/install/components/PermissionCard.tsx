@@ -213,29 +213,17 @@ export function PermissionCard({
         {changed.length > 0 && (
           <span
             data-testid="permission-card-delta"
-            className="flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold"
+            className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground"
           >
             {[
-              added > 0 && (
-                <span key="added" className="text-success-fg">
-                  {t("install:perm_delta_added", { count: added })}
-                </span>
-              ),
-              removed > 0 && (
-                <span key="removed" className="text-destructive">
-                  {t("install:perm_delta_removed", { count: removed })}
-                </span>
-              ),
-              updated > 0 && (
-                <span key="updated" className="text-primary">
-                  {t("install:perm_delta_updated", { count: updated })}
-                </span>
-              ),
+              added > 0 && <span key="added">{t("install:perm_delta_added", { count: added })}</span>,
+              removed > 0 && <span key="removed">{t("install:perm_delta_removed", { count: removed })}</span>,
+              updated > 0 && <span key="updated">{t("install:perm_delta_updated", { count: updated })}</span>,
             ]
               .filter(Boolean)
               .flatMap((part, i) => [
                 i > 0 && (
-                  <span key={`sep-${i}`} aria-hidden="true" className="font-normal text-muted-foreground">
+                  <span key={`sep-${i}`} aria-hidden="true">
                     {"·"}
                   </span>
                 ),

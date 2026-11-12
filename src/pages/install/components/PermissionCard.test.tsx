@@ -74,6 +74,12 @@ describe("PermissionCard 更新差异态", () => {
     expect(within(range).getByText("从已安装的 1.2.3 更新到 2.0.0")).toHaveClass("sr-only");
   });
 
+  it("卡头增删计数不着色,红色只留给危险取值", () => {
+    render(<PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" version="2.0.0" />);
+    const delta = screen.getByTestId("permission-card-delta");
+    expect(delta.querySelectorAll('[class*="destructive"], [class*="success"], [class*="primary"]')).toHaveLength(0);
+  });
+
   it("只换了查询参数的外部资源在卡头计为更新,不算新增或移除", () => {
     const requireRow: PermissionRow = {
       kind: "require",
