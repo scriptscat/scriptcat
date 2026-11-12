@@ -2,6 +2,7 @@ import { scriptClient, agentClient } from "@App/pages/store/features/script";
 import { saveHandle } from "@App/pkg/utils/filehandle-db";
 import { makeBlobURL, openInCurrentTab } from "@App/pkg/utils/utils";
 import { parseMetadata } from "@App/pkg/utils/script";
+import { toScriptInstallUrl } from "@App/pkg/utils/url-utils";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { notify } from "@App/pages/components/ui/toast";
 import { t } from "@App/locales/locales";
@@ -93,7 +94,7 @@ export async function handleImportUrls(urls: string[]): Promise<ImportStat> {
           const uuid = await agentClient.prepareSkillFromUrl(url);
           await openInCurrentTab(`/src/install.html?skill=${uuid}`);
         } else {
-          const result = await scriptClient.importByUrl(url);
+          const result = await scriptClient.importByUrl(toScriptInstallUrl(url));
           if (!result.success) throw new Error(result.msg);
         }
         stat.success++;
