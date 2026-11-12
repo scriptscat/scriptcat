@@ -45,6 +45,7 @@ export interface IGM_Base {
   sendMessage(api: string, params: any[]): Promise<any>;
   connect(api: string, params: any[]): Promise<any>;
   valueUpdate(data: ValueUpdateDataEncoded): void;
+  valueSync(values: Record<string, unknown>): void;
   emitEvent(event: string, eventId: string, data: any): void;
 }
 
@@ -208,6 +209,22 @@ class GM_Base implements IGM_Base {
           this.valueChangeListener.execute(key, oldValue, value, remote, sender.tabId);
         }
       }
+    }
+  }
+
+  // 重订阅补齐：快照只有最终值，逐键对比本地缓存，对变化的键更新并以 remote=true 触发监听
+  @GMContext.protected()
+  public valueSync(values: Record<string, unknown>) {
+    if (!this.scriptRes || !this.valueChangeListener) return;
+    const valueStore = this.scriptRes.value;
+    const encode = (value: unknown) => JSON.stringify(encodeRValue(value));
+    for (const key of new Set([...Object.keys(valueStore), ...Object.keys(values)])) {
+      const oldValue = valueStore[key];
+      const value = values[key];
+      if (encode(oldValue) === encode(value)) continue;
+      if (value === undefined) delete valueStore[key];
+      else valueStore[key] = value;
+      this.valueChangeListener.execute(key, oldValue, value, true, undefined);
     }
   }
 

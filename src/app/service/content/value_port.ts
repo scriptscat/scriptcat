@@ -1,5 +1,5 @@
 import type { MessageConnect, MessageSend } from "@Packages/message/types";
-import type { ValueUpdateDataEncoded } from "./types";
+import type { ValueSubscription, ValueSubscriptionAck, ValueUpdateDataEncoded } from "./types";
 
 // 确认订阅后存活不到这么久就断开，视为 SW 异常，改为退避重试，避免反复崩溃时重连死循环。
 const STABLE_PORT_MS = 1000;
@@ -14,7 +14,9 @@ export default class ScriptingValuePort {
   private connectionGeneration = 0;
   private portReady = false;
   private stopped = false;
-  private storageNames: string[] | undefined;
+  private getSubscriptions: (() => ValueSubscription[]) | undefined;
+  // 订阅确认之前收到的推送；确认里的快照要先应用，之后才能按版本判断这些推送是否已包含在快照里
+  private buffered: ValueUpdateDataEncoded[] | undefined;
   private subscribeDone: (() => void) | undefined;
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private retryDelay = 250;
@@ -36,7 +38,8 @@ export default class ScriptingValuePort {
 
   constructor(
     private readonly sender: MessageSend,
-    private readonly onValueUpdate: (data: ValueUpdateDataEncoded) => void
+    private readonly onValueUpdate: (data: ValueUpdateDataEncoded) => void,
+    private readonly onSubscribed: (acks: ValueSubscriptionAck[]) => void
   ) {}
 
   start() {
@@ -44,12 +47,13 @@ export default class ScriptingValuePort {
     window.addEventListener("pageshow", this.onPageShow);
   }
 
-  subscribe(names: string[]): Promise<void> {
-    if (names.length === 0) {
+  // 每次（重新）订阅时现取：重连后要带上最新的已知版本
+  subscribe(getSubscriptions: () => ValueSubscription[]): Promise<void> {
+    if (getSubscriptions().length === 0) {
       this.stop();
       return Promise.resolve();
     }
-    this.storageNames = [...new Set(names)];
+    this.getSubscriptions = getSubscriptions;
     return new Promise((resolve) => {
       this.subscribeDone = resolve;
       this.sendSubscriptions();
@@ -82,6 +86,7 @@ export default class ScriptingValuePort {
         this.connecting = false;
         this.port = port;
         this.portReady = false;
+        this.buffered = [];
         port.onMessage((message) => {
           if (this.port !== port) return;
           if (message.code === 0 && message.data?.ready === true) {
@@ -90,12 +95,18 @@ export default class ScriptingValuePort {
           } else if (message.action === "runtime/valueSubscriptionsReady") {
             this.retryDelay = 250;
             this.ackedAt = Date.now();
+            this.onSubscribed(Array.isArray(message.data) ? message.data : []);
+            const buffered = this.buffered ?? [];
+            this.buffered = undefined;
+            for (const data of buffered) this.onValueUpdate(data);
             this.subscribeDone?.();
             this.subscribeDone = undefined;
           } else if (message.code === -1) {
             this.failPort(port, message.message);
           } else if (message.action === "runtime/valueUpdate") {
-            this.onValueUpdate(message.data as ValueUpdateDataEncoded);
+            const data = message.data as ValueUpdateDataEncoded;
+            if (this.buffered) this.buffered.push(data);
+            else this.onValueUpdate(data);
           }
         });
         port.onDisconnect(() => {
@@ -129,9 +140,9 @@ export default class ScriptingValuePort {
   }
 
   private sendSubscriptions() {
-    if (this.portReady && this.port && this.storageNames) {
+    if (this.portReady && this.port && this.getSubscriptions) {
       try {
-        this.port.sendMessage({ action: "runtime/subscribeValueUpdates", data: this.storageNames });
+        this.port.sendMessage({ action: "runtime/subscribeValueUpdates", data: this.getSubscriptions() });
       } catch (error) {
         this.failPort(this.port, error);
       }

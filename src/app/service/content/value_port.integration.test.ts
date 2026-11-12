@@ -11,13 +11,16 @@ describe("scripting ↔ serviceWorker Port 通道", () => {
     const transport = new MockMessage(new EventEmitter<string, unknown>());
     const server = new Server("serviceWorker", transport);
     const failures = vi.fn();
-    const ports = new ValueUpdatePorts(failures);
+    const ports = new ValueUpdatePorts(failures, async (sub, register) => {
+      register();
+      return { storageName: sub.storageName, revision: sub.revision };
+    });
     server.group("runtime").on("valueUpdates", (_, sender) => ports.connect(sender));
     const received = vi.fn();
-    const channel = new ScriptingValuePort(transport, received);
+    const channel = new ScriptingValuePort(transport, received, vi.fn());
     channel.start();
 
-    await channel.subscribe(["script-a"]);
+    await channel.subscribe(() => [{ storageName: "script-a", revision: 0, uuids: ["uuid-a"] }]);
     const update: ValueUpdateDataEncoded = {
       uuid: "uuid-a",
       storageName: "script-a",

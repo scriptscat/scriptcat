@@ -168,6 +168,36 @@ describe("ValueService - setValue 方法测试", () => {
     expect(ret).toMatchObject({ id: "receipt-id", valueUpdated: true });
   });
 
+  it("保存时版本号单调递增并随推送下发，值未改变时沿用当前版本", async () => {
+    const mockScript = createMockScript();
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    let stored: Value | undefined;
+    vi.mocked(mockValueDAO.get).mockImplementation(async () => stored);
+    vi.mocked(mockValueDAO.save).mockImplementation(async (_: string, model: Value) => {
+      stored = model;
+      return model;
+    });
+    const set = (value: unknown) =>
+      valueService.setValues({
+        uuid: mockScript.uuid,
+        keyValuePairs: [["k", encodeRValue(value)]],
+        valueSender: createMockValueSender(),
+        isReplace: false,
+      });
+
+    const before = Date.now() * 1000;
+    const first = await set(1);
+    expect(first.revision).toBeGreaterThanOrEqual(before);
+    expect(stored!.revision).toBe(first.revision);
+    // 时钟没走也要比上一次大
+    vi.spyOn(Date, "now").mockReturnValue(0);
+    const second = await set(2);
+    expect(second.revision).toBe(first.revision! + 1);
+    const unchanged = await set(2);
+    expect(unchanged.valueUpdated).toBe(false);
+    expect(unchanged.revision).toBe(second.revision);
+  });
+
   it("应该成功设置新脚本的值 (storageName fallback)", async () => {
     // 准备测试数据
     const mockScript = createMockScript();
@@ -591,5 +621,91 @@ describe("ValueService getScriptValue 合并用户配置默认值", () => {
     expect(withConfig).toEqual({ k: "v", "group.opt": "dflt" });
     expect(plain).toEqual({ k: "v" });
     expect(record.data).toEqual({ k: "v" });
+  });
+});
+
+describe("ValueService subscribeSnapshot 重订阅补齐", () => {
+  const storageName = "shared-store";
+  const createScript = (uuid: string, overrides: Partial<Script> = {}): Script =>
+    ({
+      uuid,
+      name: uuid,
+      namespace: "ns",
+      type: SCRIPT_TYPE_NORMAL,
+      status: SCRIPT_STATUS_ENABLE,
+      sort: 0,
+      runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+      createtime: 0,
+      checktime: 0,
+      metadata: { storagename: [storageName] },
+      ...overrides,
+    }) as Script;
+
+  const setup = (record: Value | undefined, scripts: Script[]) => {
+    const service = new ValueService({ on: vi.fn() } as unknown as Group, new MessageQueue());
+    const order: string[] = [];
+    service.valueDAO = {
+      get: vi.fn(async () => {
+        order.push("read");
+        return record;
+      }),
+    } as unknown as ValueDAO;
+    service.scriptDAO = {
+      get: vi.fn(async (uuid: string) => scripts.find((s) => s.uuid === uuid)),
+    } as unknown as ScriptDAO;
+    const register = vi.fn(() => order.push("register"));
+    return { service, register, order };
+  };
+  const record = (revision?: number): Value => ({
+    uuid: "a",
+    storageName,
+    data: { k: "v" },
+    createtime: 0,
+    updatetime: 0,
+    revision,
+  });
+
+  it("版本一致时只登记订阅，不下发快照", async () => {
+    const { service, register, order } = setup(record(5), [createScript("a")]);
+    const ack = await service.subscribeSnapshot({ storageName, revision: 5, uuids: ["a"] }, register);
+    expect(ack).toEqual({ storageName, revision: 5 });
+    expect(order).toEqual(["register", "read"]);
+  });
+
+  it("版本不一致时按脚本 uuid 下发快照，包含各自的用户配置默认值，跳过已改用其他存储的脚本", async () => {
+    const withConfig = createScript("b", {
+      config: { group: { opt: { title: "opt", type: "text", default: "dflt" } } },
+    } as unknown as Partial<Script>);
+    const moved = createScript("c", { metadata: { storagename: ["other"] } });
+    const { service, register } = setup(record(7), [createScript("a"), withConfig, moved]);
+    const ack = await service.subscribeSnapshot({ storageName, revision: 5, uuids: ["a", "b", "c", "gone"] }, register);
+    expect(ack.revision).toBe(7);
+    expect(ack.values).toEqual({ a: { k: "v" }, b: { k: "v", "group.opt": "dflt" } });
+  });
+
+  it("没有记录的存储版本为 0，旧记录没有版本号时也按 0 比较", async () => {
+    const empty = setup(undefined, [createScript("a")]);
+    expect(await empty.service.subscribeSnapshot({ storageName, revision: 0, uuids: ["a"] }, empty.register)).toEqual({
+      storageName,
+      revision: 0,
+    });
+    const legacy = setup(record(undefined), [createScript("a")]);
+    expect(await legacy.service.subscribeSnapshot({ storageName, revision: 0, uuids: ["a"] }, legacy.register)).toEqual(
+      {
+        storageName,
+        revision: 0,
+      }
+    );
+  });
+
+  it("与同一存储的写入共用写锁：登记和读版本之间不会插入写入", async () => {
+    const { service, register, order } = setup(record(1), [createScript("a")]);
+    service.pushValueUpdate = vi.fn();
+    (service.valueDAO as unknown as { save: unknown }).save = vi.fn(async () => order.push("save"));
+    const pending = service.subscribeSnapshot({ storageName, revision: 0, uuids: ["a"] }, register);
+    const write = service.setValues({ uuid: "a", keyValuePairs: [["k", encodeRValue("w")]], isReplace: false });
+    await Promise.all([pending, write]);
+    // 登记、读版本、按脚本读快照都在写入读旧值和保存之前完成
+    expect(order).toEqual(["register", "read", "read", "read", "save"]);
   });
 });

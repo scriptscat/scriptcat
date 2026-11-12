@@ -2,7 +2,7 @@ import type { Message } from "@Packages/message/types";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { EmitEventRequest } from "../service_worker/types";
 import ExecScript from "./exec_script";
-import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
+import type { GMInfoEnv, ScriptFunc, ValueSyncData, ValueUpdateDataEncoded } from "./types";
 import { addStyleSheet, definePropertyListener, waitBody } from "./utils";
 import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { DefinedFlags } from "../service_worker/runtime.consts";
@@ -55,6 +55,14 @@ export class ScriptExecutor {
       if (val.scriptRes.uuid === uuid || getStorageName(val.scriptRes) === storageName) {
         val.valueUpdate(data);
       }
+    }
+  }
+
+  valueSync(data: ValueSyncData) {
+    // runtime/valueSync
+    for (const val of this.execScriptMap.values()) {
+      const values = data.values[val.scriptRes.uuid];
+      if (values) val.valueSync(values);
     }
   }
 

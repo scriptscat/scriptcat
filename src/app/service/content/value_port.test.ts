@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MessageConnect, MessageSend, TMessage } from "@Packages/message/types";
 import ScriptingValuePort from "./value_port";
+import type { ValueSubscription } from "./types";
+
+const subs = (...names: string[]): ValueSubscription[] =>
+  names.map((storageName) => ({ storageName, revision: 0, uuids: [] }));
 
 class TestPort implements MessageConnect {
   sent: TMessage[] = [];
@@ -41,13 +45,13 @@ describe("ScriptingValuePort 生命周期", () => {
     const port = new TestPort();
     const { sender, connect } = createSender(port);
     const delivered = vi.fn();
-    const channel = new ScriptingValuePort(sender, delivered);
+    const channel = new ScriptingValuePort(sender, delivered, vi.fn());
     channel.start();
-    const ready = channel.subscribe(["shared", "shared", "content"]);
+    const ready = channel.subscribe(() => subs("shared", "content"));
     await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce());
     expect(connect).toHaveBeenCalledWith({ action: "serviceWorker/runtime/valueUpdates" });
     port.receive({ code: 0, data: { ready: true } });
-    expect(port.sent).toEqual([{ action: "runtime/subscribeValueUpdates", data: ["shared", "content"] }]);
+    expect(port.sent).toEqual([{ action: "runtime/subscribeValueUpdates", data: subs("shared", "content") }]);
 
     let subscribed = false;
     void ready.then(() => (subscribed = true));
@@ -63,14 +67,69 @@ describe("ScriptingValuePort 生命周期", () => {
     channel.stop();
   });
 
+  it("确认前收到的推送先缓存；确认后先交出订阅结果，再按顺序放出缓存的推送", async () => {
+    const port = new TestPort();
+    const { sender } = createSender(port);
+    const events: unknown[] = [];
+    const channel = new ScriptingValuePort(
+      sender,
+      (data) => events.push(["update", data]),
+      (acks) => events.push(["ack", acks])
+    );
+    channel.start();
+    const ready = channel.subscribe(() => subs("a"));
+    await Promise.resolve();
+    port.receive({ code: 0, data: { ready: true } });
+    port.receive({ action: "runtime/valueUpdate", data: { storageName: "a", revision: 1 } });
+    port.receive({ action: "runtime/valueUpdate", data: { storageName: "a", revision: 2 } });
+    expect(events).toEqual([]);
+
+    const acks = [{ storageName: "a", revision: 1, values: { u: { k: 1 } } }];
+    port.receive({ action: "runtime/valueSubscriptionsReady", data: acks });
+    await ready;
+    expect(events).toEqual([
+      ["ack", acks],
+      ["update", { storageName: "a", revision: 1 }],
+      ["update", { storageName: "a", revision: 2 }],
+    ]);
+    port.receive({ action: "runtime/valueUpdate", data: { storageName: "a", revision: 3 } });
+    expect(events).toHaveLength(4);
+    channel.stop();
+  });
+
+  it("重连时重新取订阅，带上最新的已知版本", async () => {
+    vi.useFakeTimers();
+    const oldPort = new TestPort();
+    const newPort = new TestPort();
+    const { sender } = createSender(oldPort, newPort);
+    const channel = new ScriptingValuePort(sender, vi.fn(), vi.fn());
+    let revision = 3;
+    channel.start();
+    const ready = channel.subscribe(() => [{ storageName: "a", revision, uuids: ["u"] }]);
+    await Promise.resolve();
+    oldPort.receive({ code: 0, data: { ready: true } });
+    oldPort.receive({ action: "runtime/valueSubscriptionsReady", data: [] });
+    await ready;
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    revision = 8;
+    oldPort.disconnect();
+    await Promise.resolve();
+    newPort.receive({ code: 0, data: { ready: true } });
+    expect(newPort.sent).toEqual([
+      { action: "runtime/subscribeValueUpdates", data: [{ storageName: "a", revision: 8, uuids: ["u"] }] },
+    ]);
+    channel.stop();
+  });
+
   it("断连重建 Port 并恢复存储订阅，旧 Port 不再使用", async () => {
     vi.useFakeTimers();
     const oldPort = new TestPort();
     const newPort = new TestPort();
     const { sender, connect } = createSender(oldPort, newPort);
-    const channel = new ScriptingValuePort(sender, vi.fn());
+    const channel = new ScriptingValuePort(sender, vi.fn(), vi.fn());
     channel.start();
-    const ready = channel.subscribe(["a"]);
+    const ready = channel.subscribe(() => subs("a"));
     await Promise.resolve();
     oldPort.receive({ code: 0, data: { ready: true } });
     oldPort.receive({ action: "runtime/valueSubscriptionsReady" });
@@ -80,13 +139,13 @@ describe("ScriptingValuePort 生命周期", () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(connect).toHaveBeenCalledTimes(2);
     newPort.receive({ code: 0, data: { ready: true } });
-    expect(newPort.sent).toEqual([{ action: "runtime/subscribeValueUpdates", data: ["a"] }]);
+    expect(newPort.sent).toEqual([{ action: "runtime/subscribeValueUpdates", data: subs("a") }]);
     newPort.receive({ action: "runtime/valueSubscriptionsReady" });
     channel.stop();
   });
 
   const subscribeAndAck = async (channel: ScriptingValuePort, port: TestPort) => {
-    const ready = channel.subscribe(["a"]);
+    const ready = channel.subscribe(() => subs("a"));
     await Promise.resolve();
     port.receive({ code: 0, data: { ready: true } });
     port.receive({ action: "runtime/valueSubscriptionsReady" });
@@ -98,7 +157,7 @@ describe("ScriptingValuePort 生命周期", () => {
     const oldPort = new TestPort();
     const newPort = new TestPort();
     const { sender, connect } = createSender(oldPort, newPort);
-    const channel = new ScriptingValuePort(sender, vi.fn());
+    const channel = new ScriptingValuePort(sender, vi.fn(), vi.fn());
     channel.start();
     await subscribeAndAck(channel, oldPort);
     await vi.advanceTimersByTimeAsync(30_000);
@@ -114,7 +173,7 @@ describe("ScriptingValuePort 生命周期", () => {
     const oldPort = new TestPort();
     const newPort = new TestPort();
     const { sender, connect } = createSender(oldPort, newPort);
-    const channel = new ScriptingValuePort(sender, vi.fn());
+    const channel = new ScriptingValuePort(sender, vi.fn(), vi.fn());
     channel.start();
     await subscribeAndAck(channel, oldPort);
 
@@ -138,7 +197,7 @@ describe("ScriptingValuePort 生命周期", () => {
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
       try {
         const { sender, connect } = createSender();
-        const channel = new ScriptingValuePort(sender, vi.fn());
+        const channel = new ScriptingValuePort(sender, vi.fn(), vi.fn());
         runtime.id = undefined;
         channel.start();
         await vi.advanceTimersByTimeAsync(60_000);
@@ -154,7 +213,7 @@ describe("ScriptingValuePort 生命周期", () => {
       vi.useFakeTimers();
       const port = new TestPort();
       const { sender, connect } = createSender(port, new TestPort());
-      const channel = new ScriptingValuePort(sender, vi.fn());
+      const channel = new ScriptingValuePort(sender, vi.fn(), vi.fn());
       channel.start();
       await subscribeAndAck(channel, port);
       await vi.advanceTimersByTimeAsync(30_000);
@@ -171,10 +230,10 @@ describe("ScriptingValuePort 生命周期", () => {
     vi.useFakeTimers();
     const port = new TestPort();
     const { sender, connect } = createSender(port);
-    const channel = new ScriptingValuePort(sender, vi.fn());
+    const channel = new ScriptingValuePort(sender, vi.fn(), vi.fn());
     channel.start();
     await Promise.resolve();
-    await channel.subscribe([]);
+    await channel.subscribe(() => []);
     port.disconnect();
     await vi.advanceTimersByTimeAsync(5000);
     expect(connect).toHaveBeenCalledOnce();
@@ -184,9 +243,9 @@ describe("ScriptingValuePort 生命周期", () => {
     const oldPort = new TestPort();
     const newPort = new TestPort();
     const { sender, connect } = createSender(oldPort, newPort);
-    const channel = new ScriptingValuePort(sender, vi.fn());
+    const channel = new ScriptingValuePort(sender, vi.fn(), vi.fn());
     channel.start();
-    const ready = channel.subscribe(["a"]);
+    const ready = channel.subscribe(() => subs("a"));
     await Promise.resolve();
     expect(connect).toHaveBeenCalledOnce();
     oldPort.receive({ code: 0, data: { ready: true } });
@@ -201,7 +260,7 @@ describe("ScriptingValuePort 生命周期", () => {
     await Promise.resolve();
     expect(connect).toHaveBeenCalledTimes(2);
     newPort.receive({ code: 0, data: { ready: true } });
-    expect(newPort.sent).toEqual([{ action: "runtime/subscribeValueUpdates", data: ["a"] }]);
+    expect(newPort.sent).toEqual([{ action: "runtime/subscribeValueUpdates", data: subs("a") }]);
     channel.stop();
   });
 
@@ -212,9 +271,9 @@ describe("ScriptingValuePort 生命周期", () => {
     const oldPort = new TestPort();
     const oldDisconnect = vi.spyOn(oldPort, "disconnect");
     const connect = vi.fn().mockReturnValueOnce(oldPortPromise).mockResolvedValueOnce(newPort);
-    const channel = new ScriptingValuePort({ connect } as unknown as MessageSend, vi.fn());
+    const channel = new ScriptingValuePort({ connect } as unknown as MessageSend, vi.fn(), vi.fn());
     channel.start();
-    const ready = channel.subscribe(["a"]);
+    const ready = channel.subscribe(() => subs("a"));
 
     const pageshow = new PageTransitionEvent("pageshow");
     Object.defineProperty(pageshow, "persisted", { value: true });
@@ -224,7 +283,7 @@ describe("ScriptingValuePort 生命周期", () => {
     resolveOld(oldPort);
     await Promise.resolve();
     newPort.receive({ code: 0, data: { ready: true } });
-    expect(newPort.sent).toEqual([{ action: "runtime/subscribeValueUpdates", data: ["a"] }]);
+    expect(newPort.sent).toEqual([{ action: "runtime/subscribeValueUpdates", data: subs("a") }]);
     expect(oldPort.sent).toEqual([]);
     expect(oldDisconnect).toHaveBeenCalledOnce();
     newPort.receive({ action: "runtime/valueSubscriptionsReady" });
@@ -237,11 +296,11 @@ describe("ScriptingValuePort 生命周期", () => {
     const oldPort = new TestPort();
     const newPort = new TestPort();
     const { sender, connect } = createSender(oldPort, newPort);
-    const channel = new ScriptingValuePort(sender, vi.fn());
+    const channel = new ScriptingValuePort(sender, vi.fn(), vi.fn());
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     try {
       channel.start();
-      const ready = channel.subscribe(["a"]);
+      const ready = channel.subscribe(() => subs("a"));
       await Promise.resolve();
       oldPort.sendMessage = () => {
         throw new Error("closed");

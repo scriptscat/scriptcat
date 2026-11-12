@@ -4,6 +4,7 @@ import type { MessageConnect, MessageSend, TMessage } from "@Packages/message/ty
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import ScriptingRuntime from "./scripting";
 import type { ValueUpdateDataEncoded } from "./types";
+import { encodeRValue } from "@App/pkg/utils/message_value";
 
 type Handler = (data: any) => any;
 
@@ -133,7 +134,12 @@ describe("ScriptingRuntime 值更新投递", () => {
     await vi.waitFor(() =>
       expect(portSend).toHaveBeenCalledWith({
         action: "runtime/subscribeValueUpdates",
-        data: ["page-store", "shared", "content-store", "__proto__"],
+        data: [
+          { storageName: "page-store", revision: 0, uuids: ["a"] },
+          { storageName: "shared", revision: 0, uuids: ["c", "d"] },
+          { storageName: "content-store", revision: 0, uuids: ["b"] },
+          { storageName: "__proto__", revision: 0, uuids: ["e"] },
+        ],
       })
     );
     expect(toContent.sendMessage).not.toHaveBeenCalled();
@@ -173,6 +179,94 @@ describe("ScriptingRuntime 值更新投递", () => {
     await Promise.resolve();
     expect(toContent.sendMessage).not.toHaveBeenCalled();
     expect(toInject.sendMessage).not.toHaveBeenCalled();
+  });
+
+  describe("按版本补齐", () => {
+    const script = (uuid: string, storageName: string, valueRevision: number, value: Record<string, unknown> = {}) => ({
+      uuid,
+      metadata: { storagename: [storageName] },
+      value,
+      valueRevision,
+    });
+    const pushed = (storageName: string, revision: number | undefined, key = "k", value: unknown = "pushed") =>
+      ({
+        ...valueUpdate(storageName),
+        entries: [[key, encodeRValue(value), encodeRValue(undefined)]],
+        revision,
+      }) as ValueUpdateDataEncoded;
+    const pageLoadScripts = (send: ReturnType<typeof vi.fn>) =>
+      send.mock.calls.find(([msg]) => msg.action === "inject/pageLoad")![0].data.scripts;
+
+    const loadAndSubscribe = async (setupResult: ReturnType<typeof setup>) => {
+      setupResult.runtime.pageLoad();
+      await vi.waitFor(() => expect(setupResult.onPortMessage).toHaveBeenCalledOnce());
+      setupResult.receive({ code: 0, data: { ready: true } });
+      await vi.waitFor(() => expect(setupResult.portSend).toHaveBeenCalled());
+    };
+
+    it("订阅带上 pageLoad 读到的版本；同一存储的脚本读到的版本不同时取最小值", async () => {
+      const ctx = setup({
+        ok: true,
+        injectScriptList: [script("a", "s", 7), script("b", "s", 5)],
+        contentScriptList: [],
+        envInfo: {},
+      });
+      await loadAndSubscribe(ctx);
+      expect(ctx.portSend).toHaveBeenCalledWith({
+        action: "runtime/subscribeValueUpdates",
+        data: [{ storageName: "s", revision: 5, uuids: ["a", "b"] }],
+      });
+    });
+
+    it("首次订阅确认里的快照和确认前到达的推送，都在脚本启动前合并进 pageLoad 数据", async () => {
+      const ctx = setup({
+        ok: true,
+        injectScriptList: [script("a", "s", 1, { k: "old", other: 1 })],
+        contentScriptList: [],
+        envInfo: {},
+      });
+      await loadAndSubscribe(ctx);
+      ctx.receive({ action: "runtime/valueUpdate", data: pushed("s", 3, "late", "pushed") });
+      ctx.receive({
+        action: "runtime/valueSubscriptionsReady",
+        data: [{ storageName: "s", revision: 2, values: { a: { k: "snapshot" } } }],
+      });
+      await vi.waitFor(() => expect(actionsOf(ctx.toInject.sendMessage)).toContain("inject/pageLoad"));
+
+      expect(pageLoadScripts(ctx.toInject.sendMessage)[0].value).toEqual({ k: "snapshot", late: "pushed" });
+      expect(actionsOf(ctx.toInject.sendMessage)).toEqual(["inject/pageLoad"]);
+    });
+
+    it("脚本启动后：版本不比已知版本新的推送丢弃，重连确认里的快照以 runtime/valueSync 发给对应世界", async () => {
+      const ctx = setup({
+        ok: true,
+        injectScriptList: [script("a", "s", 1)],
+        contentScriptList: [],
+        envInfo: {},
+      });
+      await loadAndSubscribe(ctx);
+      ctx.receive({ action: "runtime/valueSubscriptionsReady", data: [{ storageName: "s", revision: 1 }] });
+      await vi.waitFor(() => expect(actionsOf(ctx.toInject.sendMessage)).toContain("inject/pageLoad"));
+      ctx.toInject.sendMessage.mockClear();
+
+      for (const revision of [5, 5, 4, 6, undefined]) {
+        ctx.receive({ action: "runtime/valueUpdate", data: pushed("s", revision) });
+      }
+      await Promise.resolve();
+      expect(ctx.toInject.sendMessage.mock.calls.map(([msg]) => msg.data.revision)).toEqual([5, 6, undefined]);
+      ctx.toInject.sendMessage.mockClear();
+
+      const values = { a: { k: "synced" } };
+      ctx.receive({ action: "runtime/valueSubscriptionsReady", data: [{ storageName: "s", revision: 9, values }] });
+      await Promise.resolve();
+      expect(ctx.toInject.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ action: "inject/runtime/valueSync", data: { storageName: "s", values } })
+      );
+      ctx.toInject.sendMessage.mockClear();
+      ctx.receive({ action: "runtime/valueUpdate", data: pushed("s", 9) });
+      await Promise.resolve();
+      expect(ctx.toInject.sendMessage).not.toHaveBeenCalled();
+    });
   });
 
   it("pageLoad 没有运行脚本的 frame 不会订阅，释放 Port", async () => {

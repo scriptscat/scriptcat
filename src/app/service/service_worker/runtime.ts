@@ -133,9 +133,12 @@ export type TScriptsForTab = {
 const bgScriptStorageNames = new Set<string>();
 
 export class RuntimeService {
-  private readonly valuePorts = new ValueUpdatePorts((context, error) => {
-    this.logger.error("value update Port delivery failed", context, Logger.E(error));
-  });
+  private readonly valuePorts = new ValueUpdatePorts(
+    (context, error) => {
+      this.logger.error("value update Port delivery failed", context, Logger.E(error));
+    },
+    (sub, register) => this.value.subscribeSnapshot(sub, register)
+  );
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
   private gmApi?: GMApi;
@@ -1606,7 +1609,9 @@ export class RuntimeService {
     await Promise.all(
       enableScriptList.map(async (script) => {
         // value（GM 值）会在页面间变化，必须每次页面加载都实时读取，绝不能走页面加载缓存。
-        script.value = await value.getScriptValue(script);
+        const [values, record] = await value.getScriptValueDetails(script);
+        script.value = values;
+        script.valueRevision = record?.revision ?? 0;
       })
     );
 

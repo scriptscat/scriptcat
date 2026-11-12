@@ -30,6 +30,26 @@ export type ValueUpdateDataEncoded = {
   storageName: string; // 储存name
   sender: ValueUpdateSender;
   valueUpdated: boolean;
+  revision?: number; // 这次操作之后该存储的版本
+};
+
+// 一个 frame 对一个 storageName 的订阅：带上已知版本和运行中的脚本，SW 发现版本不一致时按脚本下发快照
+export type ValueSubscription = {
+  storageName: string;
+  revision: number;
+  uuids: string[];
+};
+
+// 重订阅补齐时下发给脚本世界：uuid → 该脚本当前的全部值
+export type ValueSyncData = {
+  storageName: string;
+  values: Record<string, Record<string, unknown>>;
+};
+
+export type ValueSubscriptionAck = {
+  storageName: string;
+  revision: number;
+  values?: Record<string, Record<string, unknown>>; // uuid → 该脚本当前的全部值
 };
 
 // gm_api.ts
