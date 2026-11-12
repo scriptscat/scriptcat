@@ -12,7 +12,8 @@ across contexts to a privileged handler, then streams the result back. The imple
   — the privileged half: permission verification, cross-origin requests, DNR rule building.
 - **Offscreen side** ([`src/app/service/offscreen/gm_api.ts`](../../src/app/service/offscreen/gm_api.ts)) —
   DOM-dependent operations for background scripts (page-context XHR, `window.open`, clipboard).
-- **Values** flow through `ValueService` and are broadcast so every tab running the same script sees updates.
+- **Values** flow through `ValueService` and are pushed to every frame running a script with the same storage
+  name; see [Value updates](#value-updates).
 
 ### Registration: the `@GMContext.API` decorator
 
@@ -53,6 +54,34 @@ userscript GM_xmlhttpRequest(details)            // inject realm
 The **persistent connection** (`MessageConnect`, opened via `connect()`) matters here: the response is streamed
 back in chunks rather than returned by a single request/reply, which is how progress events and large bodies
 work.
+
+### Value updates
+
+`GM_setValue` / `GM_setValues` are saved by `ValueService.setValues`
+([`service_worker/value.ts`](../../src/app/service/service_worker/value.ts)) under a per-storage-name lock. Each
+save gets a new, increasing `revision`, stored on the `Value` record and sent with the update. Updates reach
+other frames over one value Port per content-script frame
+([`content/value_port.ts`](../../src/app/service/content/value_port.ts) ↔
+[`service_worker/value_port.ts`](../../src/app/service/service_worker/value_port.ts)); the SW keeps the
+storage-name → Port index in memory only.
+
+- **Writer receipt.** The writer's own update comes back in the `GM_setValue` RPC response, not only through
+  the Port. The Port push for the same update id is then ignored, so the writer neither waits on a lost push
+  nor fires its listeners twice.
+- **Subscription and resync.** The Port is dropped whenever the SW stops, and is reopened when a page is
+  restored from bfcache. On every (re)connect the frame sends, per storage name, the last `revision` it knows and the script uuids it
+  runs. `ValueService.subscribeSnapshot` registers the Port and reads the stored revision inside the same
+  write lock, so a concurrent save is either included in the reply or pushed to the newly registered Port.
+  If the revisions differ, the reply carries a snapshot of each script's values. The frame buffers pushes
+  until that reply arrives and drops any push whose revision is not newer than what it already has.
+- **Listener semantics after a gap.** If the scripts are still loading, the snapshot replaces the values they
+  will start with. Once they are running, `runtime/valueSync` compares the snapshot with the cached values key
+  by key and fires `GM_addValueChangeListener` once per changed key with `remote = true`. Intermediate values
+  missed during the gap are not replayed.
+- **Reconnect policy.** A Port that was acknowledged and stayed up for at least a second reconnects
+  immediately when it drops. Otherwise the frame retries with backoff, so a SW that keeps failing cannot cause
+  a tight reconnect loop. Once the extension context is invalidated (reload, update, uninstall), the frame
+  stops reconnecting.
 
 ### Adding a GM API (sketch)
 
