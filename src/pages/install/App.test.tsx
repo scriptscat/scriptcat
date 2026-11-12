@@ -394,14 +394,14 @@ describe("Install App 权限卡的更新基线", () => {
               risk: "warn",
               values: ["api.a.com"],
               sensitive: [],
-              diff: { added: ["api.a.com"], removed: [] },
+              diff: { added: ["api.a.com"], removed: [], updated: [] },
             },
           ],
         }),
       },
     });
     render(<App />);
-    expect(screen.getByText("对比已安装的 1.2.3")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-card-versions")).toHaveTextContent("1.2.3→2.3.1");
     expect(screen.getByText("权限变化")).toBeInTheDocument();
   });
 
@@ -431,7 +431,13 @@ describe("Install App 不再渲染安全警示条", () => {
           version: { kind: "update", oldVersion: "1.2.3", newVersion: "2.3.1", changed: true },
           antifeatures: ["ads"],
           permissions: [
-            { kind: "connect", risk: "danger", values: ["*"], sensitive: [], diff: { added: [], removed: [] } },
+            {
+              kind: "connect",
+              risk: "danger",
+              values: ["*"],
+              sensitive: [],
+              diff: { added: [], removed: [], updated: [] },
+            },
           ],
         }),
       },

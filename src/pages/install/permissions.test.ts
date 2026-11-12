@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { SCMetadata } from "@App/app/repo/metadata";
-import { derivePermissions, derivePermissionDiff } from "./permissions";
+import { derivePermissions, derivePermissionDiff, isPermissionChanged } from "./permissions";
 
 describe("derivePermissions 权限派生", () => {
   it("无任何权限元数据时返回空数组", () => {
@@ -160,5 +160,59 @@ describe("derivePermissionDiff 权限差异派生", () => {
     expect(connect.values[0]).toBe("*");
     expect(connect.risk).toBe("danger");
     expect(connect.diff!.added).toEqual(["*"]);
+  });
+});
+
+describe("derivePermissionDiff 外部资源只改查询参数", () => {
+  it("同一地址只换了 ?v= 时记为一条更新,不再算一增一删", () => {
+    const rows = derivePermissionDiff(
+      { require: ["https://cdn.example.com/lib.js?v1.2.0"] },
+      { require: ["https://cdn.example.com/lib.js?v1.3.0"] }
+    );
+    const require = rows.find((r) => r.kind === "require")!;
+    expect(require.diff).toEqual({
+      added: [],
+      removed: [],
+      updated: [{ from: "https://cdn.example.com/lib.js?v1.2.0", to: "https://cdn.example.com/lib.js?v1.3.0" }],
+    });
+    expect(isPermissionChanged(require)).toBe(true);
+  });
+
+  it("@resource 的资源名与地址都相同、只换查询参数时同样合并", () => {
+    const rows = derivePermissionDiff(
+      { resource: ["css https://cdn.example.com/a.css?1"] },
+      { resource: ["css https://cdn.example.com/a.css?2"] }
+    );
+    expect(rows[0].diff!.updated).toEqual([
+      { from: "css https://cdn.example.com/a.css?1", to: "css https://cdn.example.com/a.css?2" },
+    ]);
+  });
+
+  it("换了域名或路径不是同一资源,仍按一增一删呈现", () => {
+    const rows = derivePermissionDiff(
+      { require: ["https://greasyfork.org/lib.js?v1"] },
+      { require: ["https://raw.githubusercontent.com/lib.js?v2"] }
+    );
+    expect(rows[0].diff).toEqual({
+      added: ["https://raw.githubusercontent.com/lib.js?v2"],
+      removed: ["https://greasyfork.org/lib.js?v1"],
+      updated: [],
+    });
+  });
+
+  it("同一地址在一侧出现多次时无法一一对应,不合并", () => {
+    const rows = derivePermissionDiff(
+      { require: ["https://a.com/lib.js?v1"] },
+      { require: ["https://a.com/lib.js?v2", "https://a.com/lib.js?v3"] }
+    );
+    expect(rows[0].diff!.updated).toEqual([]);
+    expect(rows[0].diff!.added).toEqual(["https://a.com/lib.js?v2", "https://a.com/lib.js?v3"]);
+    expect(rows[0].diff!.removed).toEqual(["https://a.com/lib.js?v1"]);
+  });
+
+  it("跨域访问等其他类别不做合并", () => {
+    const rows = derivePermissionDiff({ match: ["https://a.com/*?x=1"] }, { match: ["https://a.com/*?x=2"] });
+    expect(rows[0].diff!.updated).toEqual([]);
+    expect(rows[0].diff!.added).toEqual(["https://a.com/*?x=2"]);
   });
 });

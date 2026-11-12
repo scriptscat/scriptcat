@@ -328,7 +328,7 @@ describe("useInstallData 数据流编排", () => {
     const state = result.current.state;
     if (state.status !== "ready") throw new Error("not ready");
     const connect = state.view.permissions.find((r) => r.kind === "connect")!;
-    expect(connect.diff).toEqual({ added: ["cdn.e.com"], removed: [] });
+    expect(connect.diff).toEqual({ added: ["cdn.e.com"], removed: [], updated: [] });
   });
 
   it("全新安装时权限行不携带差异", async () => {

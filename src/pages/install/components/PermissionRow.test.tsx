@@ -77,7 +77,7 @@ describe("PermissionRow 更新差异态", () => {
     risk: "danger" as const,
     values: ["*", "api.a.com", "api.b.com"],
     sensitive: [],
-    diff: { added: ["*"], removed: ["old.a.com"] },
+    diff: { added: ["*"], removed: ["old.a.com"], updated: [] },
   };
 
   it("新增与移除的取值常驻可见,未变动的收进折叠桶", () => {
@@ -116,7 +116,13 @@ describe("PermissionRow 更新差异态", () => {
   it("差异为空的行不渲染变动计数,取值全部按未变动呈现", () => {
     render(
       <PermissionRow
-        row={{ kind: "match", risk: "normal", values: ["a"], sensitive: [], diff: { added: [], removed: [] } }}
+        row={{
+          kind: "match",
+          risk: "normal",
+          values: ["a"],
+          sensitive: [],
+          diff: { added: [], removed: [], updated: [] },
+        }}
       />
     );
     const row = screen.getByTestId("permission-row");
@@ -131,14 +137,14 @@ describe("PermissionRow 零变动行的取值折叠", () => {
     risk: "normal" as const,
     values: ["https://a.com/*", "https://b.com/*", "https://c.com/*", "https://d.com/*"],
     sensitive: [],
-    diff: { added: [], removed: [] },
+    diff: { added: [], removed: [], updated: [] },
   };
 
   it("没有可钉住的增删时,取值仍按 maxVisible 折叠为 +N", () => {
     render(<PermissionRow row={manyUnchanged} maxVisible={2} />);
     const row = screen.getByTestId("permission-row");
-    expect(within(row).getByText("https://a.com/*")).toBeInTheDocument();
-    expect(within(row).queryByText("https://c.com/*")).not.toBeInTheDocument();
+    expect(within(row).getByTitle("https://a.com/*")).toBeInTheDocument();
+    expect(within(row).queryByTitle("https://c.com/*")).not.toBeInTheDocument();
     expect(within(row).getByTestId("permission-more")).toHaveTextContent("+2");
   });
 
@@ -146,7 +152,7 @@ describe("PermissionRow 零变动行的取值折叠", () => {
     render(<PermissionRow row={manyUnchanged} maxVisible={2} />);
     const row = screen.getByTestId("permission-row");
     fireEvent.click(within(row).getByTestId("permission-more"));
-    expect(within(row).getByText("https://d.com/*")).toBeInTheDocument();
+    expect(within(row).getByTitle("https://d.com/*")).toBeInTheDocument();
     expect(within(row).queryByTestId("permission-more")).not.toBeInTheDocument();
   });
 });
@@ -212,7 +218,7 @@ describe("PermissionRow 上的不生效标记", () => {
           risk: "warn",
           values: ["GM_setValue"],
           sensitive: [],
-          diff: { added: [], removed: ["GM_audio"] },
+          diff: { added: [], removed: ["GM_audio"], updated: [] },
         }}
         compat={compat({ grants: new Map([["GM_audio", 9]]) })}
       />
@@ -249,7 +255,7 @@ describe("PermissionRow 上的仅限脚本猫标记", () => {
           risk: "warn",
           values: ["GM_setValue"],
           sensitive: [],
-          diff: { added: [], removed: ["CAT_fileStorage"] },
+          diff: { added: [], removed: ["CAT_fileStorage"], updated: [] },
         }}
       />
     );
@@ -304,7 +310,7 @@ describe("不生效标记不会被折叠藏起来", () => {
           risk: "warn",
           values: ["GM_getValue", "GM_setValue", "GM_audio"],
           sensitive: [],
-          diff: { added: ["GM_getValue"], removed: [] },
+          diff: { added: ["GM_getValue"], removed: [], updated: [] },
         }}
         compat={marks([["GM_audio", 9]])}
       />
@@ -323,7 +329,7 @@ describe("不生效标记不会被折叠藏起来", () => {
           risk: "warn",
           values: ["GM_setValue", "GM_getValue", "GM_audio"],
           sensitive: [],
-          diff: { added: [], removed: [] },
+          diff: { added: [], removed: [], updated: [] },
         }}
         maxVisible={1}
         compat={marks([["GM_audio", 9]])}
@@ -331,5 +337,178 @@ describe("不生效标记不会被折叠藏起来", () => {
     );
     expect(screen.getByTestId("compat-chip")).toHaveTextContent("GM_audio");
     expect(screen.getByTestId("permission-more")).toHaveTextContent("+1");
+  });
+});
+
+describe("PermissionRow 更新态的行头", () => {
+  it("更新态只给变动数,不再给类别总数徽章;全新安装仍显示总数", () => {
+    const { rerender } = render(
+      <PermissionRow
+        row={{
+          kind: "grant",
+          risk: "warn",
+          values: ["GM_addStyle", "GM_setValue"],
+          sensitive: [],
+          diff: { added: ["GM_addStyle"], removed: [], updated: [] },
+        }}
+      />
+    );
+    expect(screen.queryByTestId("permission-count")).not.toBeInTheDocument();
+    rerender(<PermissionRow row={{ kind: "grant", risk: "warn", values: ["GM_addStyle"], sensitive: [] }} />);
+    expect(screen.getByTestId("permission-count")).toHaveTextContent("1");
+  });
+});
+
+describe("PermissionRow 变动取值的配色", () => {
+  it("普通新增用新增色记号,危险与敏感的新增沿用风险色,不被染成新增色", () => {
+    render(
+      <>
+        <PermissionRow
+          row={{
+            kind: "connect",
+            risk: "danger",
+            values: ["*"],
+            sensitive: [],
+            diff: { added: ["*"], removed: [], updated: [] },
+          }}
+        />
+        <PermissionRow
+          row={{
+            kind: "grant",
+            risk: "warn",
+            values: ["GM_cookie", "GM_addStyle"],
+            sensitive: ["GM_cookie"],
+            diff: { added: ["GM_cookie", "GM_addStyle"], removed: [], updated: [] },
+          }}
+        />
+      </>
+    );
+    const glyph = (value: string) =>
+      within(screen.getByText(value).closest("[data-chip]") as HTMLElement).getByText("+");
+    expect(glyph("GM_addStyle")).toHaveClass("text-success-fg");
+    expect(glyph("*")).not.toHaveClass("text-success-fg");
+    expect(glyph("GM_cookie")).not.toHaveClass("text-success-fg");
+  });
+
+  it("移除、更新、行头计数与折叠按钮都不用风险色或强调色——红色只留给危险取值", () => {
+    render(
+      <PermissionRow
+        row={{
+          kind: "require",
+          risk: "normal",
+          values: ["https://a.com/new.js", "https://cdn.a.com/lib.js?v2", "https://b.com/keep.js"],
+          sensitive: [],
+          diff: {
+            added: ["https://a.com/new.js"],
+            removed: ["https://old.com/gone.js"],
+            updated: [{ from: "https://cdn.a.com/lib.js?v1", to: "https://cdn.a.com/lib.js?v2" }],
+          },
+        }}
+      />
+    );
+    const row = screen.getByTestId("permission-row");
+    expect(screen.getByText("未变动 1 项")).toBeInTheDocument();
+    expect(row.querySelectorAll('[class*="destructive"], [class*="primary"]')).toHaveLength(0);
+  });
+});
+
+describe("PermissionRow 只换了查询参数的外部资源", () => {
+  const row = {
+    kind: "require" as const,
+    risk: "normal" as const,
+    values: ["https://cdn.a.com/x/lib.js?v1.3.0"],
+    sensitive: [],
+    diff: {
+      added: [],
+      removed: [],
+      updated: [{ from: "https://cdn.a.com/x/lib.js?v1.2.0", to: "https://cdn.a.com/x/lib.js?v1.3.0" }],
+    },
+  };
+
+  it("合并成一条更新,给出旧参数到新参数,并计入行头的更新数", () => {
+    render(<PermissionRow row={row} />);
+    const chip = screen.getByTitle("https://cdn.a.com/x/lib.js?v1.3.0").closest("[data-chip]") as HTMLElement;
+    expect(chip).toHaveAttribute("data-change", "updated");
+    expect(within(chip).getByText("?v1.2.0")).toBeInTheDocument();
+    expect(within(chip).getByText("?v1.3.0")).toBeInTheDocument();
+    expect(within(chip).getByText("已更新")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-delta")).toHaveTextContent("~1");
+    expect(screen.queryByTestId("permission-more")).not.toBeInTheDocument();
+  });
+});
+
+describe("PermissionRow 增删很多时的截断", () => {
+  const many = (n: number) => Array.from({ length: n }, (_, i) => `https://s${i + 1}.com/*`);
+
+  it("新增超过 8 条时只显示前 8 条,其余收进「再显示 N 项新增」,点开后全部可见", () => {
+    const added = many(10);
+    render(
+      <PermissionRow
+        row={{ kind: "match", risk: "normal", values: added, sensitive: [], diff: { added, removed: [], updated: [] } }}
+      />
+    );
+    expect(screen.getByTitle("https://s8.com/*")).toBeInTheDocument();
+    expect(screen.queryByTitle("https://s9.com/*")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /再显示 2 项新增/ }));
+    expect(screen.getByTitle("https://s10.com/*")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /项新增/ })).not.toBeInTheDocument();
+  });
+
+  it("危险与敏感的新增取值永远不被收起", () => {
+    const added = ["GM_a", "GM_b", "GM_c", "GM_cookie"];
+    render(
+      <PermissionRow
+        row={{
+          kind: "grant",
+          risk: "warn",
+          values: added,
+          sensitive: ["GM_cookie"],
+          diff: { added, removed: [], updated: [] },
+        }}
+        maxVisible={2}
+      />
+    );
+    expect(screen.getByText("GM_cookie")).toBeInTheDocument();
+    expect(screen.queryByText("GM_c")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /再显示 1 项新增/ })).toBeInTheDocument();
+  });
+
+  it("移除超过 8 条时只显示前 8 条,其余收进「再显示 N 项已移除」", () => {
+    const removed = many(9);
+    render(
+      <PermissionRow
+        row={{ kind: "match", risk: "normal", values: [], sensitive: [], diff: { added: [], removed, updated: [] } }}
+      />
+    );
+    expect(screen.queryByTitle("https://s9.com/*")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /再显示 1 项已移除/ }));
+    expect(screen.getByTitle("https://s9.com/*")).toBeInTheDocument();
+  });
+});
+
+describe("PermissionRow 地址类取值的展示", () => {
+  const value = "https://greasyfork.org/scripts/435207/code/GitHub%20%E4%B8%AD%E6%96%87.js?v1.9.2";
+
+  it("地址解码后单行展示,域名单独突出,悬停给出原文", () => {
+    render(<PermissionRow row={{ kind: "require", risk: "normal", values: [value], sensitive: [] }} />);
+    const toggle = screen.getByTitle(value);
+    expect(within(toggle).getByText("greasyfork.org")).toBeInTheDocument();
+    expect(within(toggle).getByText("/GitHub 中文.js?v1.9.2")).toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("点击后展开为完整地址,再点收起", () => {
+    render(<PermissionRow row={{ kind: "require", risk: "normal", values: [value], sensitive: [] }} />);
+    fireEvent.click(screen.getByTitle(value));
+    expect(screen.getByTitle(value)).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("https://greasyfork.org/scripts/435207/code/GitHub 中文.js?v1.9.2")).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle(value));
+    expect(screen.getByTitle(value)).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("跨域访问与 GM 能力的取值不是地址,保持原样", () => {
+    render(<PermissionRow row={{ kind: "connect", risk: "warn", values: ["api.a.com"], sensitive: [] }} />);
+    expect(screen.getByText("api.a.com")).toBeInTheDocument();
+    expect(screen.queryByTitle("api.a.com")).not.toBeInTheDocument();
   });
 });

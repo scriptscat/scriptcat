@@ -44,7 +44,7 @@ describe("PermissionCard 权限卡", () => {
     // danger(跨域访问)默认展开,其取值可见
     expect(screen.getByText("*")).toBeInTheDocument();
     // normal(运行网站)默认折叠,其取值不在 DOM
-    expect(screen.queryByText("https://a.com/*")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("https://a.com/*")).not.toBeInTheDocument();
   });
 });
 
@@ -54,22 +54,56 @@ describe("PermissionCard 更新差异态", () => {
     risk: "danger",
     values: ["*", "api.a.com"],
     sensitive: [],
-    diff: { added: ["*"], removed: ["old.a.com"] },
+    diff: { added: ["*"], removed: ["old.a.com"], updated: [] },
   };
   const sameMatch: PermissionRow = {
     kind: "match",
     risk: "normal",
     values: ["https://a.com/*"],
     sensitive: [],
-    diff: { added: [], removed: [] },
+    diff: { added: [], removed: [], updated: [] },
   };
 
-  it("有变动时卡头显示变化标题、全卡增删计数与对比版本", () => {
-    render(<PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" />);
+  it("有变动时卡头显示变化标题、全卡增删计数与旧版本到新版本", () => {
+    render(<PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" version="2.0.0" />);
     expect(screen.getByText("权限变化")).toBeInTheDocument();
-    expect(screen.getByTestId("permission-card-delta")).toHaveTextContent("+1");
-    expect(screen.getByTestId("permission-card-delta")).toHaveTextContent("−1");
-    expect(screen.getByText("对比已安装的 1.2.3")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-card-delta")).toHaveTextContent("新增 1");
+    expect(screen.getByTestId("permission-card-delta")).toHaveTextContent("移除 1");
+    const range = screen.getByTestId("permission-card-versions");
+    expect(range).toHaveTextContent("1.2.3→2.0.0");
+    expect(within(range).getByText("从已安装的 1.2.3 更新到 2.0.0")).toHaveClass("sr-only");
+  });
+
+  it("卡头增删计数不着色,红色只留给危险取值", () => {
+    render(<PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" version="2.0.0" />);
+    const delta = screen.getByTestId("permission-card-delta");
+    expect(delta.querySelectorAll('[class*="destructive"], [class*="success"], [class*="primary"]')).toHaveLength(0);
+  });
+
+  it("只换了查询参数的外部资源在卡头计为更新,不算新增或移除", () => {
+    const requireRow: PermissionRow = {
+      kind: "require",
+      risk: "normal",
+      values: ["https://a.com/lib.js?v2"],
+      sensitive: [],
+      diff: { added: [], removed: [], updated: [{ from: "https://a.com/lib.js?v1", to: "https://a.com/lib.js?v2" }] },
+    };
+    render(<PermissionCard rows={[requireRow]} baselineVersion="1.2.3" version="2.0.0" />);
+    expect(screen.getByText("权限变化")).toBeInTheDocument();
+    const delta = screen.getByTestId("permission-card-delta");
+    expect(delta).toHaveTextContent("更新 1");
+    expect(delta).not.toHaveTextContent("新增");
+    expect(delta).not.toHaveTextContent("移除");
+  });
+
+  it("移动端更新态的类别标题同样只给变动数,不给总数徽章;全新安装仍给总数", () => {
+    mobile = true;
+    const { rerender } = render(
+      <PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" version="2.0.0" />
+    );
+    expect(screen.queryByTestId("permission-count")).not.toBeInTheDocument();
+    rerender(<PermissionCard rows={[match, connect]} />);
+    expect(screen.getAllByTestId("permission-count")).toHaveLength(2);
   });
 
   it("有变动的类别展开,无变动的类别塌成单行", () => {
@@ -78,13 +112,13 @@ describe("PermissionCard 更新差异态", () => {
     const collapsed = screen.getByTestId("permission-row-collapsed");
     expect(within(collapsed).getByText("运行网站")).toBeInTheDocument();
     expect(within(collapsed).getByText("无变化")).toBeInTheDocument();
-    expect(screen.queryByText("https://a.com/*")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("https://a.com/*")).not.toBeInTheDocument();
   });
 
   it("点开塌行后该类别取值可见", () => {
     render(<PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" />);
     fireEvent.click(screen.getByTestId("permission-row-collapsed"));
-    expect(screen.getByText("https://a.com/*")).toBeInTheDocument();
+    expect(screen.getByTitle("https://a.com/*")).toBeInTheDocument();
     expect(screen.getAllByTestId("permission-row")).toHaveLength(2);
   });
 
@@ -98,7 +132,7 @@ describe("PermissionCard 更新差异态", () => {
     expect(screen.getByText("此脚本不请求任何特殊权限")).toBeInTheDocument();
     expect(screen.getByText("安装前请确认")).toBeInTheDocument();
     expect(screen.queryByText("无变化")).not.toBeInTheDocument();
-    expect(screen.queryByText("对比已安装的 1.2.3")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-card-versions")).not.toBeInTheDocument();
   });
 
   it("更新但一项未变时不显示变化标题与增删计数", () => {
@@ -111,7 +145,7 @@ describe("PermissionCard 更新差异态", () => {
     mobile = true;
     render(<PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" />);
     expect(screen.getByText("*")).toBeInTheDocument();
-    expect(screen.queryByText("https://a.com/*")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("https://a.com/*")).not.toBeInTheDocument();
   });
 
   it("全新安装(无 diff)卡头维持原样", () => {
@@ -128,7 +162,7 @@ describe("PermissionCard 更新零变化态", () => {
     risk: "normal",
     values,
     sensitive: [],
-    diff: { added: [], removed: [] },
+    diff: { added: [], removed: [], updated: [] },
   });
   const rows = [same("connect", ["api.a.com"]), same("match", ["https://a.com/*", "https://b.com/*"])];
 
@@ -136,7 +170,7 @@ describe("PermissionCard 更新零变化态", () => {
     render(<PermissionCard rows={rows} baselineVersion="1.2.3" />);
     expect(screen.getByTestId("permission-card-collapsed")).toBeInTheDocument();
     expect(screen.queryByText("api.a.com")).not.toBeInTheDocument();
-    expect(screen.queryByText("https://a.com/*")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("https://a.com/*")).not.toBeInTheDocument();
     expect(screen.queryAllByTestId("permission-row")).toHaveLength(0);
   });
 
@@ -153,7 +187,7 @@ describe("PermissionCard 更新零变化态", () => {
     fireEvent.click(screen.getByTestId("permission-card-collapsed"));
     expect(screen.getAllByTestId("permission-row")).toHaveLength(2);
     expect(screen.getByText("api.a.com")).toBeInTheDocument();
-    expect(screen.getByText("https://a.com/*")).toBeInTheDocument();
+    expect(screen.getByTitle("https://a.com/*")).toBeInTheDocument();
     expect(screen.getAllByText("无变化")).toHaveLength(3);
   });
 
@@ -171,7 +205,7 @@ describe("PermissionCard 更新零变化态", () => {
     render(<PermissionCard rows={[sameDangerConnect, same("match", ["https://a.com/*"])]} baselineVersion="1.2.3" />);
     fireEvent.click(screen.getByTestId("permission-card-collapsed"));
     expect(screen.getByText("*")).toBeInTheDocument();
-    expect(screen.queryByText("https://a.com/*")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("https://a.com/*")).not.toBeInTheDocument();
   });
 
   it("有变动时不折叠整卡", () => {
@@ -180,7 +214,7 @@ describe("PermissionCard 更新零变化态", () => {
       risk: "warn",
       values: ["api.a.com"],
       sensitive: [],
-      diff: { added: ["api.a.com"], removed: [] },
+      diff: { added: ["api.a.com"], removed: [], updated: [] },
     };
     render(<PermissionCard rows={[changedRow]} baselineVersion="1.2.3" />);
     expect(screen.queryByTestId("permission-card-collapsed")).not.toBeInTheDocument();
@@ -356,7 +390,7 @@ describe("PermissionCard 其他声明行的取值与脚本猫独有指令", () =
 
 describe("不生效标记与折叠形态的关系", () => {
   const rows: PermissionRow[] = [
-    { kind: "grant", risk: "warn", values: ["GM_audio"], sensitive: [], diff: { added: [], removed: [] } },
+    { kind: "grant", risk: "warn", values: ["GM_audio"], sensitive: [], diff: { added: [], removed: [], updated: [] } },
   ];
 
   it("权限一项没变但有不生效项时整卡不塌——塌了这些标记就没人看得见", () => {
@@ -393,9 +427,15 @@ describe("有变动时未变动类别的塌行与不生效标记", () => {
             risk: "normal",
             values: ["*://a.com/*"],
             sensitive: [],
-            diff: { added: ["*://a.com/*"], removed: [] },
+            diff: { added: ["*://a.com/*"], removed: [], updated: [] },
           },
-          { kind: "grant", risk: "warn", values: ["GM_audio"], sensitive: [], diff: { added: [], removed: [] } },
+          {
+            kind: "grant",
+            risk: "warn",
+            values: ["GM_audio"],
+            sensitive: [],
+            diff: { added: [], removed: [], updated: [] },
+          },
         ]}
         baselineVersion="1.0.0"
         compat={{ marks: { grants: new Map([["GM_audio", 9]]), matches: new Map(), tags: [], scriptcatOnlyTags: [] } }}

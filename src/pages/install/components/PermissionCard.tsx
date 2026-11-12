@@ -8,7 +8,15 @@ import { compatMarkCount, rowHasCompatMarks, type CompatView } from "../compat";
 import { metadataDocHref } from "../compat_docs";
 import { CompatChip, ScriptCatOnlyBadge } from "./CompatChip";
 import { isPermissionChanged, type PermissionRow as PermissionRowData } from "../permissions";
-import { PermissionRow, PermissionChips, PermissionDelta, NoChangeTag, KIND_META, RISK_STYLE } from "./PermissionRow";
+import {
+  PermissionRow,
+  PermissionChips,
+  PermissionCount,
+  PermissionDelta,
+  NoChangeTag,
+  KIND_META,
+  RISK_STYLE,
+} from "./PermissionRow";
 
 function MobilePermissions({ rows, compat }: { rows: PermissionRowData[]; compat?: CompatView }) {
   const { t } = useTranslation(["install", "common"]);
@@ -33,9 +41,7 @@ function MobilePermissions({ rows, compat }: { rows: PermissionRowData[]; compat
                   <Icon className="size-4" />
                 </span>
                 <span className="text-sm font-semibold text-foreground">{t(labelKey)}</span>
-                <span className={cn("rounded-full px-2 text-[11px] font-semibold", style.count)}>
-                  {row.values.length}
-                </span>
+                <PermissionCount row={row} />
                 <PermissionDelta row={row} />
                 {row.diff && !isPermissionChanged(row) && <NoChangeTag />}
               </span>
@@ -174,10 +180,13 @@ function OtherDirectivesRow({ compat }: { compat: CompatView }) {
 export function PermissionCard({
   rows,
   baselineVersion,
+  version,
   compat,
 }: {
   rows: PermissionRowData[];
   baselineVersion?: string;
+  /** 本次将要安装的版本;更新场景与 baselineVersion 一起写成「旧 → 新」 */
+  version?: string;
   compat?: CompatView;
 }) {
   const { t } = useTranslation(["install", "common"]);
@@ -188,6 +197,7 @@ export function PermissionCard({
   const changed = rows.filter(isPermissionChanged);
   const added = changed.reduce((n, r) => n + r.diff!.added.length, 0);
   const removed = changed.reduce((n, r) => n + r.diff!.removed.length, 0);
+  const updated = changed.reduce((n, r) => n + r.diff!.updated.length, 0);
   const noChange = isUpdate && changed.length === 0;
   const compatCount = compat ? compatMarkCount(compat.marks) : 0;
 
@@ -198,18 +208,30 @@ export function PermissionCard({
 
   return (
     <section className="rounded-xl border border-border bg-card">
-      <div className="flex items-center gap-2.5 px-4 pt-4 pb-2">
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-4 pt-4 pb-2">
         <ShieldCheck className="size-[18px] text-primary" />
-        <h2 className="text-[15px] font-semibold text-foreground">
+        <h2 className="whitespace-nowrap text-[15px] font-semibold text-foreground">
           {changed.length ? t("install:perm_card_title_changed") : t("install:perm_card_title")}
         </h2>
         {changed.length > 0 && (
           <span
             data-testid="permission-card-delta"
-            className="flex items-center gap-1.5 font-mono text-xs font-semibold"
+            className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground"
           >
-            {added > 0 && <span className="text-success-fg">{`+${added}`}</span>}
-            {removed > 0 && <span className="text-destructive">{`−${removed}`}</span>}
+            {[
+              added > 0 && <span key="added">{t("install:perm_delta_added", { count: added })}</span>,
+              removed > 0 && <span key="removed">{t("install:perm_delta_removed", { count: removed })}</span>,
+              updated > 0 && <span key="updated">{t("install:perm_delta_updated", { count: updated })}</span>,
+            ]
+              .filter(Boolean)
+              .flatMap((part, i) => [
+                i > 0 && (
+                  <span key={`sep-${i}`} aria-hidden="true">
+                    {"·"}
+                  </span>
+                ),
+                part,
+              ])}
           </span>
         )}
         {isUpdate && !changed.length && <NoChangeTag />}
@@ -221,9 +243,27 @@ export function PermissionCard({
             {t("install:compat_count", { count: compatCount })}
           </span>
         )}
-        <span className="ml-auto text-xs text-muted-foreground">
-          {isUpdate ? t("install:perm_card_compare", { version: baselineVersion }) : t("install:perm_card_hint")}
-        </span>
+        {isUpdate ? (
+          <span
+            data-testid="permission-card-versions"
+            // 移动端放不下「标题 + 增删数 + 两个版本号」,版本号另起一行,与标题文字对齐
+            className={cn(
+              "ml-auto min-w-0 truncate font-mono text-xs text-muted-foreground",
+              isMobile && "ml-7 basis-full"
+            )}
+          >
+            <span aria-hidden="true">
+              {baselineVersion}
+              <span className="mx-1">{"→"}</span>
+              <span className="text-foreground">{version}</span>
+            </span>
+            <span className="sr-only">
+              {t("install:perm_card_version_range", { from: baselineVersion, to: version })}
+            </span>
+          </span>
+        ) : (
+          <span className="ml-auto text-xs text-muted-foreground">{t("install:perm_card_hint")}</span>
+        )}
       </div>
       <div className="flex flex-col px-3 pb-2">
         {rows.length === 0 ? (

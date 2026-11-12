@@ -265,6 +265,7 @@ export default function App() {
           <PermissionCard
             rows={view.permissions}
             baselineVersion={view.version.kind === "update" ? view.version.oldVersion : undefined}
+            version={view.version.kind === "update" ? view.version.newVersion : undefined}
             compat={{ marks: view.compat, onJump: (line) => codePreviewRef.current?.jumpToLine(line) }}
           />
         )}
