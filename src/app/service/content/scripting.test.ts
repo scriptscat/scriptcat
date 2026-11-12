@@ -35,7 +35,22 @@ describe("ScriptingRuntime 值更新投递", () => {
   let storageListeners: Array<(changes: Record<string, chrome.storage.StorageChange>) => void>;
   let originalOnChanged: unknown;
 
+  // ScriptingRuntime 没有销毁接口，它注册的 pageshow 监听会留在共享的 window 上；
+  // 测试间 vi.resetAllMocks 清掉 mock 实现后，别的文件派发 pageshow 会触发这些残留监听而报错
+  const pageShowListeners: EventListenerOrEventListenerObject[] = [];
+  const originalAddEventListener = EventTarget.prototype.addEventListener;
+
   beforeEach(() => {
+    vi.spyOn(window, "addEventListener").mockImplementation(
+      (
+        type: string,
+        listener: EventListenerOrEventListenerObject | null,
+        options?: boolean | AddEventListenerOptions
+      ) => {
+        if (type === "pageshow" && listener) pageShowListeners.push(listener);
+        originalAddEventListener.call(window, type, listener, options);
+      }
+    );
     storageListeners = [];
     originalOnChanged = (chrome.storage.local as any).onChanged;
     (chrome.storage.local as any).onChanged = {
@@ -44,6 +59,8 @@ describe("ScriptingRuntime 值更新投递", () => {
   });
 
   afterEach(() => {
+    for (const listener of pageShowListeners.splice(0)) window.removeEventListener("pageshow", listener);
+    vi.mocked(window.addEventListener).mockRestore();
     (chrome.storage.local as any).onChanged = originalOnChanged;
   });
 
