@@ -190,7 +190,7 @@ export function PermissionChips({
 export function NoChangeTag() {
   const { t } = useTranslation(["install", "common"]);
   return (
-    <span className="rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground">
+    <span className="shrink-0 whitespace-nowrap rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground">
       {t("install:perm_no_change")}
     </span>
   );

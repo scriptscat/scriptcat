@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup, screen, fireEvent, act } from "@testing-library/react";
+import { render, cleanup, screen, fireEvent, act, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
@@ -124,6 +124,13 @@ describe("日志页面", () => {
     expect(bar.className).toContain("md:flex-wrap");
   });
 
+  it("条数只在范围/统计条里显示一次，顶栏标题旁不再重复", () => {
+    renderPage();
+    const summary = `${t("logs:total_count", { count: 3 })} · ${t("logs:filtered_count", { count: 3 })}`;
+    expect(screen.getAllByText(summary)).toHaveLength(1);
+    expect(screen.getByTestId("logger-stats-summary")).toHaveTextContent(summary);
+  });
+
   it("点击清空日志先弹出确认，确认前不调用 clearLogs", async () => {
     renderPage();
     expect(mockLoggerData.clearLogs).not.toHaveBeenCalled();
@@ -213,13 +220,38 @@ describe("日志页面", () => {
 describe("日志页面 - 移动端", () => {
   beforeEach(() => mockedUseIsMobile.mockReturnValue(true));
 
-  it("移动端顶栏的删除/清空按钮以图标按钮呈现(带无障碍名,不显示文字标签)", () => {
+  const openDeleteMenu = () => {
+    const trigger = screen.getByRole("button", { name: t("logs:delete_logs") });
+    fireEvent.pointerDown(trigger, { button: 0 });
+    fireEvent.click(trigger);
+  };
+
+  it("移动端顶栏只有一个删除入口，展开后用文字区分「删除当前日志」与「清空日志」", () => {
     renderPage();
-    const del = screen.getByLabelText(t("logs:delete_current_logs"));
-    const clear = screen.getByLabelText(t("logs:clear_logs"));
-    // 图标按钮:可见文本里不再包含完整中文标签
-    expect(del.textContent).not.toContain(t("logs:delete_current_logs"));
-    expect(clear.textContent).not.toContain(t("logs:clear_logs"));
+    // 两个只靠颜色区分的垃圾桶图标按钮会让人分不清哪个是清空全部
+    expect(screen.queryByRole("button", { name: t("logs:delete_current_logs") })).toBeNull();
+    expect(screen.queryByRole("button", { name: t("logs:clear_logs") })).toBeNull();
+    openDeleteMenu();
+    expect(screen.getByRole("menuitem", { name: t("logs:delete_current_logs") })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: t("logs:clear_logs") })).toBeTruthy();
+  });
+
+  it("移动端从菜单删除当前日志，只删筛选出的那些", () => {
+    renderPage();
+    fireEvent.click(screen.getByTestId("level-chip-warn"));
+    openDeleteMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("logs:delete_current_logs") }));
+    expect(mockLoggerData.deleteLogs).toHaveBeenCalledWith([1, 3]);
+  });
+
+  it("移动端从菜单清空日志先弹出确认，确认后才调用 clearLogs", async () => {
+    renderPage();
+    openDeleteMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("logs:clear_logs") }));
+    expect(await screen.findByText(t("logs:clear_logs_confirm"))).toBeTruthy();
+    expect(mockLoggerData.clearLogs).not.toHaveBeenCalled();
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: t("confirm") }));
+    expect(mockLoggerData.clearLogs).toHaveBeenCalledTimes(1);
   });
 
   it("移动端日志行的消息允许换行而非截断", () => {

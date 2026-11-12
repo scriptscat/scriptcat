@@ -119,6 +119,8 @@
     "tag_new_connect": "Novo @connect",
     "empty_title": "Nenhuma atualização encontrada",
     "empty_desc": "Verificados {{count}} scripts · Nenhuma atualização disponível",
+    "empty_none_title": "Nenhum script para verificar",
+    "empty_none_desc": "Nenhum dos scripts instalados tem URL de atualização, ou a verificação de atualizações está desativada para eles",
     "recheck": "Verificar novamente",
     "tap_to_expand": "Clique para expandir",
     "similarity": "Similaridade",

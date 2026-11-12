@@ -119,6 +119,8 @@
     "tag_new_connect": "New @connect",
     "empty_title": "All scripts are up to date",
     "empty_desc": "Checked {{count}} scripts · No updates available",
+    "empty_none_title": "No scripts to check",
+    "empty_none_desc": "None of your installed scripts has an update URL, or update checks are turned off for them",
     "recheck": "Check again",
     "tap_to_expand": "Tap to expand",
     "similarity": "Similarity",

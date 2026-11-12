@@ -80,6 +80,17 @@ const sheet = () => document.querySelector<HTMLElement>('[data-slot="mobile-acti
 const tapRow = (index = 0) => fireEvent.click(document.querySelectorAll('[data-slot="mobile-list-row-main"]')[index]);
 
 describe("移动端脚本行", () => {
+  it("站点图标数据到达前不显示站点数，避免先闪出「0 个站点」", () => {
+    renderWithRouterTooltip(<ScriptRowsMobile {...baseProps} />);
+    expect(screen.queryByText(new RegExp(t("script:site_count", { count: 0 })))).toBeNull();
+  });
+
+  it("站点图标数据到达后显示站点数", () => {
+    const loaded = { ...script, favorite: [{ match: "https://a.com/*" }, { match: "https://b.com/*" }] };
+    renderWithRouterTooltip(<ScriptRowsMobile {...baseProps} scriptList={[loaded]} />);
+    expect(screen.getByText(new RegExp(t("script:site_count", { count: 2 })))).toBeTruthy();
+  });
+
   it("空列表与加载态沿用既有提示", () => {
     const { rerender } = renderWithRouterTooltip(<ScriptRowsMobile {...baseProps} scriptList={[]} />);
     expect(screen.getByText(t("no_scripts"))).toBeInTheDocument();

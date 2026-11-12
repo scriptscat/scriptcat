@@ -119,6 +119,8 @@
     "tag_new_connect": "@connect 追加",
     "empty_title": "すべてのスクリプトは最新です",
     "empty_desc": "{{count}} 件のスクリプトを確認 · 利用可能な更新はありません",
+    "empty_none_title": "更新を確認できるスクリプトはありません",
+    "empty_none_desc": "インストール済みのスクリプトに更新 URL がないか、更新の確認がオフになっています",
     "recheck": "再確認",
     "tap_to_expand": "タップして展開",
     "similarity": "類似度",

@@ -19,6 +19,16 @@ import { makeBlobURL } from "@App/pkg/utils/utils";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { Button } from "@App/pages/components/ui/button";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@App/pages/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -79,6 +89,7 @@ export default function Logger() {
   const [search, setSearch] = useState("");
   const [activeLevels, setActiveLevels] = useState<Set<LevelBucket>>(() => new Set(LEVEL_BUCKETS));
   const [advancedOpen, setAdvancedOpen] = useState(initialQueries.length > 0);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showTop, setShowTop] = useState(false);
   const streamRef = useRef<HTMLDivElement>(null);
@@ -146,16 +157,25 @@ export default function Logger() {
 
   return (
     <div className="relative flex flex-col h-full">
+      <AlertDialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("logs:clear_logs")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("logs:clear_logs_confirm")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("editor:cancel")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={handleClear}>
+              {t("confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {/* 顶栏 */}
       <div className="flex items-center justify-between h-14 px-4 md:px-5 shrink-0 border-b border-border bg-card">
         <div className="flex items-center gap-2 md:gap-3 min-w-0">
           <ScrollText className="w-5 h-5 shrink-0 text-foreground" />
           <h1 className="text-base md:text-lg font-semibold text-foreground shrink-0">{t("logs:log_title")}</h1>
-          <span className="truncate text-xs md:text-[13px] text-muted-foreground">
-            {isMobile
-              ? t("logs:filtered_count", { count: filtered.length })
-              : `${t("logs:total_count", { count: logs.length })} · ${t("logs:filtered_count", { count: filtered.length })}`}
-          </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <DropdownMenu>
@@ -191,38 +211,47 @@ export default function Logger() {
             </DropdownMenuContent>
           </DropdownMenu>
           {isMobile ? (
-            <Button
-              variant="outline"
-              size="icon-sm"
-              aria-label={t("logs:delete_current_logs")}
-              onClick={handleDeleteCurrent}
-            >
-              <Trash className="w-3.5 h-3.5" />
-            </Button>
+            // 窄屏放不下文字标签：两个破坏性操作收进一个菜单并写明各自范围，而不是并排两个只靠颜色区分的垃圾桶图标
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon-sm" aria-label={t("logs:delete_logs")}>
+                  <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem disabled={!filtered.length} onSelect={handleDeleteCurrent}>
+                  <Trash />
+                  {t("logs:delete_current_logs")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onSelect={() => setClearConfirmOpen(true)}
+                >
+                  <Trash2 />
+                  {t("logs:clear_logs")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
-            <Button variant="outline" size="sm" onClick={handleDeleteCurrent}>
-              <Trash className="w-3.5 h-3.5" />
-              {t("logs:delete_current_logs")}
-            </Button>
+            <>
+              <Button variant="outline" size="sm" onClick={handleDeleteCurrent}>
+                <Trash className="w-3.5 h-3.5" />
+                {t("logs:delete_current_logs")}
+              </Button>
+              <Popconfirm
+                description={t("logs:clear_logs_confirm")}
+                destructive
+                confirmText={t("confirm")}
+                cancelText={t("editor:cancel")}
+                onConfirm={handleClear}
+              >
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {t("logs:clear_logs")}
+                </Button>
+              </Popconfirm>
+            </>
           )}
-          <Popconfirm
-            description={t("logs:clear_logs_confirm")}
-            destructive
-            confirmText={t("confirm")}
-            cancelText={t("editor:cancel")}
-            onConfirm={handleClear}
-          >
-            {isMobile ? (
-              <Button variant="destructive" size="icon-sm" aria-label={t("logs:clear_logs")}>
-                <Trash2 className="w-3.5 h-3.5" />
-              </Button>
-            ) : (
-              <Button variant="destructive" size="sm">
-                <Trash2 className="w-3.5 h-3.5" />
-                {t("logs:clear_logs")}
-              </Button>
-            )}
-          </Popconfirm>
         </div>
       </div>
 
