@@ -1,4 +1,4 @@
-import { fetchScriptBody, parseMetadata, prepareScriptByCode } from "@App/pkg/utils/script";
+import { deriveMetaUrl, fetchScriptBody, parseMetadata, prepareScriptByCode } from "@App/pkg/utils/script";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { Group } from "@Packages/message/server";
 import Logger from "@App/app/logger/logger";
@@ -1122,12 +1122,13 @@ export class ScriptService {
       uuid: string;
       name: string;
       checkUpdateUrl?: string;
+      downloadUrl?: string;
       metadata: Partial<Record<string, any>>;
     },
     delayFn?: () => Promise<any>,
     signal?: AbortSignal
   ): Promise<false | { updateAvailable: true; code: string; metadata: SCMetadata }> {
-    const { uuid, name, checkUpdateUrl } = script;
+    const { uuid, name, checkUpdateUrl, downloadUrl } = script;
 
     if (!checkUpdateUrl) {
       return false;
@@ -1136,18 +1137,32 @@ export class ScriptService {
       uuid,
       name,
     });
+    // 推算出的 meta.js 托管方不一定提供（如 GitHub raw、镜像站，#1840），此时回退到安装地址；
+    // 作者显式声明的检查地址失败则如实报告，不擅自换地址
+    const fallbackUrl =
+      downloadUrl && downloadUrl !== checkUpdateUrl && deriveMetaUrl(downloadUrl) === checkUpdateUrl
+        ? downloadUrl
+        : undefined;
+    const fetchMetadata = async (url: string) => {
+      const code = await fetchScriptBody(url, signal);
+      const metadata = parseMetadata(code);
+      if (!metadata) throw new Error("parse metadata failed");
+      return { code, metadata };
+    };
     try {
       if (delayFn) {
         if (signal?.aborted) return false;
         await delayFn();
       }
       if (signal?.aborted) return false;
-      const code = await fetchScriptBody(checkUpdateUrl, signal);
-      const metadata = parseMetadata(code);
-      if (!metadata) {
-        logger.error("parse metadata failed");
-        return false;
+      let fetched: { code: string; metadata: SCMetadata };
+      try {
+        fetched = await fetchMetadata(checkUpdateUrl);
+      } catch (e) {
+        if (!fallbackUrl || signal?.aborted) throw e;
+        fetched = await fetchMetadata(fallbackUrl);
       }
+      const { code, metadata } = fetched;
       const newVersion = metadata.version?.[0] || "0.0";
       const oldVersion = script.metadata.version?.[0] || "0.0";
       // 对比版本大小
@@ -1156,8 +1171,13 @@ export class ScriptService {
       }
       return { updateAvailable: true, code, metadata };
     } catch (e) {
-      logger.error("check update failed", { ...Logger.E(e), check_update_url: checkUpdateUrl });
-      return false;
+      logger.error("check update failed", {
+        ...Logger.E(e),
+        check_update_url: checkUpdateUrl,
+        fallback_url: fallbackUrl,
+      });
+      // 失败必须与「已是最新」区分开：手动检查据此提示失败，批量检查由 allSettled 吸收为无更新
+      throw e;
     }
   }
 

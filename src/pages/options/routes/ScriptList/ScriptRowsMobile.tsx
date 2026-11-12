@@ -450,7 +450,13 @@ function ScriptActionSheet({
           {isRunning ? t("stop") : t("editor:run")}
         </MobileActionSheetItem>
       )}
-      <MobileActionSheetItem onSelect={() => void scriptClient.requestCheckUpdate(script.uuid)}>
+      <MobileActionSheetItem
+        onSelect={() =>
+          void scriptClient
+            .requestCheckUpdate(script.uuid)
+            .catch((e) => notify.error(`${t("script:update_check_failed")}: ${e}`))
+        }
+      >
         <RefreshCw />
         {t("check_update")}
       </MobileActionSheetItem>

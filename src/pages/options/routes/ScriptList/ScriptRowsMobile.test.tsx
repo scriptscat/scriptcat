@@ -30,6 +30,11 @@ vi.mock("@App/pages/store/global", async () => {
   });
 });
 
+const { notify } = vi.hoisted(() => ({
+  notify: { error: vi.fn(), success: vi.fn(), info: vi.fn(), loading: vi.fn() },
+}));
+vi.mock("@App/pages/components/ui/toast", () => ({ notify }));
+
 import ScriptRowsMobile from "./ScriptRowsMobile";
 
 beforeAll(() => initTestLanguage("zh-CN"));
@@ -108,6 +113,19 @@ describe("移动端脚本行", () => {
     expect(sheet.textContent).toContain(t("check_update"));
     expect(sheet.textContent).toContain(t("export"));
     expect(sheet.textContent).toContain(t("delete"));
+  });
+
+  it("面板里检查更新失败时提示检查更新失败", async () => {
+    checkUpdateMock.mockRejectedValueOnce(new Error("fetch script info failed"));
+    renderWithRouterTooltip(<ScriptRowsMobile {...baseProps} />);
+    tapRow();
+
+    const sheet = document.querySelector('[data-slot="mobile-action-sheet"]') as HTMLElement;
+    fireEvent.click(within(sheet).getByText(t("check_update")));
+    await act(async () => {});
+
+    expect(checkUpdateMock).toHaveBeenCalledWith(script.uuid);
+    expect(notify.error).toHaveBeenCalledWith(`${t("script:update_check_failed")}: Error: fetch script info failed`);
   });
 
   it("后台脚本的面板保留运行入口，普通脚本不渲染", () => {

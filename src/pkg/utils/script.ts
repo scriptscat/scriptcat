@@ -94,6 +94,9 @@ export interface FetchScriptProgress {
   totalLength?: number;
 }
 
+// 未声明 @updateURL/@downloadURL 时，由安装地址推算检查更新用的 meta.js 地址
+export const deriveMetaUrl = (url: string) => url.replace("user.js", "meta.js");
+
 // 从网址取得脚本代码
 export async function fetchScriptBody(
   url: string,
@@ -179,7 +182,7 @@ export function parseScriptFromCode(code: string, origin: string, uuid?: string)
     [checkUpdateUrl] = metadata.updateurl;
     [downloadUrl] = metadata.downloadurl;
   } else {
-    checkUpdateUrl = origin.replace("user.js", "meta.js");
+    checkUpdateUrl = deriveMetaUrl(origin);
   }
   if (origin.startsWith("http://") || origin.startsWith("https://")) {
     const u = new URL(origin);

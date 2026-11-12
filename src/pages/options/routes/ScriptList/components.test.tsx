@@ -20,6 +20,10 @@ vi.mock("@App/pages/store/features/script", () => ({
   synchronizeClient: { export: exportScripts },
 }));
 vi.mock("./preload", () => ({ preloadUserConfig }));
+const { notify } = vi.hoisted(() => ({
+  notify: { error: vi.fn(), success: vi.fn(), info: vi.fn(), loading: vi.fn() },
+}));
+vi.mock("@App/pages/components/ui/toast", () => ({ notify }));
 vi.mock("@App/pages/components/CloudScriptPlan", () => ({ preloadCloudScriptPlan }));
 vi.mock("@App/pkg/utils/cron", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
@@ -437,6 +441,17 @@ describe("UpdateTimeCell 检查更新交互", () => {
     renderWithTooltip(<UpdateTimeCell script={makeScript()} />);
     fireEvent.click(screen.getByLabelText(t("check_update")));
     expect(await screen.findByText(t("script:latest_version"))).toBeInTheDocument();
+  });
+
+  it("检查失败时提示检查更新失败，不误报『已是最新版本』", async () => {
+    requestCheckUpdate.mockRejectedValue(new Error("fetch script info failed"));
+    renderWithTooltip(<UpdateTimeCell script={makeScript()} />);
+    fireEvent.click(screen.getByLabelText(t("check_update")));
+    await act(async () => {});
+    expect(notify.error).toHaveBeenCalledWith(`${t("script:update_check_failed")}: Error: fetch script info failed`);
+    expect(screen.queryByText(t("script:latest_version"))).toBeNull();
+    // 失败后恢复可再次点击检查
+    expect(screen.getByLabelText(t("check_update"))).toBeInTheDocument();
   });
 
   it("检查到新版本时显示『存在新版本』入口", async () => {
