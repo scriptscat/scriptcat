@@ -596,9 +596,12 @@ export default class GMApi {
     }
     const [id, key, value] = request.params as [string, string, any];
     const keyValuePairs = [[key, encodeRValue(value)]] as TKeyValuePair[];
+    const chromeSender = sender.getSender();
     const valueSender = {
       runFlag: request.runFlag,
-      tabId: sender.getSender()?.tab?.id || -1,
+      tabId: chromeSender?.tab?.id || -1,
+      frameId: chromeSender?.frameId,
+      documentId: chromeSender?.documentId,
     };
     await this.value.setValues({ uuid: request.script.uuid, id, keyValuePairs, isReplace: false, valueSender });
   }
@@ -609,9 +612,12 @@ export default class GMApi {
       throw new Error("param is failed");
     }
     const [id, keyValuePairs] = request.params;
+    const chromeSender = sender.getSender();
     const valueSender = {
       runFlag: request.runFlag,
-      tabId: sender.getSender()?.tab?.id || -1,
+      tabId: chromeSender?.tab?.id || -1,
+      frameId: chromeSender?.frameId,
+      documentId: chromeSender?.documentId,
     };
     await this.value.setValues({ uuid: request.script.uuid, id, keyValuePairs, isReplace: false, valueSender });
   }

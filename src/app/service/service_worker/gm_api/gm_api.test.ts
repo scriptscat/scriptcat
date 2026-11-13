@@ -145,6 +145,28 @@ describe("window.focus", () => {
   });
 });
 
+// 发起写入的 document 可能还没在值更新投递表里登记（页面早期写值），
+// 需要靠 sender 上的 frame 信息单独投递回执，否则该页的 GM.setValue Promise 等不到完成
+describe.each(["GM_setValue", "GM_setValues"] as const)("%s 的写入来源", (api) => {
+  it("valueSender 带上发起写入的标签页、frame 与 document", async () => {
+    const setValues = vi.fn().mockResolvedValue(undefined);
+    const gmApi = Object.create(GMApi.prototype) as GMApi;
+    (gmApi as unknown as { value: unknown }).value = { setValues };
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 11 } as chrome.tabs.Tab, frameId: 3, documentId: "doc-3" });
+    const params = api === "GM_setValue" ? ["id-1", "k", "v"] : ["id-1", [["k", "v"]]];
+
+    await gmApi[api]({ script: { uuid: "uuid-1" }, params, runFlag: "flag" } as never, sender);
+
+    expect(setValues.mock.calls[0][0].valueSender).toEqual({
+      runFlag: "flag",
+      tabId: 11,
+      frameId: 3,
+      documentId: "doc-3",
+    });
+  });
+});
+
 describe.concurrent("mergeCookieHeader（GM_xmlhttpRequest 非 anonymous 的 cookie 合并）", () => {
   it.concurrent("同名 cookie 应以脚本自定义值覆盖已有 cookie，而非追加（TM #2754）", () => {
     const result = mergeCookieHeader("data=2", [{ name: "data", value: "1" }]);

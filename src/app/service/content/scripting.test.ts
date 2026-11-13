@@ -9,9 +9,14 @@ type Handler = (data: any) => any;
 
 const createServer = () => {
   const handlers = new Map<string, Handler>();
+  const notifies = new Map<string, Handler>();
   return {
-    server: { on: (name: string, fn: Handler) => handlers.set(name, fn) } as unknown as Server,
+    server: {
+      on: (name: string, fn: Handler) => handlers.set(name, fn),
+      onNotify: (name: string, fn: Handler) => notifies.set(name, fn),
+    } as unknown as Server,
     handlers,
+    notifies,
   };
 };
 
@@ -31,6 +36,26 @@ const valueUpdate = (storageName: string): ValueUpdateDataEncoded => ({
 
 const actionsOf = (fn: ReturnType<typeof vi.fn>) => fn.mock.calls.map(([msg]) => msg.action);
 
+const setup = (pageLoadData?: unknown) => {
+  const ext = createServer();
+  const page = createServer();
+  const toContent = createPageSender();
+  const toInject = createPageSender();
+  const toExt = vi.fn().mockResolvedValue({ code: 0, data: pageLoadData ?? { ok: false } });
+  const senderToExt = { sendMessage: toExt } as unknown as MessageSend;
+  const runtime = new ScriptingRuntime(ext.server, page.server, senderToExt, toContent.sender, toInject.sender);
+  runtime.init();
+  const valueUpdates = (list: ValueUpdateDataEncoded[]) => ext.notifies.get("runtime/valueUpdates")!(list);
+  return { runtime, ext, toContent, toInject, toExt, valueUpdates };
+};
+
+const loadedPage = {
+  ok: true,
+  injectScriptList: [{ uuid: "a", metadata: { storagename: ["page-store"] } }],
+  contentScriptList: [{ uuid: "b", metadata: { storagename: ["content-store"] } }],
+  envInfo: {},
+};
+
 describe("ScriptingRuntime 值更新投递", () => {
   let storageListeners: Array<(changes: Record<string, chrome.storage.StorageChange>) => void>;
   let originalOnChanged: unknown;
@@ -46,19 +71,6 @@ describe("ScriptingRuntime 值更新投递", () => {
   afterEach(() => {
     (chrome.storage.local as any).onChanged = originalOnChanged;
   });
-
-  const setup = (pageLoadData?: unknown) => {
-    const ext = createServer();
-    const page = createServer();
-    const toContent = createPageSender();
-    const toInject = createPageSender();
-    const senderToExt = {
-      sendMessage: vi.fn().mockResolvedValue({ code: 0, data: pageLoadData ?? { ok: false } }),
-    } as unknown as MessageSend;
-    const runtime = new ScriptingRuntime(ext.server, page.server, senderToExt, toContent.sender, toInject.sender);
-    runtime.init();
-    return { runtime, ext, toContent, toInject };
-  };
 
   // 每个页面的每个 frame 都有 scripting.js；若它监听 storage.local，任何一次 local 写入
   // （包括整包 value:*）的新旧值都会被序列化投递到所有 frame，见 #1834。
@@ -78,39 +90,78 @@ describe("ScriptingRuntime 值更新投递", () => {
     expect(toInject.sendMessage).not.toHaveBeenCalled();
   });
 
-  it("pageLoad 之后，runtime/valueUpdate 只转发给运行了该 storageName 的一侧", async () => {
-    const { runtime, ext, toContent, toInject } = setup({
-      ok: true,
-      injectScriptList: [{ uuid: "a", metadata: { storagename: ["page-store"] } }],
-      contentScriptList: [{ uuid: "b", metadata: { storagename: ["content-store"] } }],
-      envInfo: {},
-    });
+  it("pageLoad 之后，批量更新逐条按 storageName 只转发给运行它的一侧", async () => {
+    const { runtime, toContent, toInject, valueUpdates } = setup(loadedPage);
     runtime.pageLoad();
     await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/pageLoad"));
     toContent.sendMessage.mockClear();
     toInject.sendMessage.mockClear();
 
-    await ext.handlers.get("runtime/valueUpdate")!(valueUpdate("page-store"));
-    expect(actionsOf(toInject.sendMessage)).toEqual(["inject/runtime/valueUpdate"]);
-    expect(toContent.sendMessage).not.toHaveBeenCalled();
+    valueUpdates([valueUpdate("page-store"), valueUpdate("other-store"), valueUpdate("content-store")]);
 
-    toInject.sendMessage.mockClear();
-    await ext.handlers.get("runtime/valueUpdate")!(valueUpdate("content-store"));
-    expect(actionsOf(toContent.sendMessage)).toEqual(["content/runtime/valueUpdate"]);
-    expect(toInject.sendMessage).not.toHaveBeenCalled();
-
-    toContent.sendMessage.mockClear();
-    await ext.handlers.get("runtime/valueUpdate")!(valueUpdate("other-store"));
-    expect(toContent.sendMessage).not.toHaveBeenCalled();
-    expect(toInject.sendMessage).not.toHaveBeenCalled();
+    expect(toInject.sendMessage.mock.calls.map(([msg]) => [msg.action, msg.data.storageName])).toEqual([
+      ["inject/runtime/valueUpdate", "page-store"],
+    ]);
+    expect(toContent.sendMessage.mock.calls.map(([msg]) => [msg.action, msg.data.storageName])).toEqual([
+      ["content/runtime/valueUpdate", "content-store"],
+    ]);
   });
 
-  it("pageLoad 尚未返回时，runtime/valueUpdate 同时转发给 page 与 content", async () => {
-    const { ext, toContent, toInject } = setup();
+  it("pageLoad 尚未返回时，更新同时转发给 page 与 content", () => {
+    const { toContent, toInject, valueUpdates } = setup();
 
-    await ext.handlers.get("runtime/valueUpdate")!(valueUpdate("any-store"));
+    valueUpdates([valueUpdate("any-store")]);
 
     expect(actionsOf(toContent.sendMessage)).toEqual(["content/runtime/valueUpdate"]);
     expect(actionsOf(toInject.sendMessage)).toEqual(["inject/runtime/valueUpdate"]);
+  });
+});
+
+describe("ScriptingRuntime bfcache 还原上报", () => {
+  const pageShowCalls = (toExt: ReturnType<typeof vi.fn>) =>
+    toExt.mock.calls.filter(([msg]) => msg.action.endsWith("/pageShow")).map(([msg]) => msg.data);
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // 离开页面时，新页面的 pageLoad 已清掉本页的值更新投递登记；还原后要带上仍在运行的 storageName 重新登记
+  it.each([
+    ["顶层 frame", true],
+    ["子 frame", false],
+  ])("%s 运行着脚本时，pageShow 带上它运行的 storageName", async (_label, isTop) => {
+    if (!isTop) vi.spyOn(window, "top", "get").mockReturnValue({} as Window);
+    const { runtime, toExt, toInject } = setup(loadedPage);
+    runtime.pageLoad();
+    await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/pageLoad"));
+
+    window.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: true }));
+
+    expect(pageShowCalls(toExt)).toEqual([{ storageNames: ["page-store", "content-store"] }]);
+  });
+
+  it("子 frame 没有运行脚本时不上报；顶层 frame 仍要上报（Popup 据此判断本页扩展触及得到）", async () => {
+    vi.spyOn(window, "top", "get").mockReturnValue({} as Window);
+    const sub = setup({ ok: false });
+    sub.runtime.pageLoad();
+    vi.restoreAllMocks();
+    const top = setup({ ok: false });
+    top.runtime.pageLoad();
+    await vi.waitFor(() => expect(top.toExt).toHaveBeenCalled());
+
+    window.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: true }));
+
+    expect(pageShowCalls(sub.toExt)).toEqual([]);
+    expect(pageShowCalls(top.toExt)).toEqual([{ storageNames: [] }]);
+  });
+
+  it("普通的 pageshow（非 bfcache 还原）不上报", async () => {
+    const { runtime, toExt, toInject } = setup(loadedPage);
+    runtime.pageLoad();
+    await vi.waitFor(() => expect(actionsOf(toInject.sendMessage)).toContain("inject/pageLoad"));
+
+    window.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: false }));
+
+    expect(pageShowCalls(toExt)).toEqual([]);
   });
 });

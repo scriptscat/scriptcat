@@ -1468,47 +1468,113 @@ describe("pushValueUpdate 判断是否需要为 early-start 脚本重新编译",
     });
     const updateSpy = vi.spyOn(runtime, "updateResourceOnScriptChange").mockResolvedValue(undefined);
 
-    await runtime.pushValueUpdate(
-      script,
-      {
-        entries: [],
-        uuid: script.uuid,
-        storageName: "test-storage",
-        sender: { runFlag: "", tabId: -1 },
-        valueUpdated: true,
-      },
-      []
-    );
+    await runtime.pushValueUpdate(script, {
+      entries: [],
+      uuid: script.uuid,
+      storageName: "test-storage",
+      sender: { runFlag: "", tabId: -1 },
+      valueUpdated: true,
+    });
 
     expect(updateSpy).toHaveBeenCalledWith(script);
   });
 });
 
-describe("pushValueUpdate 页面投递", () => {
-  // 改由消息定向投递，不再经 chrome.storage.local 广播，否则每次写入都会扇出到所有 frame（#1834）
-  it("只向指定标签页发送 scripting/runtime/valueUpdate，不写 chrome.storage.local", async () => {
+describe("值更新按 pageLoad / pageShow 登记的 document 投递", () => {
+  const scriptsFor = (...storageNames: string[]) =>
+    ({
+      injectScriptList: storageNames.map((name) => ({ uuid: name, metadata: {} })),
+      contentScriptList: [],
+      envInfo: {},
+      scriptmenus: [],
+    }) as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>;
+  const frameSender = (frameId: number, documentId: string) =>
+    new SenderRuntime({
+      id: "scriptcat-test",
+      url: "https://www.example.com/page",
+      frameId,
+      documentId,
+      tab: { id: 11, incognito: false },
+    } as chrome.runtime.MessageSender);
+  const sendData = (storageName: string) => ({
+    id: "id-1",
+    entries: [],
+    uuid: "uuid-1",
+    storageName,
+    sender: { runFlag: "", tabId: -1 },
+    valueUpdated: false,
+  });
+  const sentTargets = (spy: ReturnType<typeof vi.spyOn>) =>
+    spy.mock.calls.map(([tabId, msg, options]: any[]) => [
+      tabId,
+      msg.action,
+      msg.data.map((d: any) => d.storageName),
+      options,
+    ]);
+
+  beforeEach(async () => {
+    await chrome.storage.session.clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // 不再经 chrome.storage.local 广播：每个 frame 都要监听 local.onChanged，任何一次 local 写入都会扇出到所有 frame（#1834）
+  it("pageLoad 登记后，值更新以单向通知定向发给该 document，不写 chrome.storage.local", async () => {
     const { runtime } = _createRuntimeContext();
-    const script = _createMockScript();
-    const sendData = {
-      id: "id-1",
-      entries: [],
-      uuid: script.uuid,
-      storageName: "test-storage",
-      sender: { runFlag: "", tabId: 2 },
-      valueUpdated: false,
-    };
-    const sendSpy = vi.spyOn(chrome.tabs, "sendMessage").mockImplementation(((...args: unknown[]) => {
-      (args[args.length - 1] as (resp: unknown) => void)({ code: 0 });
-    }) as unknown as typeof chrome.tabs.sendMessage);
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue(scriptsFor("a"));
+    const sendSpy = vi.spyOn(chrome.tabs, "sendMessage");
     const setSpy = vi.spyOn(chrome.storage.local, "set");
 
-    await runtime.pushValueUpdate(script, sendData, [1, 2]);
+    await runtime.pageLoad(undefined, frameSender(0, "doc-top"));
+    await runtime.pushValueUpdate(_createMockScript(), sendData("a"));
 
-    expect(sendSpy.mock.calls.map(([tabId, msg]) => [tabId, msg])).toEqual([
-      [1, { action: "scripting/runtime/valueUpdate", data: sendData }],
-      [2, { action: "scripting/runtime/valueUpdate", data: sendData }],
+    expect(sentTargets(sendSpy)).toEqual([
+      [11, "scripting/runtime/valueUpdates", ["a"], { frameId: 0, documentId: "doc-top" }],
     ]);
     expect(setSpy).not.toHaveBeenCalled();
+  });
+
+  it("顶层 frame 的 pageLoad 一到达就清掉旧页面，先于它完成登记的新子 frame 保留", async () => {
+    const { runtime } = _createRuntimeContext();
+    let resolveTop!: (v: Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>) => void;
+    vi.spyOn(runtime, "getScriptsForTab")
+      .mockResolvedValueOnce(scriptsFor("b")) // 旧页面的子 frame
+      .mockReturnValueOnce(new Promise((resolve) => (resolveTop = resolve))) // 新页面顶层，较慢
+      .mockResolvedValueOnce(scriptsFor("b")); // 新页面的子 frame
+    const sendSpy = vi.spyOn(chrome.tabs, "sendMessage");
+
+    await runtime.pageLoad(undefined, frameSender(5, "old-sub"));
+    const top = runtime.pageLoad(undefined, frameSender(0, "new-top"));
+    await runtime.pageLoad(undefined, frameSender(9, "new-sub"));
+    resolveTop(scriptsFor("a"));
+    await top;
+    await runtime.pushValueUpdate(_createMockScript(), sendData("b"));
+
+    expect(sentTargets(sendSpy)).toEqual([
+      [11, "scripting/runtime/valueUpdates", ["b"], { frameId: 9, documentId: "new-sub" }],
+    ]);
+  });
+
+  it("bfcache 还原时 pageShow 带上的 storageName 重新登记，同时照常广播 popupPageRestored", async () => {
+    const { runtime, mockGroup } = _createRuntimeContext();
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue(scriptsFor());
+    const sendSpy = vi.spyOn(chrome.tabs, "sendMessage");
+
+    // 跳到不运行脚本的页面后再后退
+    await runtime.pageLoad(undefined, frameSender(0, "other-page"));
+    await runtime.pageShow({ storageNames: ["a"] }, frameSender(0, "restored"));
+    await runtime.pushValueUpdate(_createMockScript(), sendData("a"));
+
+    expect(sentTargets(sendSpy)).toEqual([
+      [11, "scripting/runtime/valueUpdates", ["a"], { frameId: 0, documentId: "restored" }],
+    ]);
+    expect(mockGroup.emit).toHaveBeenCalledWith("popupPageRestored", {
+      tabId: 11,
+      frameId: 0,
+      url: "https://www.example.com/page",
+    });
   });
 });
 
