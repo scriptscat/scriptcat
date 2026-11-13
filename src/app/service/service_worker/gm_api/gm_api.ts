@@ -250,6 +250,13 @@ export enum SelfMatch {
   SUB = 2,
 }
 
+// 不属于任何标签页的网页 frame（如扩展页面里内嵌的网页）：tabs.sendMessage 投递不到，值更新只能随 GM_setValue 的应答带回。
+// 扩展自身的页面（offscreen 里的后台脚本）不算：它们由 offscreen 投递送达
+const isTablessPageFrame = (sender: chrome.runtime.MessageSender | undefined) =>
+  !!sender?.url &&
+  !((sender.tab?.id ?? -1) > 0) &&
+  new URL(sender.url).origin !== new URL(chrome.runtime.getURL("/")).origin;
+
 export const getConnectMatched = (
   metadataConnect: string[] | undefined,
   reqURL: URL,
@@ -603,7 +610,14 @@ export default class GMApi {
       frameId: chromeSender?.frameId,
       documentId: chromeSender?.documentId,
     };
-    await this.value.setValues({ uuid: request.script.uuid, id, keyValuePairs, isReplace: false, valueSender });
+    const update = await this.value.setValues({
+      uuid: request.script.uuid,
+      id,
+      keyValuePairs,
+      isReplace: false,
+      valueSender,
+    });
+    return isTablessPageFrame(chromeSender) ? update : undefined;
   }
 
   @PermissionVerify.API({ link: ["GM_deleteValues"] })
@@ -619,7 +633,14 @@ export default class GMApi {
       frameId: chromeSender?.frameId,
       documentId: chromeSender?.documentId,
     };
-    await this.value.setValues({ uuid: request.script.uuid, id, keyValuePairs, isReplace: false, valueSender });
+    const update = await this.value.setValues({
+      uuid: request.script.uuid,
+      id,
+      keyValuePairs,
+      isReplace: false,
+      valueSender,
+    });
+    return isTablessPageFrame(chromeSender) ? update : undefined;
   }
 
   @PermissionVerify.API()
