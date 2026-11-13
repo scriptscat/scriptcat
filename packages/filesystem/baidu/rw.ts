@@ -76,7 +76,7 @@ export class BaiduFileWriter implements FileWriter {
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/x-www-form-urlencoded");
     let data = await this.fs.request(
-      `http://pan.baidu.com/rest/2.0/xpan/file?method=precreate&access_token=${this.fs.accessToken}`,
+      `https://pan.baidu.com/rest/2.0/xpan/file?method=precreate&access_token=${this.fs.accessToken}`,
       {
         method: "POST",
         headers: myHeaders,

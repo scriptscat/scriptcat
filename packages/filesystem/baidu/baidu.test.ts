@@ -164,6 +164,15 @@ describe("BaiduFileSystem", () => {
     });
   });
 
+  it("写入时预创建请求应走 https，避免 access_token 明文传输", async () => {
+    const fs = new BaiduFileSystem("/apps", "token");
+    const request = vi.spyOn(fs, "request").mockResolvedValue({ errno: 2, errmsg: "access denied" });
+    const writer = await fs.create("dir/file.user.js");
+
+    await expect(writer.write("code")).rejects.toMatchObject({ provider: "baidu" });
+    expect(request.mock.calls[0][0]).toMatch(/^https:\/\/pan\.baidu\.com\/rest\/2\.0\/xpan\/file\?method=precreate&/);
+  });
+
   it("读取文件元数据缺失时应抛出 typed not found 错误", async () => {
     const fs = new BaiduFileSystem("/apps", "token");
     vi.spyOn(fs, "request").mockResolvedValue({ errno: -9, errmsg: "file not found" });
