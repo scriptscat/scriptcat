@@ -68,11 +68,11 @@ export default defineConfig({
           name: "fast",
           exclude: [...BASE_EXCLUDE, ...ISOLATED, ...UI_TESTS, ...SCRIPT_TESTS],
           ...sharedTest,
-          pool: "vmThreads",
-          isolate: false,
-          // vm 池本地至少 2 个 worker：Vitest 对 vm 池强制 isolate=false，maxWorkers 为 1 时会把整个项目
-          // 合并进同一个 VM 上下文（setup 只跑一次），模块缓存、vi.mock、chrome mock 在文件间互相泄漏。
-          maxWorkers: process.env.CI ? "75%" : 2,
+          // 本地单 worker 时改用 threads + isolate：Vitest 对 vm 池强制 isolate=false，且在 maxWorkers 为 1 时
+          // 把整个项目合并进同一个 VM 上下文（setup 只跑一次），模块缓存、vi.mock、chrome mock 在文件间互相泄漏。
+          pool: process.env.CI ? "vmThreads" : "threads",
+          isolate: !process.env.CI,
+          maxWorkers: process.env.CI ? "75%" : 1,
           testTimeout: 340,
           sequence: {
             groupOrder: 0,
@@ -103,12 +103,12 @@ export default defineConfig({
           include: UI_TESTS,
           exclude: BASE_EXCLUDE,
           ...sharedTest,
-          pool: "vmThreads",
-          isolate: false,
+          // 本地 pool/isolate 取值原因同 fast 项目
+          pool: process.env.CI ? "vmThreads" : "threads",
+          isolate: !process.env.CI,
           // UI renders and V8 coverage are CPU-bound; leave headroom for the fast/scripts projects
           // so the fixed 850ms per-test budget measures the test rather than worker starvation.
-          // 本地至少 2 个 worker，原因同 fast 项目
-          maxWorkers: process.env.CI ? "50%" : 2,
+          maxWorkers: process.env.CI ? "50%" : 1,
           testTimeout: 850,
           sequence: {
             groupOrder: process.env.CI ? 1 : 2,
