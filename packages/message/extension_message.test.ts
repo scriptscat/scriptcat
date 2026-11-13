@@ -29,4 +29,13 @@ describe("ExtensionContentMessageSend.notify", () => {
 
     await expect(new ExtensionContentMessageSend(7).notify({ action: "a" })).rejects.toBe(error);
   });
+
+  it("调用本身被拒（如消息超过 64 MiB）时与 chrome API 一样同步抛出，而不是返回被拒绝的 Promise", () => {
+    const error = new Error("Message exceeded maximum allowed size of 64MiB.");
+    vi.spyOn(chrome.tabs, "sendMessage").mockImplementation((() => {
+      throw error;
+    }) as never);
+
+    expect(() => new ExtensionContentMessageSend(7).notify({ action: "a" })).toThrow(error);
+  });
 });

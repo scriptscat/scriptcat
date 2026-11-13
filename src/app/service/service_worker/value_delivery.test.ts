@@ -190,6 +190,52 @@ describe("ValueUpdateDelivery 合并与并发", () => {
   });
 });
 
+// 扩展消息上限 64 MiB；超限时 Chrome 的 tabs.sendMessage 同步抛出，而不是返回被拒绝的 Promise（Chrome 156 实测）。
+// 每条更新都带新旧值，合并后的批次可能超限，而其中每一条单独发送并不超限
+describe("ValueUpdateDelivery 消息超过上限", () => {
+  const oversize = () => {
+    throw new Error("Message exceeded maximum allowed size of 64MiB.");
+  };
+
+  it("合并后的批次超限时逐条重发，队列不会卡住，document 也不被移出", async () => {
+    const delivery = new ValueUpdateDelivery();
+    delivery.register(target(1, 0), ["s1"]);
+    const first = deferred();
+    deliver = () => first.promise;
+    await delivery.push(update("s1", undefined, "a"));
+    await delivery.push(update("s1", undefined, "b"));
+    await delivery.push(update("s1", undefined, "c"));
+    let batches = 0;
+    deliver = () => (++batches === 1 ? oversize() : Promise.resolve(undefined));
+
+    first.resolve();
+    await vi.waitFor(() => expect(calls).toHaveLength(4));
+    await delivery.push(update("s1", undefined, "d"));
+
+    await vi.waitFor(() => expect(calls).toHaveLength(5));
+    const sent = vi
+      .mocked(chrome.tabs.sendMessage)
+      .mock.calls.map(([, msg]) => (msg as { data: ValueUpdateDataEncoded[] }).data.map((d) => d.id));
+    expect(sent).toEqual([["a"], ["b", "c"], ["b"], ["c"], ["d"]]);
+  });
+
+  it("单条更新本身超限时跳过这一条，后续更新照常投递给同一个 document", async () => {
+    const delivery = new ValueUpdateDelivery();
+    delivery.register(target(1, 0), ["s1"]);
+    vi.mocked(chrome.tabs.sendMessage).mockImplementationOnce(((tabId: number, _msg: never, options: never) => {
+      calls.push({ tabId, options, storageNames: ["s1"] });
+      return oversize();
+    }) as never);
+
+    await delivery.push(update("s1", undefined, "huge"));
+    await vi.waitFor(() => expect(calls).toHaveLength(1));
+    await delivery.push(update("s1", undefined, "small"));
+
+    await vi.waitFor(() => expect(calls).toHaveLength(2));
+    expect(calls[1].options).toEqual({ frameId: 0, documentId: "doc-0" });
+  });
+});
+
 describe("ValueUpdateDelivery 页面生命周期", () => {
   it("顶层 frame 重新载入会清掉该标签页旧页面的 document，之后登记的保留", async () => {
     const delivery = new ValueUpdateDelivery();

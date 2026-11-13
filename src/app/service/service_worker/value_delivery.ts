@@ -141,21 +141,52 @@ export class ValueUpdateDelivery {
     const frameCount = Math.max(frames.size, routes.size);
     if (routes.size * 3 > frameCount + 2) {
       const items = batch.filter((item) => [...routes.values()].some((route) => route.items.includes(item)));
-      return this.send(tabId, items).catch((e) => {
+      return this.deliver(tabId, items).then((reached) => {
         // 整页都收不到：标签页里已没有存活的 scripting（如被丢弃），等它重新载入时再登记
-        this.logger.debug("value update tab unreachable", { tabId }, Logger.E(e));
-        this.dropFrames(tabId, frames, [...frames.keys()]);
+        if (!reached) this.dropFrames(tabId, frames, [...frames.keys()]);
       });
     }
     return Promise.all(
       [...routes.values()].map((route) =>
-        this.send(tabId, route.items, route).catch((e) => {
+        this.deliver(tabId, route.items, route).then((reached) => {
           // document 已销毁（子 frame 被移除、页面已跳走）
-          this.logger.debug("value update frame unreachable", { tabId, frameId: route.frameId }, Logger.E(e));
-          this.dropFrames(tabId, frames, [route.frameId]);
+          if (!reached) this.dropFrames(tabId, frames, [route.frameId]);
         })
       )
     ).then(() => undefined);
+  }
+
+  /**
+   * 返回目标是否还在。tabs.sendMessage 的两类失败要分开处理：
+   * 同步抛出是调用本身被拒（实测为消息超过 64 MiB 上限），目标仍在，不能移出；
+   * 返回的 Promise 被拒绝才是目标已不存在。
+   */
+  private async deliver(tabId: number, items: ValueUpdateDataEncoded[], route?: Route): Promise<boolean> {
+    let sent: Promise<void>;
+    try {
+      sent = this.send(tabId, items, route);
+    } catch (e) {
+      // 合并后的批次超限时逐条按顺序重发；单条本身就超限则只能放弃这一条
+      if (items.length > 1) {
+        for (const item of items) {
+          if (!(await this.deliver(tabId, [item], route))) return false;
+        }
+        return true;
+      }
+      this.logger.error(
+        "value update rejected by tabs.sendMessage",
+        { tabId, frameId: route?.frameId, storageName: items[0].storageName },
+        Logger.E(e)
+      );
+      return true;
+    }
+    return sent.then(
+      () => true,
+      (e) => {
+        this.logger.debug("value update target unreachable", { tabId, frameId: route?.frameId }, Logger.E(e));
+        return false;
+      }
+    );
   }
 
   private send(tabId: number, items: ValueUpdateDataEncoded[], route?: Route) {
