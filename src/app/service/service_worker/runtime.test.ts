@@ -1557,6 +1557,35 @@ describe("值更新按 pageLoad / pageShow 登记的 document 投递", () => {
     ]);
   });
 
+  // early-start 脚本在 document_start 就已运行，pageLoad 查询脚本期间其他标签页的写入也要送达（main 上 scripting
+  // 从初始化起就监听，pageLoad 返回前两侧都转发）
+  it("pageLoad 查询脚本期间，其他标签页的更新也会投递给这个 document", async () => {
+    const { runtime } = _createRuntimeContext();
+    let resolveScripts!: (v: Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>) => void;
+    vi.spyOn(runtime, "getScriptsForTab").mockReturnValue(new Promise((resolve) => (resolveScripts = resolve)));
+    const sendSpy = vi.spyOn(chrome.tabs, "sendMessage");
+
+    const loading = runtime.pageLoad(undefined, frameSender(0, "early-doc"));
+    await runtime.pushValueUpdate(_createMockScript(), sendData("early-store"));
+    resolveScripts(scriptsFor("early-store"));
+    await loading;
+
+    expect(sentTargets(sendSpy)).toEqual([
+      [11, "scripting/runtime/valueUpdates", ["early-store"], { frameId: 0, documentId: "early-doc" }],
+    ]);
+  });
+
+  it("pageLoad 查完脚本后只投递该 document 实际运行的 storageName", async () => {
+    const { runtime } = _createRuntimeContext();
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue(scriptsFor("a"));
+    const sendSpy = vi.spyOn(chrome.tabs, "sendMessage");
+
+    await runtime.pageLoad(undefined, frameSender(0, "doc"));
+    await runtime.pushValueUpdate(_createMockScript(), sendData("other"));
+
+    expect(sentTargets(sendSpy)).toEqual([]);
+  });
+
   it("bfcache 还原时 pageShow 带上的 storageName 重新登记，同时照常广播 popupPageRestored", async () => {
     const { runtime, mockGroup } = _createRuntimeContext();
     vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue(scriptsFor());

@@ -1266,15 +1266,18 @@ export class RuntimeService {
     const tabId = chromeSender.tab?.id;
     const frameId = chromeSender.frameId;
     const incognito = chromeSender.tab?.incognito ?? false;
-    const isTab = tabId !== undefined && tabId > 0;
+    // 不属于任何标签页的页面无法用 tabs.sendMessage 投递，不登记
+    const target =
+      tabId !== undefined && tabId > 0 ? { tabId, frameId: frameId ?? 0, documentId: chromeSender.documentId } : null;
     // 必须在第一个 await 之前：新页面子 frame 的 pageLoad 可能先于顶层 frame 完成，
     // 若等顶层查完脚本再清，就会把它们一并清掉
-    if (isTab && !frameId) this.valueDelivery.resetTab(tabId);
+    if (target && !frameId) this.valueDelivery.resetTab(target.tabId);
+    if (target) this.valueDelivery.register(target, null);
     const res = await this.getScriptsForTab({ url, tabId, frameId, incognito });
-    if (isTab) {
+    if (target) {
       // 与 scripting 计算 activeStorageNames 的口径一致；没有脚本的 frame 也登记，用于「整页还是定向」的计数
       const storageNames = res ? [...res.injectScriptList, ...res.contentScriptList].map(getStorageName) : [];
-      this.valueDelivery.register({ tabId, frameId: frameId ?? 0, documentId: chromeSender.documentId }, storageNames);
+      this.valueDelivery.register(target, storageNames);
     }
 
     // 页面可能不属于任何标签页（sender.tab 缺失或为 TAB_ID_NONE），脚本照常下发，但不能记运行计数：

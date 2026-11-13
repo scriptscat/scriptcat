@@ -71,6 +71,35 @@ describe("ValueUpdateDelivery 投递目标", () => {
     expect(calls).toEqual([{ tabId: 3, options: { frameId: 2, documentId: "early-doc" }, storageNames: ["s1"] }]);
   });
 
+  // 子 frame 跳到新页面后、新页面 pageLoad 登记完成前，旧页面的登记还在；
+  // early-start 脚本此时写值，回执必须发给新页面的 document，而不是被并进同一 frameId 的旧 document
+  it("发起方与同一 frame 里尚未清掉的旧 document 不同时，回执发给发起方的 document", async () => {
+    const delivery = new ValueUpdateDelivery();
+    for (let frameId = 0; frameId < 8; frameId++) delivery.register(target(1, frameId), []);
+    delivery.register({ tabId: 1, frameId: 5, documentId: "old-doc" }, ["s1"]);
+    deliver = (_, options) =>
+      options?.documentId === "old-doc" ? Promise.reject(new Error("No document")) : Promise.resolve(undefined);
+
+    await delivery.push(update("s1", { runFlag: "f", tabId: 1, frameId: 5, documentId: "new-doc" }));
+
+    await vi.waitFor(() => expect(calls.map((c) => c.options?.documentId).sort()).toEqual(["new-doc", "old-doc"]));
+  });
+
+  it("发起方 document 投递失败时，不移除同一 frameId 下已登记的其他 document", async () => {
+    const delivery = new ValueUpdateDelivery();
+    for (let frameId = 0; frameId < 8; frameId++) delivery.register(target(1, frameId), []);
+    delivery.register({ tabId: 1, frameId: 5, documentId: "registered" }, ["s1"]);
+    deliver = (_, options) =>
+      options?.documentId === "gone" ? Promise.reject(new Error("No document")) : Promise.resolve(undefined);
+
+    await delivery.push(update("s1", { runFlag: "f", tabId: 1, frameId: 5, documentId: "gone" }, "a"));
+    await vi.waitFor(() => expect(calls).toHaveLength(2));
+    await delivery.push(update("s1", undefined, "b"));
+
+    await vi.waitFor(() => expect(calls).toHaveLength(3));
+    expect(calls[2].options).toEqual({ frameId: 5, documentId: "registered" });
+  });
+
   it("没有任何目标、发起方也不是标签页时不发送", async () => {
     const delivery = new ValueUpdateDelivery();
     delivery.register(target(1, 0), ["other"]);

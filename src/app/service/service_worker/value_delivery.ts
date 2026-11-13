@@ -7,7 +7,11 @@ import type { ValueUpdateDataEncoded } from "../content/types";
 
 export type ValueUpdateTarget = { tabId: number; frameId: number; documentId?: string };
 
-type FrameRecord = { documentId?: string; storageNames: string[] };
+// storageNames 为 null：pageLoad 已到达但还没查出运行哪些脚本（early-start 脚本此时已在运行），所有更新都投递，
+// 与 scripting 在 pageLoad 返回前两侧都转发的语义一致
+type FrameRecord = { documentId?: string; storageNames: string[] | null };
+const runs = (frame: FrameRecord, storageName: string) =>
+  frame.storageNames === null || frame.storageNames.includes(storageName);
 // 持久化形状：frameId → 该 frame 当前 document 运行的 storageName
 type PersistedTab = Record<string, FrameRecord>;
 
@@ -52,7 +56,7 @@ export class ValueUpdateDelivery {
     });
   }
 
-  register(target: ValueUpdateTarget, storageNames: string[]) {
+  register(target: ValueUpdateTarget, storageNames: string[] | null) {
     let frames = this.tabs.get(target.tabId);
     if (!frames) {
       frames = new Map();
@@ -60,7 +64,7 @@ export class ValueUpdateDelivery {
     }
     const previous = frames.get(target.frameId);
     frames.set(target.frameId, { documentId: target.documentId, storageNames });
-    if (storageNames.length || previous?.storageNames.length) this.persist(target.tabId);
+    if (storageNames?.length || previous?.storageNames?.length) this.persist(target.tabId);
   }
 
   /**
@@ -81,7 +85,7 @@ export class ValueUpdateDelivery {
     const tabIds = new Set<number>();
     for (const [tabId, frames] of this.tabs) {
       for (const frame of frames.values()) {
-        if (frame.storageNames.includes(data.storageName)) {
+        if (runs(frame, data.storageName)) {
           tabIds.add(tabId);
           break;
         }
@@ -116,18 +120,20 @@ export class ValueUpdateDelivery {
 
   private sendBatch(tabId: number, batch: ValueUpdateDataEncoded[]) {
     const frames = this.tabs.get(tabId) ?? new Map<number, FrameRecord>();
-    const routes = new Map<number, Route>();
+    // 按 document 区分路由：同一 frameId 下，尚未被新页面 pageLoad 替换的旧 document 与发起写入的新 document 要分开投递
+    const routes = new Map<string, Route>();
     const addRoute = (frameId: number, documentId: string | undefined, item: ValueUpdateDataEncoded) => {
-      let route = routes.get(frameId);
+      const key = documentId ?? `frame:${frameId}`;
+      let route = routes.get(key);
       if (!route) {
         route = { frameId, documentId, items: [] };
-        routes.set(frameId, route);
+        routes.set(key, route);
       }
       if (route.items[route.items.length - 1] !== item) route.items.push(item);
     };
     for (const item of batch) {
       for (const [frameId, frame] of frames) {
-        if (frame.storageNames.includes(item.storageName)) addRoute(frameId, frame.documentId, item);
+        if (runs(frame, item.storageName)) addRoute(frameId, frame.documentId, item);
       }
       const { sender } = item;
       if (sender.tabId === tabId && sender.frameId !== undefined) {
@@ -143,14 +149,14 @@ export class ValueUpdateDelivery {
       const items = batch.filter((item) => [...routes.values()].some((route) => route.items.includes(item)));
       return this.deliver(tabId, items).then((reached) => {
         // 整页都收不到：标签页里已没有存活的 scripting（如被丢弃），等它重新载入时再登记
-        if (!reached) this.dropFrames(tabId, frames, [...frames.keys()]);
+        if (!reached) this.dropFrames(tabId, frames);
       });
     }
     return Promise.all(
       [...routes.values()].map((route) =>
         this.deliver(tabId, route.items, route).then((reached) => {
           // document 已销毁（子 frame 被移除、页面已跳走）
-          if (!reached) this.dropFrames(tabId, frames, [route.frameId]);
+          if (!reached) this.dropFrames(tabId, frames, route);
         })
       )
     ).then(() => undefined);
@@ -198,12 +204,16 @@ export class ValueUpdateDelivery {
     return new ExtensionContentMessageSend(tabId, options).notify({ action: ACTION, data: items });
   }
 
-  // 只移除发送时看到的那份记录：期间若同一 frame 已重新登记，新记录保留
-  private dropFrames(tabId: number, snapshot: Map<number, FrameRecord>, frameIds: number[]) {
+  // 只移除发送时看到、且属于收不到的那个 document 的记录：期间若同一 frame 已重新登记，新记录保留；
+  // 发起方的 document 尚未登记时投递失败，也不能连带移除同一 frameId 下的其他 document。不传 route 表示整页都收不到
+  private dropFrames(tabId: number, snapshot: Map<number, FrameRecord>, route?: Route) {
     const frames = this.tabs.get(tabId);
     if (!frames) return;
-    for (const frameId of frameIds) {
-      if (frames.get(frameId) === snapshot.get(frameId)) frames.delete(frameId);
+    for (const frameId of route ? [route.frameId] : [...snapshot.keys()]) {
+      const record = snapshot.get(frameId);
+      if (!record || frames.get(frameId) !== record) continue;
+      if (route && route.documentId !== undefined && record.documentId !== route.documentId) continue;
+      frames.delete(frameId);
     }
     if (frames.size === 0) this.tabs.delete(tabId);
     this.persist(tabId);
@@ -247,7 +257,7 @@ export class ValueUpdateDelivery {
   // SW 重启后少计它们只会让选择偏向整页投递，结果仍然正确
   private persist(tabId: number) {
     this.restore().then(() => {
-      const running = [...(this.tabs.get(tabId) ?? [])].filter(([, frame]) => frame.storageNames.length > 0);
+      const running = [...(this.tabs.get(tabId) ?? [])].filter(([, frame]) => !!frame.storageNames?.length);
       const key = `${CACHE_KEY_VALUE_UPDATE_TARGETS}${tabId}`;
       if (running.length) {
         this.persistedTabs.add(tabId);
