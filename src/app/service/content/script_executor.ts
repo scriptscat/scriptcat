@@ -2,7 +2,7 @@ import type { Message } from "@Packages/message/types";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { EmitEventRequest } from "../service_worker/types";
 import ExecScript from "./exec_script";
-import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
+import type { GMInfoEnv, ScriptFunc, ValueSnapshot, ValueUpdateDataEncoded } from "./types";
 import { addStyleSheet, definePropertyListener, waitBody } from "./utils";
 import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { DefinedFlags } from "../service_worker/runtime.consts";
@@ -10,6 +10,7 @@ import { pageAddEventListener, pageDispatchEvent } from "@Packages/message/commo
 import { isUrlExcluded } from "@App/pkg/utils/match";
 import type { ScriptEnvTag } from "@Packages/message/consts";
 import { localizeObject } from "./global";
+import { decodeRValue } from "@App/pkg/utils/message_value";
 
 export type ExecScriptEntry = {
   scriptLoadInfo: TScriptInfo;
@@ -34,6 +35,9 @@ export const initEnvInfo: GMInfoEnv = {
 export class ScriptExecutor {
   earlyScriptFlag: Set<string> = new Set();
   execScriptMap: Map<string, ExecScript> = new Map();
+  // A pageLoad acknowledgement may precede the compiled userscript flag being set.
+  // Retain only the initial descriptor and its latest value state, never an event log.
+  private readonly pendingScripts = new Map<string, TScriptInfo>();
 
   constructor(
     private msg: Message,
@@ -48,14 +52,95 @@ export class ScriptExecutor {
     }
   }
 
-  valueUpdate(data: ValueUpdateDataEncoded) {
-    // runtime/valueUpdate
+  valueUpdate(data: ValueUpdateDataEncoded): void | Promise<void> {
     const { uuid, storageName } = data;
+    let handled = false;
+    let failed = false;
+    let firstError: unknown;
+    let recoveries: Promise<void>[] | undefined;
     for (const val of this.execScriptMap.values()) {
-      if (val.scriptRes.uuid === uuid || getStorageName(val.scriptRes) === storageName) {
-        val.valueUpdate(data);
+      if (val.scriptRes.uuid !== uuid && getStorageName(val.scriptRes) !== storageName) continue;
+      handled = true;
+      try {
+        const recovery = val.valueUpdate(data);
+        if (recovery instanceof Promise) (recoveries ??= []).push(recovery);
+      } catch (error) {
+        if (!failed) firstError = error;
+        failed = true;
       }
     }
+    for (const script of this.pendingScripts.values()) {
+      if (script.uuid !== uuid && getStorageName(script) !== storageName) continue;
+      handled = true;
+      try {
+        if (data.revision !== undefined && data.epoch !== undefined) {
+          const oldRevision = script.valueRevision ?? 0;
+          const oldEpoch = script.valueEpoch ?? "";
+          if (data.epoch === oldEpoch && data.revision <= oldRevision) continue;
+          if ((oldEpoch && data.epoch !== oldEpoch) || data.revision > oldRevision + 1) {
+            throw new Error("Pending GM script requires a full value snapshot");
+          }
+          script.valueRevision = data.revision;
+          script.valueEpoch = data.epoch;
+        }
+        if (!data.valueUpdated) continue;
+        for (const [key, encoded] of data.entries) {
+          const value = decodeRValue(encoded);
+          if (value === undefined) delete script.value[key];
+          else script.value[key] = value;
+        }
+      } catch (error) {
+        if (!failed) firstError = error;
+        failed = true;
+      }
+    }
+    if (!handled) throw new Error("No script world recipient for GM value update");
+    if (failed) {
+      // A single failing script must not block peers; the frame still needs a repair snapshot.
+      for (const recovery of recoveries ?? []) void recovery.catch(() => undefined);
+      throw firstError;
+    }
+    if (recoveries) return Promise.all(recoveries).then(() => undefined);
+  }
+
+  valueSnapshot(snapshot: ValueSnapshot) {
+    let handled = false;
+    let failed = false;
+    let firstError: unknown;
+    for (const exec of this.execScriptMap.values()) {
+      if (getStorageName(exec.scriptRes) !== snapshot.storageName) continue;
+      handled = true;
+      try {
+        exec.valueSnapshot(snapshot);
+      } catch (error) {
+        if (!failed) firstError = error;
+        failed = true;
+      }
+    }
+    for (const script of this.pendingScripts.values()) {
+      if (getStorageName(script) !== snapshot.storageName) continue;
+      handled = true;
+      try {
+        if (script.valueEpoch === snapshot.epoch && (script.valueRevision ?? 0) > snapshot.revision) continue;
+        const values = { ...snapshot.values };
+        for (const [tabName, tab] of Object.entries(script.config ?? {})) {
+          if (!tab || typeof tab !== "object") continue;
+          for (const [key, option] of Object.entries(tab)) {
+            if (!option || typeof option !== "object" || !("default" in option)) continue;
+            const field = `${tabName}.${key}`;
+            if (values[field] === undefined) values[field] = option.default;
+          }
+        }
+        script.value = values;
+        script.valueRevision = snapshot.revision;
+        script.valueEpoch = snapshot.epoch;
+      } catch (error) {
+        if (!failed) firstError = error;
+        failed = true;
+      }
+    }
+    if (!handled) throw new Error("No script world recipient for GM value snapshot");
+    if (failed) throw firstError;
   }
 
   startScripts(scripts: TScriptInfo[], envInfo: GMInfoEnv) {
@@ -76,10 +161,18 @@ export class ScriptExecutor {
           if (val.scriptRes.flag === flag) {
             // 处理早期脚本的沙盒环境
             val.updateEarlyScriptGMInfo(envInfo);
+            // Early-start code already runs; refresh its GM cache without running it again.
+            val.valueSnapshot({
+              storageName: getStorageName(script),
+              values: script.value,
+              revision: script.valueRevision ?? 0,
+              epoch: script.valueEpoch ?? "",
+            });
             return;
           }
         }
       }
+      this.pendingScripts.set(script.uuid, script);
       definePropertyListener(window, flag, (val: ScriptFunc) => {
         loadExec(script, val);
       });
@@ -153,6 +246,7 @@ export class ScriptExecutor {
       envInfo,
     });
     this.execScriptMap.set(scriptLoadInfo.uuid, execScript);
+    this.pendingScripts.delete(scriptLoadInfo.uuid);
     const metadata = scriptLoadInfo.metadata || {};
     const resource = scriptLoadInfo.requireCssResource ?? scriptLoadInfo.resource;
     // 注入css

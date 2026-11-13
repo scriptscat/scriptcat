@@ -15,7 +15,8 @@ export default class MessageWriter implements Writer {
   }
 
   write(level: LogLevel, message: string, label: LogLabel): void {
-    this.msgSender.sendMessage({
+    // Logging is best-effort. Never recurse into the logger on transport failure.
+    void this.msgSender.sendMessage({
       action: this.action,
       data: {
         id: 0,
@@ -24,6 +25,6 @@ export default class MessageWriter implements Writer {
         label,
         createtime: Date.now(),
       },
-    });
+    }).catch(() => undefined);
   }
 }

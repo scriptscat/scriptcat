@@ -20,7 +20,6 @@ import { TrashScriptDAO, type TrashScript } from "@App/app/repo/trash_script";
 import type { TDeleteScript } from "@App/app/service/queue";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
 import type { RuntimeService } from "./runtime";
-import type { PopupService } from "./popup";
 
 initTestEnv();
 
@@ -100,6 +99,56 @@ describe("ValueService - setValue 方法测试", () => {
     vi.restoreAllMocks();
   });
 
+  it("用户配置默认值不应污染持久化 GM 数据或版本快照", async () => {
+    const script = createMockScript({
+      config: {
+        general: {
+          theme: { title: "Theme", description: "", index: 0, default: "light" },
+        },
+      },
+    });
+    const stored = {
+      uuid: script.uuid, storageName: getStorageName(script),
+      data: { x: 1 }, revision: 4, epoch: "g",
+      createtime: 1, updatetime: 1,
+    } satisfies Value;
+    vi.mocked(mockValueDAO.get).mockResolvedValue(stored);
+
+    const [pageValue] = await valueService.getScriptValueDetails(script);
+    expect(pageValue).toEqual({ x: 1, "general.theme": "light" });
+    expect(stored.data).toEqual({ x: 1 });
+
+    const snapshot = await valueService.getValueSnapshot(getStorageName(script));
+    expect(snapshot).toEqual({
+      storageName: getStorageName(script), values: { x: 1 }, revision: 4, epoch: "g",
+    });
+  });
+
+  it("持久化 revision 随真实写入单调递增；同值更新不增加 revision", async () => {
+    const script = createMockScript();
+    let record: Value | undefined;
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+    vi.mocked(mockValueDAO.get).mockImplementation(async () => record);
+    vi.mocked(mockValueDAO.save).mockImplementation(async (_key, value) => {
+      record = value;
+      return value;
+    });
+    const commit = (value: number) => valueService.setValues({
+      uuid: script.uuid,
+      id: `write-${value}`,
+      keyValuePairs: [["x", encodeRValue(value)]],
+      isReplace: false,
+    });
+    const first = await commit(1);
+    const repeated = await commit(1);
+    const second = await commit(2);
+    expect(first.update.revision).toBe(1);
+    expect(repeated.update.revision).toBe(1);
+    expect(second.update.revision).toBe(2);
+    expect(second.update.epoch).toBe(first.update.epoch);
+    expect(record?.revision).toBe(2);
+  });
+
   it("应该成功设置新脚本的值", async () => {
     // 准备测试数据
     const mockScript = createMockScript();
@@ -113,7 +162,7 @@ describe("ValueService - setValue 方法测试", () => {
     vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
 
     // 执行测试
-    await valueService.setValues({
+    const receipt = await valueService.setValues({
       uuid: mockScript.uuid,
       id: "testId-4021",
       keyValuePairs: [[key, encodeRValue(value)]],
@@ -125,6 +174,10 @@ describe("ValueService - setValue 方法测试", () => {
     expect(mockScriptDAO.get).toHaveBeenCalledWith(mockScript.uuid);
     expect(mockValueDAO.get).toHaveBeenCalled();
     expect(mockValueDAO.save).toHaveBeenCalled();
+    expect(receipt).toMatchObject({
+      committed: true,
+      update: { id: "testId-4021", uuid: mockScript.uuid, valueUpdated: true },
+    });
     expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1);
     expect(valueService.pushValueUpdate).toHaveBeenNthCalledWith(
       1,
@@ -149,6 +202,21 @@ describe("ValueService - setValue 方法测试", () => {
     expect(savedValue.data[key]).toBe(value);
     expect(savedValue.createtime).toBeTypeOf("number");
     expect(savedValue.updatetime).toBeTypeOf("number");
+  });
+
+  it("持久化失败必须拒绝写入，不能返回已提交的 receipt 或推送消息", async () => {
+    const script = createMockScript();
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+    vi.mocked(mockValueDAO.get).mockResolvedValue(undefined);
+    vi.mocked(mockValueDAO.save).mockRejectedValue(new Error("storage quota exceeded"));
+
+    await expect(valueService.setValues({
+      uuid: script.uuid,
+      id: "failed-write",
+      keyValuePairs: [["k", encodeRValue("v")]],
+      isReplace: false,
+    })).rejects.toThrow("storage quota exceeded");
+    expect(valueService.pushValueUpdate).not.toHaveBeenCalled();
   });
 
   it("应该成功设置新脚本的值 (storageName fallback)", async () => {
@@ -463,7 +531,7 @@ describe("ValueService —— 共享 storagename 的回收站感知", () => {
     const server = new Server("test", new MockMessage(eventEmitter));
     const mq = new MessageQueue();
     const service = new ValueService(server.group("value"), mq);
-    service.init({} as RuntimeService, {} as PopupService);
+    service.init({} as RuntimeService);
 
     const trashDAO = new TrashScriptDAO();
     const valueDAO = new ValueDAO();
@@ -510,7 +578,7 @@ describe("ValueService —— 共享 storagename 的回收站感知", () => {
     const server = new Server("test", new MockMessage(eventEmitter));
     const mq = new MessageQueue();
     const service = new ValueService(server.group("value"), mq);
-    service.init({} as RuntimeService, {} as PopupService);
+    service.init({} as RuntimeService);
 
     const valueDAO = new ValueDAO();
     const lonely = "lonely-storage";
@@ -526,5 +594,34 @@ describe("ValueService —— 共享 storagename 的回收站感知", () => {
     await new Promise((r) => setTimeout(r, 0));
 
     expect(await valueDAO.get(lonely)).toBeUndefined();
+  });
+});
+
+describe("ValueService pushValueUpdate 投递目标", () => {
+  const setup = () => {
+    const server = new Server("test", new MockMessage(new EventEmitter<string, any>()));
+    const service = new ValueService(server.group("value"), new MessageQueue());
+    const runtime = { pushValueUpdate: vi.fn().mockResolvedValue(undefined) };
+    service.init(runtime as unknown as RuntimeService);
+    return { service, runtime };
+  };
+  const script = { uuid: "uuid-1", metadata: {} } as Script;
+  const sendData = (tabId: number) => ({
+    id: "id-1",
+    entries: [],
+    uuid: "uuid-1",
+    storageName: "store",
+    sender: { runFlag: "", tabId },
+    valueUpdated: true,
+  });
+
+  it("直接交给 Port 索引投递，发起方 tabId 不影响选择", async () => {
+    const { service, runtime } = setup();
+
+    await service.pushValueUpdate(script, sendData(1));
+    await service.pushValueUpdate(script, sendData(-1));
+
+    expect(runtime.pushValueUpdate).toHaveBeenNthCalledWith(1, script, sendData(1));
+    expect(runtime.pushValueUpdate).toHaveBeenNthCalledWith(2, script, sendData(-1));
   });
 });

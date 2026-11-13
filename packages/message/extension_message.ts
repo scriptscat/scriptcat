@@ -1,6 +1,7 @@
 import EventEmitter from "eventemitter3";
 import type { Message, MessageConnect, MessageSend, RuntimeMessageSender, TMessage, TMessageCommAction } from "./types";
 import { uuidv4 } from "@App/pkg/utils/uuid";
+import { MessageResponseLostError } from "./errors";
 
 const listenerMgr = new EventEmitter<string, any>(); // 单一管理器
 
@@ -17,15 +18,14 @@ export class ExtensionMessage implements Message {
 
   // 发送消息 注意不进行回调的内存泄漏
   sendMessage<T = any>(data: TMessage): Promise<T> {
-    return new Promise((resolve: ((value: T) => void) | null) => {
+    return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(data, (resp: T) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.runtime.sendMessage:", lastError);
-          // 通信API出错不回继续对话
+          reject(new MessageResponseLostError(lastError.message || "Extension message delivery failed"));
+          return;
         }
-        resolve!(resp);
-        resolve = null;
+        resolve(resp);
       });
     });
   }

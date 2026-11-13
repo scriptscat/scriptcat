@@ -4,7 +4,7 @@ import { createContext, createProxyContext } from "./create_context";
 import type { GMInfoEnv, ScriptFunc } from "./types";
 import { compileScript, isContextMenuScript } from "./utils";
 import type { Message } from "@Packages/message/types";
-import type { ValueUpdateDataEncoded } from "./types";
+import type { ValueSnapshot, ValueUpdateDataEncoded } from "./types";
 import { evaluateGMInfo } from "./gm_api/gm_info";
 import type { IGM_Base } from "./gm_api/gm_api";
 import type { TScriptInfo } from "@App/app/repo/scripts";
@@ -74,8 +74,12 @@ export default class ExecScript {
     this.sandboxContext?.emitEvent(event, eventId, data);
   }
 
-  valueUpdate(data: ValueUpdateDataEncoded) {
-    this.sandboxContext?.valueUpdate(data);
+  valueUpdate(data: ValueUpdateDataEncoded): void | Promise<void> {
+    return this.sandboxContext?.valueUpdate(data);
+  }
+
+  valueSnapshot(snapshot: ValueSnapshot) {
+    this.sandboxContext?.valueSnapshot(snapshot);
   }
 
   execContext: any;
