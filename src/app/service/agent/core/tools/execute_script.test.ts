@@ -32,6 +32,43 @@ describe("execute_script 工具", () => {
     });
   });
 
+  describe("运行环境限制", () => {
+    it("sandbox 限制应同步收窄 schema 并拒绝 page 执行", async () => {
+      const deps = makeDeps();
+      const { definition, executor } = createExecuteScriptTool(deps, { allowedTargets: ["sandbox"] });
+      const parameters = definition.parameters as {
+        properties: { target: { enum?: string[]; description?: string } };
+      };
+      const target = parameters.properties.target;
+
+      expect(target.enum).toEqual(["sandbox"]);
+      expect(target.description).not.toContain("page");
+      expect(parameters.properties).not.toHaveProperty("tab_id");
+      await expect(executor.execute({ code: "return 1", target: "page" })).rejects.toThrow(
+        'target="page" is not available'
+      );
+      expect(deps.executeInPage).not.toHaveBeenCalled();
+      expect(deps.executeInSandbox).not.toHaveBeenCalled();
+    });
+
+    it("page 限制应同步收窄 schema 并拒绝 sandbox 执行", async () => {
+      const deps = makeDeps();
+      const { definition, executor } = createExecuteScriptTool(deps, { allowedTargets: ["page"] });
+      const parameters = definition.parameters as {
+        properties: { target: { enum?: string[]; description?: string } };
+      };
+      const target = parameters.properties.target;
+
+      expect(target.enum).toEqual(["page"]);
+      expect(target.description).not.toContain("sandbox");
+      await expect(executor.execute({ code: "return 1", target: "sandbox" })).rejects.toThrow(
+        'target="sandbox" is not available'
+      );
+      expect(deps.executeInPage).not.toHaveBeenCalled();
+      expect(deps.executeInSandbox).not.toHaveBeenCalled();
+    });
+  });
+
   describe("page 模式", () => {
     it.concurrent("应调用 executeInPage 并返回结果", async () => {
       const mockExecuteInPage = vi.fn().mockResolvedValue({ result: { count: 5 }, tabId: 42 });
