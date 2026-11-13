@@ -168,10 +168,14 @@ export class ValueService {
       valueUpdated,
     } as ValueUpdateDataEncoded;
     this.pushValueUpdate(script, sendData);
+    return sendData;
   }
 
-  setScriptValues(params: Pick<TSetValuesParams, "uuid" | "keyValuePairs" | "isReplace" | "ts">, _sender: IGetSender) {
-    return this.setValues(params);
+  async setScriptValues(
+    params: Pick<TSetValuesParams, "uuid" | "keyValuePairs" | "isReplace" | "ts">,
+    _sender: IGetSender
+  ) {
+    await this.setValues(params);
   }
 
   init(runtime: RuntimeService, popup: PopupService) {

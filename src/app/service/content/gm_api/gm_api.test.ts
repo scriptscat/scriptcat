@@ -689,6 +689,46 @@ describe.concurrent("GM_value", () => {
     });
   });
 
+  // 不属于任何标签页的 frame（如扩展页面里内嵌的网页）无法用 tabs.sendMessage 投递，SW 把本次更新随应答带回；
+  // 否则 GM.setValue 的 Promise 永远等不到回执
+  it.concurrent.each(["GM.setValue", "GM.setValues"])(
+    "%s 的应答带回本次更新时，Promise 完成并触发本脚本的监听",
+    async (api) => {
+      const script = Object.assign({}, scriptRes, { value: {} }) as ScriptLoadInfo;
+      script.metadata = { ...script.metadata, grant: [api, "GM_addValueChangeListener"] };
+      const call = api === "GM.setValue" ? `GM.setValue("k", "v")` : `GM.setValues({ k: "v" })`;
+      script.code = `
+    const changes = [];
+    GM_addValueChangeListener("k", (name, oldValue, newValue, remote) => changes.push([name, oldValue, newValue, remote]));
+    await ${call};
+    return changes;
+    `;
+      const mockSendMessage = vi
+        .fn()
+        .mockImplementation(async (msg: { data: { params: [string]; runFlag: string } }) => ({
+          code: 0,
+          data: {
+            id: msg.data.params[0],
+            entries: [["k", encodeRValue("v"), encodeRValue(undefined)]],
+            uuid: script.uuid,
+            storageName: script.uuid,
+            sender: { runFlag: msg.data.runFlag, tabId: -1 },
+            valueUpdated: true,
+          },
+        }));
+      const exec = new ExecScript(script, {
+        envPrefix: "scripting",
+        message: { sendMessage: mockSendMessage } as unknown as Message,
+        contentMsg: undefined as any,
+        code: nilFn,
+        envInfo,
+      });
+      exec.scriptFunc = compileScript(compileScriptCode(script));
+
+      await expect(exec.exec()).resolves.toEqual([["k", undefined, "v", false]]);
+    }
+  );
+
   it.concurrent("value引用问题 #1141", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = {};

@@ -5,3 +5,5 @@ export const CACHE_KEY_TAB_LOADED = "tabLoaded:";
 export const CACHE_KEY_SET_VALUE = "setValue:";
 export const CACHE_KEY_PERMISSION = "permission:";
 export const CACHE_KEY_SKILL_INSTALL = "skillInstall:"; // Skill ZIP 待安装数据缓存
+// 值更新投递表：某 tab 里各 frame 运行着哪些 storageName，SW 重启后据此恢复
+export const CACHE_KEY_VALUE_UPDATE_TARGETS = "valueUpdateTargets:";

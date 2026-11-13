@@ -6,6 +6,7 @@ import { RuntimeClient } from "../service_worker/client";
 import { getStorageName, makeBlobURL } from "@App/pkg/utils/utils";
 import type { Logger } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
+import LoggerUtil from "@App/app/logger/logger";
 import type { ValueUpdateDataEncoded } from "./types";
 
 const PageOrContent = {
@@ -15,11 +16,6 @@ const PageOrContent = {
 } as const;
 
 type PageOrContent = ValueOf<typeof PageOrContent>;
-
-// For Firefox, StorageArea.setAccessLevel is not implemented.
-// See https://bugzilla.mozilla.org/show_bug.cgi?id=1724754
-// const deliveryStorage = isFirefox() ? chrome.storage.local : chrome.storage.session;
-const deliveryStorage = chrome.storage.local; // 日后再处理
 
 // scripting页的处理
 export default class ScriptingRuntime {
@@ -54,35 +50,23 @@ export default class ScriptingRuntime {
       // 转发给inject和content
       return this.broadcastToPage("runtime/emitEvent", data);
     });
-    this.extServer.on("runtime/valueUpdate", (data) => {
-      // 转发给inject和content
-      return this.broadcastToPage("runtime/valueUpdate", data);
-    });
-    this.server.on("logger", (data: Logger) => {
-      LoggerCore.logger().log(data.level, data.message, data.label);
-    });
-
-    // ================================
-    // 来自 service_worker 的投递：storage 广播（类似 UDP）
-    // ================================
-
-    // 接收 service_worker 的 chrome.storage.local 值改变通知 （一对多广播）
-    // 类似 UDP 原理，service_worker 不会有任何「等待处理」
-    // 由于 changes 会包括新旧值 (Chrome: JSON serialization, Firefox: Structured Clone)
-    // 因此需要注意资讯量不要过大导致 onChanged 的触发过慢
-    deliveryStorage.onChanged.addListener((changes) => {
-      const record = changes["valueUpdateDelivery"];
-      if (record?.newValue) {
-        const sendData = (record.newValue as { sendData: ValueUpdateDataEncoded }).sendData;
+    // 单向通知：SW 不需要回执（GM.setValue 的回执靠更新里的 id），省掉每个 frame 的一次回包
+    this.extServer.onNotify("runtime/valueUpdates", (list: ValueUpdateDataEncoded[]) => {
+      for (const data of list) {
+        // SW 整页投递时，没有运行该脚本的 frame 也会收到，需按 storageName 过滤；
+        // pageLoad 返回前还不知道本 frame 运行哪些脚本，两侧都转发
         const activeOn =
           this.activeStorageNames === null
             ? PageOrContent.PAGE_AND_CONTENT
-            : this.activeStorageNames.get(sendData.storageName);
-        if (activeOn) {
-          // 转发给 content 和 inject
-          this.broadcastToPage("runtime/valueUpdate", sendData, activeOn);
-        }
+            : this.activeStorageNames.get(data.storageName);
+        if (!activeOn) continue;
+        this.broadcastToPage("runtime/valueUpdate", data, activeOn).catch((e) => {
+          LoggerCore.logger().error("forward value update failed", { storageName: data.storageName }, LoggerUtil.E(e));
+        });
       }
+    });
+    this.server.on("logger", (data: Logger) => {
+      LoggerCore.logger().log(data.level, data.message, data.label);
     });
 
     forwardMessage("serviceWorker", "script/isInstalled", this.server, this.senderToExt);
@@ -148,14 +132,15 @@ export default class ScriptingRuntime {
 
   pageLoad() {
     const client = new RuntimeClient(this.senderToExt);
-    // bfcache 还原不会重新执行 content script，pageLoad 因此只发生一次；
-    // 但页面里的脚本仍在运行，需要补一次上报，否则 Popup 会误判本页没有脚本在跑。
-    // 只有顶层 frame 参与判定，子 frame 不必上报。
-    if (window.top === window) {
-      window.addEventListener("pageshow", (e) => {
-        if (e.persisted) client.pageShow();
-      });
-    }
+    // bfcache 还原不会重新执行 content script，pageLoad 因此只发生一次；但页面里的脚本仍在运行，需要补一次上报：
+    // 顶层 frame 让 Popup 不误判本页没有脚本在跑；运行着脚本的每个 frame 都带上 storageName，
+    // 重新登记值更新投递（离开本页时已被新页面的 pageLoad 清掉）
+    const isTop = window.top === window;
+    window.addEventListener("pageshow", (e) => {
+      if (!e.persisted) return;
+      const storageNames = this.activeStorageNames ? [...this.activeStorageNames.keys()] : [];
+      if (isTop || storageNames.length) client.pageShow(storageNames);
+    });
     // 向service_worker请求脚本列表及环境信息
     client.pageLoad().then((o) => {
       if (!o.ok) return;

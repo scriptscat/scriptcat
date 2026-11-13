@@ -145,6 +145,52 @@ describe("window.focus", () => {
   });
 });
 
+// 发起写入的 document 可能还没在值更新投递表里登记（页面早期写值），
+// 需要靠 sender 上的 frame 信息单独投递回执，否则该页的 GM.setValue Promise 等不到完成
+describe.each(["GM_setValue", "GM_setValues"] as const)("%s 的写入来源", (api) => {
+  it("valueSender 带上发起写入的标签页、frame 与 document", async () => {
+    const setValues = vi.fn().mockResolvedValue(undefined);
+    const gmApi = Object.create(GMApi.prototype) as GMApi;
+    (gmApi as unknown as { value: unknown }).value = { setValues };
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 11 } as chrome.tabs.Tab, frameId: 3, documentId: "doc-3" });
+    const params = api === "GM_setValue" ? ["id-1", "k", "v"] : ["id-1", [["k", "v"]]];
+
+    await gmApi[api]({ script: { uuid: "uuid-1" }, params, runFlag: "flag" } as never, sender);
+
+    expect(setValues.mock.calls[0][0].valueSender).toEqual({
+      runFlag: "flag",
+      tabId: 11,
+      frameId: 3,
+      documentId: "doc-3",
+    });
+  });
+
+  // 不属于任何标签页的网页 frame（如扩展页面里内嵌的网页）收不到 tabs.sendMessage 投递，本次更新只能随应答带回；
+  // 标签页里的 frame 由投递送达，后台脚本（offscreen 扩展页）由 offscreen 投递送达，二者都不能再带，否则会处理两遍
+  it.each([
+    ["不属于任何标签页的网页 frame", { frameId: 0, url: "https://embedded.test/" }, true],
+    ["tab.id 为 TAB_ID_NONE 的网页 frame", { tab: { id: -1 }, frameId: 0, url: "https://embedded.test/" }, true],
+    ["标签页里的 frame", { tab: { id: 11 }, frameId: 0, url: "https://page.test/" }, false],
+    ["offscreen 扩展页（后台脚本）", { frameId: 0, url: "chrome-extension://ext-id/src/offscreen.html" }, false],
+  ])("%s 发起写入时，应答是否带回本次更新", async (_label, chromeSender, carries) => {
+    vi.spyOn(chrome.runtime, "getURL").mockImplementation(
+      ((path: string) => `chrome-extension://ext-id${path}`) as never
+    );
+    const update = { id: "id-1" };
+    const gmApi = Object.create(GMApi.prototype) as GMApi;
+    (gmApi as unknown as { value: unknown }).value = { setValues: vi.fn().mockResolvedValue(update) };
+    const sender = makeSender();
+    sender.getSender = () => chromeSender as chrome.runtime.MessageSender;
+    const params = api === "GM_setValue" ? ["id-1", "k", "v"] : ["id-1", [["k", "v"]]];
+
+    const ret = await gmApi[api]({ script: { uuid: "uuid-1" }, params, runFlag: "flag" } as never, sender);
+
+    expect(ret).toBe(carries ? update : undefined);
+    vi.restoreAllMocks();
+  });
+});
+
 describe.concurrent("mergeCookieHeader（GM_xmlhttpRequest 非 anonymous 的 cookie 合并）", () => {
   it.concurrent("同名 cookie 应以脚本自定义值覆盖已有 cookie，而非追加（TM #2754）", () => {
     const result = mergeCookieHeader("data=2", [{ name: "data", value: "1" }]);

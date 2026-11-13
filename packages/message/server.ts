@@ -111,6 +111,7 @@ export class SenderRuntime {
 
 type ApiFunction = (params: any, con: IGetSender) => Promise<any> | any | void;
 type ApiFunctionSync = (params: any, con: IGetSender) => any;
+type NotifyFunction = (params: any, con: IGetSender) => void | Promise<void>;
 type MiddlewareFunction = (params: any, con: IGetSender, next: () => Promise<any> | any) => Promise<any> | any;
 
 const formatErrorToClient = (e: any) => {
@@ -128,6 +129,7 @@ const formatErrorToClient = (e: any) => {
 
 export class Server {
   private apiFunctionMap: Map<string, ApiFunction> = new Map();
+  private notifyFunctionMap: Map<string, NotifyFunction> = new Map();
 
   private logger = LoggerCore.getInstance().logger({ service: "messageServer" });
 
@@ -155,7 +157,10 @@ export class Server {
         if (typeof msg.action !== "string") return;
         this.logger.trace("server onMessage", { msg: msg as any });
         if (msg.action?.startsWith(prefix)) {
-          return this.messageHandle(msg.action.slice(prefix.length + 1), msg.data, sendResponse, sender);
+          const action = msg.action.slice(prefix.length + 1);
+          const notify = this.notifyFunctionMap.get(action);
+          if (notify) return this.notifyHandle(action, notify, msg.data, sender);
+          return this.messageHandle(action, msg.data, sendResponse, sender);
         }
       });
       return false;
@@ -167,10 +172,35 @@ export class Server {
   }
 
   on(name: string, func: ApiFunction) {
-    if (this.apiFunctionMap.has(name)) {
+    this.assertNotRegistered(name);
+    this.apiFunctionMap.set(name, func);
+  }
+
+  /**
+   * 注册单向通知：不回包，监听回调返回 false，发送端不必为它保留响应通道。
+   * 回包本身就是一次进程间消息，高频的一对多推送（如值更新）不需要回执时用它。
+   */
+  onNotify(name: string, func: NotifyFunction) {
+    this.assertNotRegistered(name);
+    this.notifyFunctionMap.set(name, func);
+  }
+
+  private assertNotRegistered(name: string) {
+    if (this.apiFunctionMap.has(name) || this.notifyFunctionMap.has(name)) {
       throw new Error(`duplicate message handler: ${this.prefix}/${name}`);
     }
-    this.apiFunctionMap.set(name, func);
+  }
+
+  private notifyHandle(action: string, func: NotifyFunction, params: any, sender: RuntimeMessageSender): false {
+    try {
+      const ret = func(params, new SenderRuntime(sender));
+      if (ret instanceof Promise) {
+        ret.catch((e: Error) => this.logger.error("notifyHandle error", { action }, Logger.E(e)));
+      }
+    } catch (e: any) {
+      this.logger.error("notifyHandle error", { action }, Logger.E(e));
+    }
+    return false;
   }
 
   private connectHandle(msg: string, params: any, con: MessageConnect) {

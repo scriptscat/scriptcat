@@ -240,6 +240,18 @@ export class ExtensionContentMessageSend implements MessageSend {
     }
   ) {}
 
+  /**
+   * 单向通知，配合接收端的 Server.onNotify。不能带回调：接收端不回包时回调形式必有 lastError，
+   * Promise 形式则在接收端的监听执行完后 resolve。目标不存在时 reject；调用本身被拒（如消息超过 64 MiB）时
+   * 与 chrome API 一样同步抛出。调用方依赖这一区分判断目标是否还在，所以这里不能改成 async 函数。
+   */
+  notify(data: TMessage): Promise<void> {
+    const sent = this.options
+      ? chrome.tabs.sendMessage(this.tabId, data, this.options)
+      : chrome.tabs.sendMessage(this.tabId, data);
+    return sent.then(() => undefined);
+  }
+
   sendMessage<T = any>(data: TMessage): Promise<T> {
     return new Promise((resolve) => {
       if (!this.options?.documentId && !this.options?.frameId) {
