@@ -4,7 +4,7 @@ import { initTestEnv } from "@Tests/utils";
 import type FileSystem from "@Packages/filesystem/filesystem";
 import type { FileInfo } from "@Packages/filesystem/filesystem";
 import { FileSystemError } from "@Packages/filesystem/error";
-import type { CloudSyncConfig, SystemConfig } from "@App/pkg/config/config";
+import { SystemConfig, type CloudSyncConfig } from "@App/pkg/config/config";
 import type { ScriptDAO } from "@App/app/repo/scripts";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { md5OfText } from "@App/pkg/utils/crypto";
@@ -13,6 +13,8 @@ import { AgentModelRepo } from "@App/app/repo/agent_model";
 import ChromeStorage from "@App/pkg/config/chrome_storage";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
 import { cacheInstance } from "@App/app/cache";
+import { MessageQueue } from "@Packages/message/message_queue";
+import { defaultConfig as eslintDefaultConfig } from "@Packages/eslint/linter-config";
 
 initTestEnv();
 
@@ -163,6 +165,70 @@ describe("SynchronizeService", () => {
     expect(bundle.systemConfig).toMatchObject({ menu_expand_num: 8 });
     expect(bundle.systemConfig.language).toBeUndefined();
     expect((bundle.systemConfig as any).sync).toBeUndefined();
+  });
+
+  it("V1 object envelope 备份恢复后保留 resolved 配置", async () => {
+    const config = new SystemConfig(new MessageQueue());
+    const modified = JSON.parse(eslintDefaultConfig);
+    modified.rules["no-debugger"] = ["off"];
+    config.setEslintConfig(JSON.stringify(modified));
+    await vi.waitFor(async () => {
+      const stored = await chrome.storage.sync.get("system_eslint_config");
+      expect(stored.system_eslint_config).toEqual({
+        format: "scriptcat-json-overrides",
+        version: 1,
+        overrides: { rules: { "no-debugger": ["off"] } },
+      });
+    });
+
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { scriptCodeDAO: {} } as any
+    );
+    const bundle = await service.getConfigBundle();
+    expect(bundle.systemConfig.eslint_config).toEqual({
+      format: "scriptcat-json-overrides",
+      version: 1,
+      overrides: { rules: { "no-debugger": ["off"] } },
+    });
+
+    await chrome.storage.sync.clear();
+    await service.restoreConfigBundle(bundle);
+    await expect(new SystemConfig(new MessageQueue()).getEslintConfig()).resolves.toBe(
+      JSON.stringify(modified, null, 2)
+    );
+  });
+
+  it("legacy string 备份恢复后保持 raw representation 并按 legacy 语义解析", async () => {
+    const legacy = JSON.parse(eslintDefaultConfig);
+    legacy.rules["no-debugger"] = ["off"];
+    const legacyString = JSON.stringify(legacy);
+    await chrome.storage.sync.set({ system_eslint_config: legacyString });
+
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { scriptCodeDAO: {} } as any
+    );
+    const bundle = await service.getConfigBundle();
+    expect(bundle.systemConfig.eslint_config).toBe(legacyString);
+
+    await chrome.storage.sync.clear();
+    await service.restoreConfigBundle(bundle);
+    const restored = await chrome.storage.sync.get("system_eslint_config");
+    expect(restored.system_eslint_config).toBe(legacyString);
+    await expect(new SystemConfig(new MessageQueue()).getEslintConfig()).resolves.toBe(JSON.stringify(legacy, null, 2));
   });
 
   it("restoreConfigBundle 把 systemConfig 键写回 sync storage", async () => {
