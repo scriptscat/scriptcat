@@ -393,35 +393,6 @@ const isUrlMatchRegEx = (s: string, ruleContent: [string, string]): boolean => {
   return new RegExp(ruleContent[0], ruleContent[1] || "i").test(s);
 };
 
-export const addMatchesToGlobs = (matches: URLRuleEntry[], globs: string[]): void => {
-  for (const rule of matches) {
-    if (rule.ruleType !== 1) continue;
-    const [scheme0, host, path] = rule.ruleContent as string[];
-    const scheme = scheme0 === "*" ? "http*" : scheme0;
-    if (host.charAt(0) !== ".") {
-      globs.push(`${scheme}://${host}/${path}`);
-    } else {
-      const h = host.substring(1);
-      globs.push(`${scheme}://${h}/${path}`);
-      globs.push(`${scheme}://*.${h}/${path}`);
-    }
-  }
-};
-
-export const extractMatchPatternsFromGlobs = (globs: string[]): (string | null)[] => {
-  return globs.map((glob) => {
-    if (glob.startsWith("http*://")) {
-      glob = `*://${glob.substring(8)}`;
-    }
-    const extMatch = checkUrlMatch(glob);
-    if (!extMatch) return null;
-    const [scheme, host] = extMatch;
-    // glob 的 *.google.com 可以匹配 www.google.com 跟 my-website.com/abc.google.com
-    if (host.charAt(0) === ".") return null;
-    return `${scheme}://${host}/*`;
-  });
-};
-
 export const extractSchemesOfGlobs = (globs: string[]): string[] => {
   const set = new Set(["*://*/*"]);
   for (const glob of globs) {
@@ -456,97 +427,66 @@ export const isRegistrableMatchPattern = (pattern: string) => {
   return rule?.ruleType === RuleType.MATCH_INCLUDE && isApiSupportedMatchPattern(rule.patternString);
 };
 
+// userScripts API 要求 matches 非空。脚本只有 glob 时用一个不可能有页面的地址占位（.invalid 是 RFC 6761 保留域名），
+// 注册范围完全由 includeGlobs 决定
+export const PLACEHOLDER_MATCH_PATTERN = "*://scriptcat.invalid/*";
+
+const isApiSupportedGlob = (glob: string) => {
+  const m = /^([-\w]+):\/\//.exec(glob);
+  return !m || isApiSupportedMatchPattern(`${m[1]}://*/*`);
+};
+
+/**
+ * 把脚本的 URL 规则转换成 userScripts API 的 matches / includeGlobs。
+ *
+ * Chrome 与 Firefox（134+）都把 matches 与 includeGlobs 取并集：网址命中任一即注入，而不是先 matches 再用
+ * includeGlobs 过滤。所以 matches 只能放脚本真正的 match pattern，一旦放入全站 pattern，includeGlobs 就收不住范围，
+ * 脚本代码会被注入到所有页面（#1803）。
+ *
+ * 正则 @include 能抽出 scheme://网域 时转成网域级 glob（比正则宽，页面里再按正则过滤）；抽不出时只能全站注册，
+ * 以 regexUnbounded 告知调用方。
+ */
 export const getApiMatchesAndGlobs = (scriptUrlPatterns: URLRuleEntry[]) => {
-  const urlMatching = scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_INCLUDE);
-  const urlSpecificMatching = urlMatching.filter((e) => e.patternString !== "*://*/*");
-  let matchAll: string[] | null = null;
-
-  // 原始的UrlPatterns中，match pattern 为空，或包括至少一个 *://*/* match pattern 时，先预设 match 为 *://*/*
-  // 之后会再判断，例如追加 file:///*
-  if (urlSpecificMatching.length === 0 || urlSpecificMatching.length !== urlMatching.length) {
-    matchAll = ["*://*/*"]; // 包含 https 和 http
-  }
-
-  let regConvFallback = false;
-  let regConvTryExtractDomain = false;
-  const apiIncludeGlobs = toUniquePatternStrings(scriptUrlPatterns.filter((e) => e.ruleType === RuleType.GLOB_INCLUDE));
-  const rulesForRegexInclude = scriptUrlPatterns.filter((e) => e.ruleType === RuleType.REGEX_INCLUDE);
-
-  // 含有 regex 时，先转化成 glob pattern 再决定如何配合 UserScript API 的 match/glob pattern 注入
-  if (rulesForRegexInclude.length > 0) {
-    for (const rule of rulesForRegexInclude) {
-      // 尝试利用JS代码，先把 regex pattern 转至 glob pattern, 最终尝试转化成 match pattern
-      let globPattern = regexToGlob(rule.ruleContent[0]);
-      if (globPattern !== null) {
-        let m: RegExpExecArray | null = null;
-        if ((m = /^([-_a-z0-9.:*?]+)$/.exec(globPattern))) {
-          // 非网域的简单 globPattern (*apple*, *apple.com*)
-          // globPattern = globPattern;
-          regConvFallback = true;
-        } else if ((m = /^([-a-z*?]+):\/\/([-_a-z0-9.:*?]+)(\/|$)/.exec(globPattern))) {
-          // 简单 globPattern, 提取网域 ( *://www.google.com/search?q=*, https://www.apple.com/page=?1&g= )
-          globPattern = `${m[1]}://${m[2]}/*`;
-          regConvTryExtractDomain = true; // 会尝试转化成 match pattern
-        } else {
-          // 其他 globPattern, 不转换成 glob pattern
-          globPattern = "*://*/*";
-          regConvFallback = true;
-        }
-      } else {
-        // regex pattern 转至 glob pattern
-        globPattern = "*://*/*";
-        regConvFallback = true;
-      }
-
-      if (apiIncludeGlobs.includes(globPattern)) {
-        // 已存在，不重复添加
-        continue;
-      }
-      apiIncludeGlobs.push(globPattern);
-    }
-  }
-
-  // 由于有 glob pattern, 会先假设需要全域匹配，确保 UserScript API 的注入有效
-  if (apiIncludeGlobs.length > 0 && !matchAll) matchAll = ["*://*/*"];
-
-  // 为了改变现有的 match pattern, 现有的 match pattern 全部转换至 glob pattern, 并添加在目前的 globs
-  if (matchAll && urlSpecificMatching.length > 0) {
-    addMatchesToGlobs(urlSpecificMatching, apiIncludeGlobs);
-  }
-
-  // 有 globs 的情况下，需要进一步解析 globs 的规则，来决定
-  // 1) globs 能充分转换成 match 网域 -> 缩小match范围
-  // 2) globs 包含 http/https 以外的 scheme -> 增加match范围
-  let apiMatches = null;
-  if (apiIncludeGlobs.length > 0) {
-    let matches = null;
-    // 有 regex pattern 换成 glob pattern 的情况下，进一步分析 match pattern 的网域
-    if (regConvTryExtractDomain && !regConvFallback) {
-      // 有 regex pattern 换成 glob pattern, 且没有 fallback 的 regex pattern
-      matches = new Set(extractMatchPatternsFromGlobs(apiIncludeGlobs));
-      // 如果有部份glob无法抽出网域资料，维持 matchAll
-      if (matches.has(null) || matches.size === 0) matches = null;
-    }
-    if (matches !== null) {
-      // 所有 globs 能提取成 match 网域, 不用匹配所有网域
-      apiMatches = [...matches] as string[];
-    } else {
-      // match 需要匹配所有网域
-      // 如有 file:///* 之类，追加至 *://*/*
-      matchAll = extractSchemesOfGlobs(apiIncludeGlobs);
-    }
-  }
-
-  if (apiMatches === null) {
-    // 如没有特定要求（ apiMatches 及 matchAll 皆为 null ），则探用原有的match
-    apiMatches = matchAll || toUniquePatternStrings(urlSpecificMatching);
-  }
-
-  return {
-    // 放在最后过滤：过滤后为空时调用方会不注册该脚本；若提前过滤，上面的逻辑会把空列表当成「无 match」退回 *://*/*
-    matches: apiMatches.filter(isApiSupportedMatchPattern), // primary
-    includeGlobs: apiIncludeGlobs, // includeGlobs applied after matches
+  const includeGlobs: string[] = [];
+  const addGlob = (glob: string) => {
+    if (includeGlobs.includes(glob)) return;
+    includeGlobs.push(glob);
+    // 浏览器拿带 #hash 的完整网址匹配 glob，脚本猫的匹配会先去掉 hash；不以 * 结尾的 glob 需要补上 hash 的情况
+    if (!glob.endsWith("*")) includeGlobs.push(`${glob}#*`);
   };
+  for (const glob of toUniquePatternStrings(scriptUrlPatterns.filter((e) => e.ruleType === RuleType.GLOB_INCLUDE))) {
+    if (isApiSupportedGlob(glob)) addGlob(glob);
+  }
+
+  let regexUnbounded = false;
+  for (const rule of scriptUrlPatterns) {
+    if (rule.ruleType !== RuleType.REGEX_INCLUDE) continue;
+    // 正则默认忽略大小写，而 glob 区分大小写；只取 scheme 与网域，转小写后与浏览器规范化的网址一致
+    const glob = regexToGlob(rule.ruleContent[0])?.toLowerCase();
+    const m = glob ? /^([-a-z*?]+):\/\/([-_a-z0-9.:*?]+)(\/|$)/.exec(glob) : null;
+    if (m) {
+      addGlob(`${m[1]}://${m[2]}/*`);
+    } else {
+      regexUnbounded = true;
+    }
+  }
+
+  const matches = toUniquePatternStrings(scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_INCLUDE));
+  // 非 http 的 glob（如 file:///）沿用整个 scheme 的 match pattern
+  for (const pattern of extractSchemesOfGlobs(includeGlobs)) {
+    if (pattern !== "*://*/*" && !matches.includes(pattern)) matches.push(pattern);
+  }
+  const apiMatches = matches.filter(isApiSupportedMatchPattern);
+
+  if (regexUnbounded && !apiMatches.includes("*://*/*")) {
+    return {
+      matches: ["*://*/*", ...apiMatches.filter((pattern) => !/^(\*|https?):\/\//.test(pattern))],
+      includeGlobs: [],
+      regexUnbounded: true,
+    };
+  }
+  if (apiMatches.length === 0 && includeGlobs.length > 0) apiMatches.push(PLACEHOLDER_MATCH_PATTERN);
+  return { matches: apiMatches, includeGlobs, regexUnbounded: false };
 };
 
 export type EmbeddedURLRuleEntry = Pick<URLRuleEntry, "ruleType" | "ruleContent">;

@@ -347,6 +347,31 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
     expect(unregisterSpy).toHaveBeenCalledWith([script.uuid]);
   });
 
+  it.concurrent(
+    "正则 @include 收不窄的脚本改随 pageLoad 下发：记入 CompiledResource 并注销旧注册，不再注册",
+    async () => {
+      const { runtime, mockScriptService } = createRuntimeTestContext();
+      (runtime as any).resource = {
+        getScriptResourceValueByType: vi.fn().mockResolvedValue({ require: {}, "require-css": {}, resource: {} }),
+      };
+      runtime.isUserScriptsAvailable = true;
+      const script = createMockScript({
+        metadata: { include: ["/live\\.bilibili\\.com/"] },
+        status: SCRIPT_STATUS_ENABLE,
+      });
+      mockScriptService.buildScriptRunResource.mockResolvedValue(createScriptRunResource(script));
+      const saveSpy = vi.spyOn(runtime.compiledResourceDAO, "save").mockResolvedValue(undefined as never);
+      const unregisterSpy = vi.spyOn(runtime, "unregistryPageScripts").mockResolvedValue(undefined);
+      const loadSpy = vi.spyOn(runtime, "loadPageScript").mockResolvedValue(undefined);
+
+      await runtime.updateResourceOnScriptChange(script);
+
+      expect(saveSpy).toHaveBeenCalledWith(expect.objectContaining({ uuid: script.uuid, deliverOnPageLoad: true }));
+      expect(unregisterSpy).toHaveBeenCalledWith([script.uuid]);
+      expect(loadSpy).not.toHaveBeenCalled();
+    }
+  );
+
   describe.concurrent("includeDisabled 选项", () => {
     it.concurrent("当 includeDisabled=false 时不返回禁用脚本；当 includeDisabled=true 时返回禁用脚本", async () => {
       // Arrange
@@ -523,6 +548,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
         runAt: "document-idle",
         scriptUrlPatterns: patterns.scriptUrlPatterns,
         originalUrlPatterns: null,
+        deliverOnPageLoad: false,
       };
 
       const mockCompiledResourceDAO = {
@@ -983,6 +1009,7 @@ describe("getScriptsForTab 附加边界场景", () => {
       runAt: "document-idle",
       scriptUrlPatterns: patterns.scriptUrlPatterns,
       originalUrlPatterns: null,
+      deliverOnPageLoad: false,
     };
 
     const mockCompiledResourceDAO = {
@@ -1139,6 +1166,41 @@ describe("getScriptsForTab 附加边界场景", () => {
 
     expect(buildSpy).toHaveBeenCalledTimes(1);
     expect(result).not.toBeNull();
+  });
+
+  it("未预注册（deliverOnPageLoad）的脚本随 pageLoad 下发挂载 window[flag] 的注入代码", async () => {
+    const { runtime, scriptRes, compiledResource } = createFullContext();
+    compiledResource.deliverOnPageLoad = true;
+    await runtime.applyScriptMatchInfo(scriptRes);
+
+    const result = await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
+
+    const [info] = result!.injectScriptList;
+    expect(info.code.startsWith(`window['${info.flag}'] = function(){`)).toBe(true);
+    expect(info.code).toContain("// test");
+  });
+
+  it("已预注册的脚本 pageLoad 不携带代码", async () => {
+    const { runtime, scriptRes } = createFullContext();
+    await runtime.applyScriptMatchInfo(scriptRes);
+
+    const result = await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
+
+    expect(result!.injectScriptList[0].code).toBe("");
+  });
+
+  it.each([
+    [false, 1],
+    [true, 0],
+  ])("批量注册时 deliverOnPageLoad=%s 的脚本注册条数为 %i", async (deliverOnPageLoad, count) => {
+    const { runtime, script, compiledResource, mockScriptDAO } = createFullContext();
+    compiledResource.deliverOnPageLoad = deliverOnPageLoad;
+    (mockScriptDAO as any).all = vi.fn().mockResolvedValue([script]);
+    vi.spyOn(runtime, "restoreJSCodeFromCompiledResource").mockResolvedValue("window['flag'] = function(){}");
+
+    const list = await runtime.getParticularScriptList({ excludeMatches: [], excludeGlobs: [] });
+
+    expect(list).toHaveLength(count);
   });
 });
 
@@ -1422,6 +1484,7 @@ describe("restoreJSCodeFromCompiledResource 还原代码时的生效 metadata", 
       runAt: "document_idle",
       scriptUrlPatterns: scriptURLPatternResults(scriptRes)!.scriptUrlPatterns,
       originalUrlPatterns: null,
+      deliverOnPageLoad: false,
     };
     mockScriptService.buildScriptRunResource.mockResolvedValue(scriptRes);
     (runtime as any).script = {

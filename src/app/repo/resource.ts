@@ -83,7 +83,7 @@ export type CompiledResource = {
   uuid: string;
   require: string[]; // 仅存储url，节省空间
   matches: string[]; // primary
-  includeGlobs: string[]; // includeGlobs applied after matches
+  includeGlobs: string[]; // 浏览器与 matches 取并集，见 getApiMatchesAndGlobs
   excludeMatches: string[];
   excludeGlobs: string[];
   allFrames: boolean;
@@ -91,6 +91,8 @@ export type CompiledResource = {
   runAt: string;
   scriptUrlPatterns: URLRuleEntry[];
   originalUrlPatterns: URLRuleEntry[] | null;
+  // 不向浏览器预注册，注入代码由 pageLoad 按匹配结果下发（见 getUserScriptRegister）
+  deliverOnPageLoad: boolean;
 };
 
 export const ResourceNamespace = "76f45084-91b1-42c1-8be8-cbcc54b171f0";
@@ -110,7 +112,7 @@ export class ResourceDAO extends Repo<Resource> {
 }
 
 // CompiledResource结构或 matches 计算规则变更时，建议修改 CompiledResourceNamespace 以删除旧Cache
-export const CompiledResourceNamespace = "39a5eaa9-1cd2-446b-82b8-dd7bd3719f52";
+export const CompiledResourceNamespace = "8f0d6c1e-3b4a-4f55-9d2e-6a7c1b9e5f13";
 
 export class CompiledResourceDAO extends Repo<CompiledResource> {
   constructor() {
