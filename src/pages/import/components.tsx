@@ -101,7 +101,8 @@ export interface ImportView {
 const PILL = "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap";
 
 const COL = {
-  version: "w-[150px] shrink-0",
+  // 固定列必须允许内部收缩并裁剪，否则超长版本号会溢出覆盖下一列。
+  version: "w-[150px] min-w-0 shrink-0 overflow-hidden",
   source: "w-[150px] shrink-0",
   data: "w-24 shrink-0",
   status: "w-[92px] shrink-0",
@@ -266,19 +267,31 @@ export function OpBadge({ op }: { op: ImportOp }) {
 
 function VersionCell({ item }: { item: ScriptImportItem }) {
   if (item.op === "error") return <span className="text-muted-foreground">{"—"}</span>;
-  if (item.op === "update") {
-    return (
-      <div className="flex items-center gap-1.5 font-mono text-[13px]">
-        <span className="text-muted-foreground">{`v${item.oldVersion}`}</span>
-        <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" />
-        <span className="font-semibold text-primary">{`v${item.newVersion}`}</span>
-      </div>
-    );
-  }
+
+  const versionLabel = item.op === "update" ? `v${item.oldVersion} → v${item.newVersion}` : `v${item.newVersion}`;
+
   return (
-    <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 font-mono text-xs text-foreground">
-      {`v${item.newVersion}`}
-    </span>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div
+          aria-label={versionLabel}
+          className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden font-mono text-[13px]"
+        >
+          {item.op === "update" ? (
+            <>
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">{`v${item.oldVersion}`}</span>
+              <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate font-semibold text-primary">{`v${item.newVersion}`}</span>
+            </>
+          ) : (
+            <span className="min-w-0 max-w-full truncate rounded-md bg-muted px-2 py-0.5 text-xs text-foreground">
+              {versionLabel}
+            </span>
+          )}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent className="font-mono">{versionLabel}</TooltipContent>
+    </Tooltip>
   );
 }
 

@@ -91,6 +91,17 @@ describe("导入桌面视图 脚本表格", () => {
     expect(screen.getByText("v2.0.0")).toBeTruthy();
   });
 
+  it("长版本号限制在版本列内并可悬浮查看完整版本", () => {
+    const oldVersion = "1.32.7.113-20261114";
+    const newVersion = "1.32.7.113-20261114-hotfix";
+    renderDesktop({ scripts: [mkScriptItem({ op: "update", oldVersion, newVersion })] });
+
+    const trigger = screen.getByLabelText(`v${oldVersion} → v${newVersion}`);
+    expect(trigger.className).toContain("overflow-hidden");
+    expect(trigger.className).toContain("min-w-0");
+    expect(trigger.querySelectorAll(".truncate")).toHaveLength(2);
+  });
+
   it("解析失败脚本显示「解析失败」徽章、复选框禁用、无启用开关", () => {
     renderDesktop({
       scripts: [mkScriptItem({ id: "e1", op: "error", importable: false, enabled: false, error: "boom" })],
