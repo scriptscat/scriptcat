@@ -45,6 +45,7 @@ export interface IGM_Base {
   sendMessage(api: string, params: any[]): Promise<any>;
   connect(api: string, params: any[]): Promise<any>;
   valueUpdate(data: ValueUpdateDataEncoded): void;
+  valueSync(values: Record<string, unknown>): void;
   emitEvent(event: string, eventId: string, data: any): void;
 }
 
@@ -60,6 +61,11 @@ let valChangeCounterId = 0;
 let valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
 
 const valueChangePromiseMap = new Map<string, any>();
+
+// 本 world 发起的写入，其更新会经 RPC 响应和 Port 推送各到达一次，谁先到谁处理，后到的按 id 跳过。
+// 只记录处理过一次的 id；推送丢失时第二份永远不会到，所以限制数量，淘汰最早的。
+const handledOwnValueIds = new Set<string>();
+const HANDLED_OWN_VALUE_IDS_LIMIT = 1024;
 
 const execEnvInit = (execEnv: GMApi) => {
   if (!execEnv.contentEnvKey) {
@@ -176,6 +182,11 @@ class GM_Base implements IGM_Base {
       const valueStore = scriptRes.value;
       const remote = sender.runFlag !== this.runFlag;
       if (!remote && id) {
+        if (handledOwnValueIds.delete(id)) return;
+        handledOwnValueIds.add(id);
+        if (handledOwnValueIds.size > HANDLED_OWN_VALUE_IDS_LIMIT) {
+          handledOwnValueIds.delete(handledOwnValueIds.values().next().value!);
+        }
         const fn = valueChangePromiseMap.get(id);
         if (fn) {
           valueChangePromiseMap.delete(id);
@@ -198,6 +209,22 @@ class GM_Base implements IGM_Base {
           this.valueChangeListener.execute(key, oldValue, value, remote, sender.tabId);
         }
       }
+    }
+  }
+
+  // 重订阅补齐：快照只有最终值，逐键对比本地缓存，对变化的键更新并以 remote=true 触发监听
+  @GMContext.protected()
+  public valueSync(values: Record<string, unknown>) {
+    if (!this.scriptRes || !this.valueChangeListener) return;
+    const valueStore = this.scriptRes.value;
+    const encode = (value: unknown) => JSON.stringify(encodeRValue(value));
+    for (const key of new Set([...Object.keys(valueStore), ...Object.keys(values)])) {
+      const oldValue = valueStore[key];
+      const value = values[key];
+      if (encode(oldValue) === encode(value)) continue;
+      if (value === undefined) delete valueStore[key];
+      else valueStore[key] = value;
+      this.valueChangeListener.execute(key, oldValue, value, true, undefined);
     }
   }
 
@@ -292,9 +319,10 @@ export default class GMApi extends GM_Base {
     if (promise) {
       valueChangePromiseMap.set(id, promise);
     }
+    let params: [string, string] | [string, string, unknown];
     if (value === undefined) {
       delete a.scriptRes.value[key];
-      a.sendMessage("GM_setValue", [id, key]);
+      params = [id, key];
     } else {
       // 对object的value进行一次转化
       if (value && typeof value === "object") {
@@ -302,12 +330,9 @@ export default class GMApi extends GM_Base {
       }
       // customClone 可能返回 undefined
       a.scriptRes.value[key] = value;
-      if (value === undefined) {
-        a.sendMessage("GM_setValue", [id, key]);
-      } else {
-        a.sendMessage("GM_setValue", [id, key, value]);
-      }
+      params = value === undefined ? [id, key] : [id, key, value];
     }
+    a.sendMessage("GM_setValue", params).then((ret) => ret && a.valueUpdate(ret));
     return id;
   }
 
@@ -339,7 +364,7 @@ export default class GMApi extends GM_Base {
       // 避免undefined 等空值流失，先进行映射处理
       keyValuePairs.push([key, encodeRValue(value_)]);
     }
-    a.sendMessage("GM_setValues", [id, keyValuePairs]);
+    a.sendMessage("GM_setValues", [id, keyValuePairs]).then((ret) => ret && a.valueUpdate(ret));
     return id;
   }
 

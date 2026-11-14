@@ -13,7 +13,6 @@ import EventEmitter from "eventemitter3";
 import type { ResourceService } from "./resource";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
 import type { RuntimeService } from "./runtime";
-import type { PopupService } from "./popup";
 
 initTestEnv();
 
@@ -61,7 +60,7 @@ describe("回收站期间的数据冻结", () => {
     valueDAO = new ValueDAO();
     // 真实挂载 ValueService,使其订阅 deleteScripts
     const valueService = new ValueService(server.group("value"), mq);
-    valueService.init({} as RuntimeService, {} as PopupService);
+    valueService.init({} as RuntimeService);
     service = new ScriptService(
       systemConfig,
       server.group("script"),

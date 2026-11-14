@@ -5,9 +5,14 @@ import { type Value, ValueDAO } from "@App/app/repo/value";
 import { TrashScriptDAO } from "@App/app/repo/trash_script";
 import type { IGetSender, Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
-import { type PopupService } from "./popup";
 import { getStorageName } from "@App/pkg/utils/utils";
-import type { ValueUpdateDataEncoded, ValueUpdateDataREntry, ValueUpdateSender } from "../content/types";
+import type {
+  ValueSubscription,
+  ValueSubscriptionAck,
+  ValueUpdateDataEncoded,
+  ValueUpdateDataREntry,
+  ValueUpdateSender,
+} from "../content/types";
 import { type TDeleteScript } from "../queue";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { CACHE_KEY_SET_VALUE } from "@App/app/cache_key";
@@ -24,12 +29,14 @@ export type TSetValuesParams = {
   valueSender?: ValueUpdateSender;
 };
 
+// 毫秒时间戳 × 1000，并保证比上一次大：记录被删除后重建，新版本号仍大于页面里记着的旧版本
+const nextValueRevision = (prev = 0) => Math.max(Date.now() * 1000, prev + 1);
+
 export class ValueService {
   logger: Logger;
   scriptDAO: ScriptDAO = new ScriptDAO();
   valueDAO: ValueDAO = new ValueDAO();
   trashScriptDAO: TrashScriptDAO = new TrashScriptDAO();
-  private popup: PopupService | undefined;
   private runtime: RuntimeService | undefined;
 
   constructor(
@@ -46,7 +53,8 @@ export class ValueService {
     if (ret) {
       data = ret.data;
     }
-    const newValues = data;
+    // 复制一份再合并：data 是 ValueDAO 缓存里的记录本身，直接改会让默认值混进其他脚本的值并被持久化
+    const newValues = { ...data };
     // 和userconfig组装
     const { config } = script;
     if (config) {
@@ -99,7 +107,8 @@ export class ValueService {
     let oldValueRecord: ValueStore = {};
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
     const entries = [] as ValueUpdateDataREntry[];
-    const _flag = await stackAsyncTask<boolean>(cacheKey, async () => {
+    let revision = 0;
+    await stackAsyncTask<boolean>(cacheKey, async () => {
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
       if (!valueModel) {
         const now = Date.now();
@@ -151,9 +160,13 @@ export class ValueService {
             }
           }
         }
-        if (!changed) return false;
+        if (!changed) {
+          revision = valueModel.revision ?? 0;
+          return false;
+        }
         valueModel.data = dataModel; // 每次储存使用新参考
       }
+      revision = valueModel.revision = nextValueRevision(valueModel.revision);
       await this.valueDAO.save(storageName, valueModel);
       return true;
     });
@@ -166,16 +179,37 @@ export class ValueService {
       storageName,
       sender: valueSender,
       valueUpdated,
+      revision,
     } as ValueUpdateDataEncoded;
     this.pushValueUpdate(script, sendData);
+    // 写入方凭这份响应完成回执；Port 推送可能因 SW 重启、重连而丢失
+    return sendData;
+  }
+
+  // 与写入共用写锁，并且先登记订阅、再读版本：并发写入要么在登记前保存（已含在快照里），
+  // 要么在登记后保存（会推送给刚登记的 Port），不会两边都漏
+  subscribeSnapshot(sub: ValueSubscription, register: () => void): Promise<ValueSubscriptionAck> {
+    const { storageName } = sub;
+    return stackAsyncTask(`${CACHE_KEY_SET_VALUE}${storageName}`, async () => {
+      register();
+      const record = await this.valueDAO.get(storageName);
+      const revision = record?.revision ?? 0;
+      if (revision === sub.revision) return { storageName, revision };
+      // 按脚本计算：共用 storageName 的脚本，各自的用户配置默认值不同
+      const values: Record<string, ValueStore> = {};
+      for (const uuid of sub.uuids) {
+        const script = await this.scriptDAO.get(uuid);
+        if (script && getStorageName(script) === storageName) values[uuid] = await this.getScriptValue(script);
+      }
+      return { storageName, revision, values };
+    });
   }
 
   setScriptValues(params: Pick<TSetValuesParams, "uuid" | "keyValuePairs" | "isReplace" | "ts">, _sender: IGetSender) {
     return this.setValues(params);
   }
 
-  init(runtime: RuntimeService, popup: PopupService) {
-    this.popup = popup;
+  init(runtime: RuntimeService) {
     this.runtime = runtime;
     this.group.on("getScriptValue", this.getScriptValue.bind(this));
     this.group.on("setScriptValues", this.setScriptValues.bind(this));
