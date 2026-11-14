@@ -14,15 +14,27 @@
         border: 0;
         min-height: 150px;
       }
-      /* 桌面 popup 的窗口宽度由内容的内在宽度反推，宽度规则不能依赖视口：
+      /* Chrome 按文档根元素定宽，Firefox 的 action popup 按 body 的固有宽度定窗；
+         两处都固定 width 才能让两边的内在宽度恒为 360px (#1849)。
+         桌面 popup 的窗口宽度由内容的内在宽度反推，宽度规则不能依赖视口：
          曾用 @media (min-width) 在宽视口切到 width:100%，出现经典(非覆盖式)滚动条时
          视口会变成 360px + 滚动条宽而命中，Chrome 150 及以下据此算出的内在宽度趋近 0，
          popup 卡在 25px 细条(#1800)。
          固定 width 让内在宽度恒为 360px；min-width 的百分比不参与内在宽度，
          只在移动端(如 Edge Android)视口被强制撑满设备宽度时生效，消除右侧留白(#686)。 */
-      html {
+      html,
+      body {
         width: 360px;
         min-width: 100%;
+      }
+      /* Firefox 定窗宽时不计入经典(非覆盖式)滚动条：内容超过 popup 高度上限出现竖向滚动条后，
+         滚动条会挤占 360px 的视口，内容随之横向溢出。预留滚动条槽能让槽宽计入窗口宽度，
+         覆盖式滚动条的槽宽为 0，不受影响。
+         Chrome 会自行把滚动条宽加进窗口，且其定宽对规则改动敏感(#1800)，所以只对 Gecko 生效 (#1849)。 */
+      @supports (-moz-appearance: none) {
+        html {
+          scrollbar-gutter: stable;
+        }
       }
     </style>
   </head>
