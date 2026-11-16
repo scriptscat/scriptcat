@@ -1,7 +1,7 @@
 export const BrowserNoSupport = new Error("browserNoSupport");
 import type { SCMetadata, Script, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
-import { getMetadataStr, getTab, getUserConfigStr } from "@App/pkg/utils/utils";
+import { getMetadataStr, getTab, getUserConfigStr, isFirefox } from "@App/pkg/utils/utils";
 import type { ScriptMatchInfo } from "./types";
 import {
   compileInjectScript,
@@ -212,7 +212,14 @@ export function compileInjectionCode(
 
 // 构建userScript注册信息（忽略代码部份）
 export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
-  const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMatchInfo.scriptUrlPatterns);
+  const { matches, includeGlobs, regexUnbounded } = getApiMatchesAndGlobs(scriptMatchInfo.scriptUrlPatterns);
+  const { metadata } = scriptMatchInfo;
+  // 注册范围收不窄时，预注册等于把代码挂到所有页面（#1803）。改为不预注册，由 pageLoad 按匹配结果把注入代码下发给
+  // content，在 USER_SCRIPT world 插入页面（该 world 的 CSP 放行内联脚本，不受页面 CSP 限制）。例外仍全站预注册：
+  // early-start 要在页面脚本之前同步挂载、unwrap 注入即执行，都等不了 pageLoad；Firefox 的 USER_SCRIPT world
+  // 插入的 <script> 仍受页面 CSP 限制。
+  const deliverOnPageLoad =
+    regexUnbounded && !isEarlyStartScript(metadata) && !isScriptletUnwrap(metadata) && !isFirefox();
 
   const excludeMatches = toUniquePatternStrings(
     scriptMatchInfo.scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_EXCLUDE)
@@ -225,7 +232,7 @@ export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
     id: scriptMatchInfo.uuid,
     js: [{ code: "" }],
     matches: matches, // primary
-    includeGlobs: includeGlobs, // includeGlobs applied after matches
+    includeGlobs: includeGlobs, // 浏览器与 matches 取并集，见 getApiMatchesAndGlobs
     excludeMatches: excludeMatches,
     excludeGlobs: excludeGlobs,
     allFrames: !scriptMatchInfo.metadata["noframes"],
@@ -243,6 +250,7 @@ export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
 
   return {
     registerScript,
+    deliverOnPageLoad,
   };
 }
 

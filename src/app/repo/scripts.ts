@@ -136,6 +136,7 @@ export type TScriptInfo = Override<
     originalMetadata?: Partial<Record<string, string[]>>;
     resource: PageScriptResource;
     requireCssResource?: PageScriptResource;
+    // 只有不预注册（CompiledResource.deliverOnPageLoad）的脚本才非空：挂载 window[flag] 的注入代码，由 content 负责注入
     code: "" | string;
     sort?: number;
     flag: string;

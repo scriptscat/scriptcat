@@ -433,6 +433,44 @@ describe.concurrent("getUserScriptRegister", () => {
   });
 });
 
+// 正则 @include 收不窄时，预注册只能全站挂载代码（#1803）；改为由 pageLoad 按 service worker 的匹配结果下发代码
+describe("getUserScriptRegister 注册范围收不窄时改随 pageLoad 下发", () => {
+  const matchInfo = (include: string, metadata: SCMetadata = {}) =>
+    ({ uuid: "deliver", metadata, scriptUrlPatterns: extractUrlPatterns([`@include ${include}`]) }) as ScriptMatchInfo;
+  const UNBOUNDED_REGEX = "/live\\.bilibili\\.com/";
+
+  it("普通脚本的正则抽不出网域时不预注册，改随 pageLoad 下发", () => {
+    expect(getUserScriptRegister(matchInfo(UNBOUNDED_REGEX)).deliverOnPageLoad).toBe(true);
+  });
+
+  it("正则能收窄成网域 glob 时照常预注册", () => {
+    const result = getUserScriptRegister(matchInfo("/^https?:\\/\\/live\\.bilibili\\.com\\//"));
+
+    expect(result.deliverOnPageLoad).toBe(false);
+    expect(result.registerScript.includeGlobs).toEqual(["http*://live.bilibili.com/*"]);
+  });
+
+  it.each([
+    ["early-start（需在页面脚本之前同步挂载）", { "early-start": [""], "run-at": ["document-start"] }],
+    ["unwrap（注入即执行，自带网址判断）", { unwrap: [""] }],
+  ])("%s 脚本仍全站预注册", (_label, metadata) => {
+    const result = getUserScriptRegister(matchInfo(UNBOUNDED_REGEX, metadata));
+
+    expect(result.deliverOnPageLoad).toBe(false);
+    expect(result.registerScript.matches).toEqual(["*://*/*"]);
+  });
+
+  it("Firefox 仍全站预注册：其 USER_SCRIPT world 插入的 <script> 受页面 CSP 限制", () => {
+    // isFirefox() 以 mozInnerScreenX 判断；不用 vi.unstubAllGlobals，它会连测试 setup 注入的 chrome 一起还原
+    Object.defineProperty(globalThis, "mozInnerScreenX", { value: 0, configurable: true });
+    try {
+      expect(getUserScriptRegister(matchInfo(UNBOUNDED_REGEX)).deliverOnPageLoad).toBe(false);
+    } finally {
+      Reflect.deleteProperty(globalThis, "mozInnerScreenX");
+    }
+  });
+});
+
 describe.concurrent("compileInjectionCode", () => {
   const createMockScriptRes = (overrides: Partial<ScriptRunResource> = {}): ScriptRunResource => ({
     uuid: "test-uuid",

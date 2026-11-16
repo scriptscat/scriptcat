@@ -35,7 +35,14 @@ Key points:
 
 Normal userscripts run in the page. The SW builds a `RegisteredUserScript` from the script's `@match`/`@include`
 patterns and registers the compiled payload (the `scripting` bundle) with `chrome.userScripts.register`, in the
-`MAIN` or `USER_SCRIPT` world as required. At document time the content/inject pair
+`MAIN` or `USER_SCRIPT` world as required. The browser injects where a URL hits `matches` **or** `includeGlobs`
+(a union, not a filter), so `getApiMatchesAndGlobs` ([`url_matcher.ts`](../../src/pkg/utils/url_matcher.ts)) keeps
+`matches` to the script's real match patterns and never widens it to `*://*/*` to make room for globs. A regex
+`@include` that cannot be narrowed to a host-level glob is the exception: `getUserScriptRegister` marks it
+`deliverOnPageLoad` and the script is not registered. Its injection code instead travels in the `pageLoad` reply
+(`TScriptInfo.code`) to the content script, which mounts it from the `USER_SCRIPT` world, where an inserted
+`<script>` is not subject to the page CSP. `@early-start` and `@unwrap` scripts, and Firefox, keep the site-wide
+registration. At document time the content/inject pair
 ([`script_runtime.ts`](../../src/app/service/content/script_runtime.ts),
 [`exec_script.ts`](../../src/app/service/content/exec_script.ts)) evaluates the compiled function with the GM
 context.

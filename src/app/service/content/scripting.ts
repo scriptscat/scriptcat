@@ -169,9 +169,26 @@ export default class ScriptingRuntime {
       }
       this.activeStorageNames = new Map(Object.entries(pairs));
 
+      const contentClient = new Client(this.senderToContent, "content");
+      // 未预注册脚本的注入代码交给 content 环境注入：本环境是 ISOLATED world，插入的 <script> 会被页面 CSP 拦下
+      const pageCodes: string[] = [];
+      const contentCodes: string[] = [];
+      for (const [list, codes] of [
+        [injectScriptList, pageCodes],
+        [contentScriptList, contentCodes],
+      ] as const) {
+        for (const script of list) {
+          if (!script.code) continue;
+          codes.push(script.code);
+          script.code = "";
+        }
+      }
+      if (pageCodes.length || contentCodes.length) {
+        contentClient.do("loadScriptCode", { pageCodes, contentCodes });
+      }
+
       // 向页面 发送脚本列表及环境信息
       if (contentScriptList.length) {
-        const contentClient = new Client(this.senderToContent, "content");
         // 根据@inject-into content过滤脚本
         contentClient.do("pageLoad", { scripts: contentScriptList, envInfo });
       }
