@@ -32,6 +32,7 @@ import { cacheInstance } from "@App/app/cache";
 import { UrlMatch } from "@App/pkg/utils/match";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
+import { ValueUpdateDelivery } from "./value_delivery";
 import { sendMessage } from "@Packages/message/client";
 import type { CompileScriptCodeResource } from "../content/utils";
 import {
@@ -131,11 +132,6 @@ export type TScriptsForTab = {
 
 const bgScriptStorageNames = new Set<string>();
 
-// For Firefox, StorageArea.setAccessLevel is not implemented.
-// See https://bugzilla.mozilla.org/show_bug.cgi?id=1724754
-// const deliveryStorage = isFirefox() ? chrome.storage.local : chrome.storage.session;
-const deliveryStorage = chrome.storage.local; // 日后再处理
-
 export class RuntimeService {
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
@@ -151,6 +147,7 @@ export class RuntimeService {
   private sorter: Record<string, number> = {};
   private readonly codeCacheMap = new Map<string, TCodeCache>();
   private readonly pageLoadCaches = new Map<string, TPageLoadScriptCache>();
+  private readonly valueDelivery = new ValueUpdateDelivery();
   private sandboxInitializationReplayed = false;
   private readonly cachedPatterns = new Map<
     string,
@@ -477,13 +474,11 @@ export class RuntimeService {
 
   public async pushValueUpdate(script: Script, sendData: ValueUpdateDataEncoded) {
     try {
-      // 前台腳本 （推送值到tab）
-      await deliveryStorage!.set({
-        valueUpdateDelivery: {
-          rId: `${Date.now()}.${Math.random()}`, // 用于区分不同的更新，确保 deliveryStorage.onChanged 必能触发
-          sendData,
-        },
-      });
+      // 前台脚本：只投递给 pageLoad / pageShow 登记过运行该 storageName 的 document。
+      // 不能借 chrome.storage.local 广播：每个 frame 都要为此监听 local.onChanged，
+      // 任何一次 local 写入（包括整包的 value:*）的新旧值都会被投递并反序列化到所有 frame（#1834）。
+      // 只等待进入投递队列，不等待页面收到，避免阻塞下面的后台脚本投递
+      await this.valueDelivery.push(sendData);
 
       // 後台腳本
       if (bgScriptStorageNames.has(sendData.storageName)) {
@@ -511,19 +506,8 @@ export class RuntimeService {
     }
   }
 
-  async setSessionAccessLevel() {
-    try {
-      // 让 scripting 存取 chrome.storage.session
-      await chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS" });
-    } catch (e) {
-      this.logger.error("set session storage access level failed", Logger.E(e));
-    }
-  }
-
   init() {
-    if (deliveryStorage === chrome.storage.session) {
-      this.setSessionAccessLevel();
-    }
+    this.valueDelivery.init();
     // 启动gm api
     const permission = new PermissionVerify(this.group.group("permission"), this.mq);
     this.gmApi = new GMApi(
@@ -1282,7 +1266,19 @@ export class RuntimeService {
     const tabId = chromeSender.tab?.id;
     const frameId = chromeSender.frameId;
     const incognito = chromeSender.tab?.incognito ?? false;
+    // 不属于任何标签页的页面无法用 tabs.sendMessage 投递，不登记
+    const target =
+      tabId !== undefined && tabId > 0 ? { tabId, frameId: frameId ?? 0, documentId: chromeSender.documentId } : null;
+    // 必须在第一个 await 之前：新页面子 frame 的 pageLoad 可能先于顶层 frame 完成，
+    // 若等顶层查完脚本再清，就会把它们一并清掉
+    if (target && !frameId) this.valueDelivery.resetTab(target.tabId);
+    if (target) this.valueDelivery.register(target, null);
     const res = await this.getScriptsForTab({ url, tabId, frameId, incognito });
+    if (target) {
+      // 与 scripting 计算 activeStorageNames 的口径一致；没有脚本的 frame 也登记，用于「整页还是定向」的计数
+      const storageNames = res ? [...res.injectScriptList, ...res.contentScriptList].map(getStorageName) : [];
+      this.valueDelivery.register(target, storageNames);
+    }
 
     // 页面可能不属于任何标签页（sender.tab 缺失或为 TAB_ID_NONE），脚本照常下发，但不能记运行计数：
     // 弹窗把 tabId -1 当作后台脚本的命名空间，记进去普通脚本就会混进后台脚本列表（#1774）。
@@ -1310,15 +1306,23 @@ export class RuntimeService {
   }
   /**
    * bfcache 还原：文档连同里面已注入的脚本被整体恢复，content script 不会重新执行，
-   * 因此不会再走 pageLoad。这里只重新广播一次「本页扩展触及得到」，
+   * 因此不会再走 pageLoad。这里重新广播一次「本页扩展触及得到」，并按 scripting 上报的
+   * storageName 重新登记值更新投递（离开时已被新页面的 pageLoad 清掉）。
    * 绝不能顺带重放脚本——脚本本来就还在页面里跑着。
    */
-  async pageShow(_: any, sender: IGetSender) {
+  async pageShow(params: { storageNames?: string[] } | undefined, sender: IGetSender) {
     const chromeSender = sender.getSender();
     const url = chromeSender?.url;
     if (!url) return;
+    const tabId = chromeSender.tab?.id;
+    if (tabId !== undefined && tabId > 0 && params?.storageNames?.length) {
+      this.valueDelivery.register(
+        { tabId, frameId: chromeSender.frameId ?? 0, documentId: chromeSender.documentId },
+        params.storageNames
+      );
+    }
     this.mq.emit<TPopupPageRestoreInfo>("popupPageRestored", {
-      tabId: chromeSender.tab?.id || -1,
+      tabId: tabId || -1,
       frameId: chromeSender.frameId,
       url,
     });

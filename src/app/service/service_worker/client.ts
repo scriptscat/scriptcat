@@ -353,9 +353,9 @@ export class RuntimeClient extends Client {
     return this.doThrow("pageLoad");
   }
 
-  /** bfcache 还原上报：只告知本页仍在运行，不请求脚本 */
-  pageShow() {
-    return this.do("pageShow");
+  /** bfcache 还原上报：告知本页仍在运行及本 frame 运行的 storageName，不请求脚本 */
+  pageShow(storageNames: string[]) {
+    return this.do("pageShow", { storageNames });
   }
 
   scriptLoad(flag: string, uuid: string) {

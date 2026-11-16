@@ -280,6 +280,12 @@ export default class GMApi extends GM_Base {
     });
   }
 
+  // 不属于任何标签页的 frame（如扩展页面里内嵌的网页）收不到 SW 的 tabs.sendMessage 投递，
+  // SW 会把本次更新随应答带回；其他 frame 的应答不带，回执仍由投递的值更新完成
+  static applyOwnValueUpdate(a: GMApi, update: unknown) {
+    if (update) a.valueUpdate(update as ValueUpdateDataEncoded);
+  }
+
   static _GM_setValue(a: GMApi, promise: any, key: string, value: any) {
     key = `${key}`;
     if (!a.scriptRes) return;
@@ -292,9 +298,10 @@ export default class GMApi extends GM_Base {
     if (promise) {
       valueChangePromiseMap.set(id, promise);
     }
+    let sent: Promise<unknown>;
     if (value === undefined) {
       delete a.scriptRes.value[key];
-      a.sendMessage("GM_setValue", [id, key]);
+      sent = a.sendMessage("GM_setValue", [id, key]);
     } else {
       // 对object的value进行一次转化
       if (value && typeof value === "object") {
@@ -303,11 +310,12 @@ export default class GMApi extends GM_Base {
       // customClone 可能返回 undefined
       a.scriptRes.value[key] = value;
       if (value === undefined) {
-        a.sendMessage("GM_setValue", [id, key]);
+        sent = a.sendMessage("GM_setValue", [id, key]);
       } else {
-        a.sendMessage("GM_setValue", [id, key, value]);
+        sent = a.sendMessage("GM_setValue", [id, key, value]);
       }
     }
+    sent.then((update) => applyOwnValueUpdate(a, update));
     return id;
   }
 
@@ -339,7 +347,7 @@ export default class GMApi extends GM_Base {
       // 避免undefined 等空值流失，先进行映射处理
       keyValuePairs.push([key, encodeRValue(value_)]);
     }
-    a.sendMessage("GM_setValues", [id, keyValuePairs]);
+    a.sendMessage("GM_setValues", [id, keyValuePairs]).then((update) => applyOwnValueUpdate(a, update));
     return id;
   }
 
@@ -1631,4 +1639,5 @@ export default class GMApi extends GM_Base {
 export const { createGMBase } = GM_Base;
 
 // 从 GMApi 对象中解构出内部函数，用于后续本地使用，不导出
-const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_setValues, _GM_download, _GM_notification } = GMApi;
+const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_setValues, _GM_download, _GM_notification, applyOwnValueUpdate } =
+  GMApi;

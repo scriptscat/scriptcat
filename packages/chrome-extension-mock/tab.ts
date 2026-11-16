@@ -53,4 +53,11 @@ export default class MockTab {
       this.hook.addListener("remove", callback);
     },
   };
+
+  // 由测试通过 hook.emit("replace", addedTabId, removedTabId) 触发
+  onReplaced = {
+    addListener: (callback: any) => {
+      this.hook.addListener("replace", callback);
+    },
+  };
 }

@@ -7,6 +7,9 @@ export type ScriptFunc = (named: { [key: string]: any } | undefined, scriptName:
 export type ValueUpdateSender = {
   runFlag: string;
   tabId?: number;
+  // 发起写入的 frame。发起方可能还没在投递表里登记（页面早期写值），需要据此单独投递回执
+  frameId?: number;
+  documentId?: string;
 };
 
 /**

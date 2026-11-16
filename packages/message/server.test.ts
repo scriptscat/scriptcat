@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import { GetSenderType, SenderConnect, SenderRuntime, Server, type IGetSender } from "./server";
 import { CustomEventMessage } from "./custom_event_message";
-import type { MessageConnect, RuntimeMessageSender } from "./types";
+import type { Message, MessageConnect, OnMessageCallback, RuntimeMessageSender } from "./types";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 
 let inboundMessage: CustomEventMessage;
@@ -656,6 +656,64 @@ describe("Server", () => {
 
       expect(response.code).toBe(0);
       expect(response.data).toBeUndefined();
+    });
+  });
+  describe("onNotify 单向通知", () => {
+    // 直接拿到传输层的 onMessage 回调：要观察的正是回调的返回值与 sendResponse 是否被调用，
+    // 这决定了 chrome.runtime 是否为这条消息保留响应通道并回传一条回包
+    const setupNotifyServer = () => {
+      let onMessage: OnMessageCallback | undefined;
+      const transport = {
+        onMessage: (cb: OnMessageCallback) => {
+          onMessage = cb;
+        },
+        onConnect: () => {},
+      } as unknown as Message;
+      const notifyServer = new Server("api", transport);
+      const sender = { tab: { id: 3 }, frameId: 2 } as RuntimeMessageSender;
+      return {
+        notifyServer,
+        sender,
+        deliver: (msg: any, sendResponse: () => void) => onMessage!(msg, sendResponse, sender),
+      };
+    };
+
+    it("调用处理器，但不回包，也不保留响应通道", () => {
+      const { notifyServer, deliver, sender } = setupNotifyServer();
+      const handler = vi.fn();
+      notifyServer.onNotify("updates", handler);
+      const sendResponse = vi.fn();
+
+      const keepChannel = deliver({ action: "api/updates", data: [1, 2] }, sendResponse);
+
+      expect(handler).toHaveBeenCalledWith([1, 2], expect.any(SenderRuntime));
+      expect((handler.mock.calls[0][1] as SenderRuntime).getSender()).toBe(sender);
+      expect(sendResponse).not.toHaveBeenCalled();
+      expect(keepChannel).toBe(false);
+    });
+
+    it("处理器抛错或返回的 Promise 被拒绝时，同样不回包", async () => {
+      const { notifyServer, deliver } = setupNotifyServer();
+      notifyServer.onNotify("throws", () => {
+        throw new Error("sync failure");
+      });
+      notifyServer.onNotify("rejects", () => Promise.reject(new Error("async failure")));
+      const sendResponse = vi.fn();
+
+      expect(deliver({ action: "api/throws", data: {} }, sendResponse)).toBe(false);
+      expect(deliver({ action: "api/rejects", data: {} }, sendResponse)).toBe(false);
+      await nextTick();
+
+      expect(sendResponse).not.toHaveBeenCalled();
+    });
+
+    it("与 on 注册的处理器同名时抛错", () => {
+      const { notifyServer } = setupNotifyServer();
+      notifyServer.on("dup", vi.fn());
+      notifyServer.onNotify("dup2", vi.fn());
+
+      expect(() => notifyServer.onNotify("dup", vi.fn())).toThrow("duplicate message handler: api/dup");
+      expect(() => notifyServer.on("dup2", vi.fn())).toThrow("duplicate message handler: api/dup2");
     });
   });
 });
