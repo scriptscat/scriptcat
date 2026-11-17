@@ -8,6 +8,7 @@ import ruRU from "./ru-RU";
 import trTR from "./tr-TR";
 import ptBR from "./pt-BR";
 import koKR from "./ko-KR";
+import itIT from "./it-IT";
 
 export const editorLangs = {
   "zh-CN": zhCN,
@@ -20,6 +21,7 @@ export const editorLangs = {
   "tr-TR": trTR,
   "pt-BR": ptBR,
   "ko-KR": koKR,
+  "it-IT": itIT,
 } as const;
 
 export type EditorLangCode = keyof typeof editorLangs;

@@ -13,6 +13,7 @@ import * as ruRU from "./ru-RU";
 import * as trTR from "./tr-TR";
 import * as ptBR from "./pt-BR";
 import * as koKR from "./ko-KR";
+import * as itIT from "./it-IT";
 import { changeRelativeTimeLanguage } from "./relative-date";
 
 export let localePath = "";
@@ -62,6 +63,7 @@ export function initLanguage(lng: string = "en-US"): void {
       "tr-TR": { title: "Türkçe", ...trTR },
       "pt-BR": { title: "Português (Brasil)", ...ptBR },
       "ko-KR": { title: "한국어", ...koKR },
+      "it-IT": { title: "Italiano", ...itIT },
     },
   });
 
