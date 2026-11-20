@@ -1,7 +1,7 @@
 {
   "new_version_available": "Nuova versione disponibile",
-  "current_page_scripts": "Script in esecuzione nella pagina corrente",
-  "enabled_background_scripts": "Script in background abilitati e in esecuzione",
+  "current_page_scripts": "Script attivi su questa pagina",
+  "enabled_background_scripts": "Script in background abilitati",
   "develop_mode_guide": "La \"Modalità sviluppatore\" non è attiva, quindi gli script non possono funzionare correttamente. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉Fai clic per scoprire come attivarla</a>",
   "lower_version_browser_guide": "Il browser è troppo datato, quindi gli script non possono funzionare correttamente. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\">👉Fai clic per saperne di più</a>",
   "click_to_reload": "👉Fai clic per ricaricare",
