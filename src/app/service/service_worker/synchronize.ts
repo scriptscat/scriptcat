@@ -174,6 +174,16 @@ function getScriptModifiedDate(script: PushScriptParam): number {
   return script.updatetime || script.createtime || Date.now();
 }
 
+// push 与"本地是否改过"的内容比对共用：两处拼法一旦不一致，比对永远不等，补偿 push 会重新陷入每轮重推
+function buildSyncMetaJson(script: PushScriptParam): string {
+  return JSON.stringify(<SyncMeta>{
+    uuid: script.uuid,
+    origin: script.origin,
+    downloadUrl: script.downloadUrl,
+    checkUpdateUrl: script.checkUpdateUrl,
+  });
+}
+
 export class SynchronizeService {
   logger: Logger;
 
@@ -723,7 +733,24 @@ export class SynchronizeService {
             }
             return;
           }
-          addSyncTask(uuid, this.pushScript(fs, script));
+          // 本地时间更晚不等于内容变了（重新导入同一份脚本也会刷新 updatetime），而部分后端（坚果云）
+          // 对内容相同的 PUT 不推进 mtime，只凭时间补偿会每轮重推同一批脚本（#1863），须再按内容确认
+          addSyncTask(
+            uuid,
+            (async () => {
+              const unchanged = await this.matchSyncedContent(
+                fs,
+                file as SyncFiles,
+                script,
+                fileDigestMap,
+                syncedContentMd5Map
+              );
+              if (unchanged) {
+                return unchanged;
+              }
+              return await this.pushScript(fs, script);
+            })()
+          );
           return;
         }
         // 云端自上次同步已变（或本机无记录）。本地毫秒时钟与服务端整秒 mtime 属于两个时钟域，
@@ -1229,12 +1256,7 @@ export class SynchronizeService {
       await w.write(scriptCode);
       writtenFiles.push(filename);
       const meta = await fs.create(metaFilename, { modifiedDate });
-      const metaJson = JSON.stringify(<SyncMeta>{
-        uuid: script.uuid,
-        origin: script.origin,
-        downloadUrl: script.downloadUrl,
-        checkUpdateUrl: script.checkUpdateUrl,
-      });
+      const metaJson = buildSyncMetaJson(script);
       await meta.write(metaJson);
       writtenFiles.push(metaFilename);
       logger.info("push script success");
@@ -1275,6 +1297,35 @@ export class SynchronizeService {
     if (changed) {
       await this.storage.set("sync_content_md5", stored);
     }
+  }
+
+  // 判断本地 .user.js 与 .meta.json 是否都与云端内容一致：一致返回两者 md5（供推进基线），否则 undefined。
+  // 云端文件自上次同步未变且有基线时，基线即云端内容，只比本地与基线、不访问云端；
+  // 否则（无基线，或该文件云端 digest 已变——.user.js 未变时 meta 仍可能被他端改过）读取云端内容比对，
+  // 一致即记为基线，之后的轮次不再读取云端
+  private async matchSyncedContent(
+    fs: FileSystem,
+    files: SyncFiles,
+    script: Script,
+    fileDigestMap: FileDigestMap,
+    syncedContentMd5Map: FileDigestMap
+  ): Promise<FileDigestMap | undefined> {
+    const code = await this.scriptCodeDAO.get(script.uuid);
+    if (!code) {
+      return undefined;
+    }
+    const localMd5Map: FileDigestMap = {
+      [files.script.name]: md5OfText(code.code),
+      [files.meta.name]: md5OfText(buildSyncMetaJson(script)),
+    };
+    for (const file of [files.script, files.meta]) {
+      const baselineMd5 = fileDigestMap[file.name] === file.digest ? syncedContentMd5Map[file.name] : undefined;
+      const cloudMd5 = baselineMd5 ?? md5OfText((await fs.open(file).then((r) => r.read("string"))) as string);
+      if (cloudMd5 !== localMd5Map[file.name]) {
+        return undefined;
+      }
+    }
+    return localMd5Map;
   }
 
   // 云端 digest 相对上次同步已变时决定同步方向。

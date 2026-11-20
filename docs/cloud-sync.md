@@ -123,6 +123,7 @@ digest 更新有两条路径，区别在于对账范围：
 另有一份独立的 `sync_content_md5`（同存 `ChromeStorage("sync")`，格式同 `FileDigestMap`）记录本机每次成功推送**或拉取**的内容 md5，即"上次同步成功时的本地内容基线"。它用于云端变化时判断本地内容是否也发生变化：
 
 - **方向判定（L4 修复）**：云端 digest 相对 `file_digest` 已变时，用本地当前内容 md5 与基线比较判断"本地是否也改过"，取代跨时钟域的墙钟比较（本地毫秒 updatetime vs 服务端整秒 mtime 在同一秒内会误判方向，导致 push 覆盖较新的云端内容）。
+- **补偿 push 确认（#1863）**：云端未变但本地更新时间更晚时，用本地 `.user.js` / `.meta.json` 内容 md5 与基线比较确认本地是否真改过，内容一致不 push。
 
 它与 `file_digest` 用途不同：`file_digest` 存 provider 原生 digest 检测云端变化，`sync_content_md5` 存本地内容 md5 检测本地变化，二者不可混用。
 
@@ -184,7 +185,9 @@ type PendingSyncOp = { op: "delete"; syncDelete: boolean } | { op: "push" };
 - 云端缺 `.meta.json`（上一轮分片上传残留）：push 本地脚本补齐 meta。
 - 云端 digest 与 `file_digest` 一致（云端自上次同步未变）：
   - 本地更新时间不比云端新（整秒对齐比较）：再联合检查 `.meta.json` digest——`.user.js` 未变不代表 meta 未变。meta digest 与记录一致才跳过；不一致（他端只改了 meta 字段）则读取云端 meta 并采用其 `origin`/`downloadUrl`/`checkUpdateUrl`（tombstone + `.user.js` 仍在视为他端部分推送残留，等对端补完再判），采用成功后推进内容基线。若直接跳过，收尾的全量盖章会把未处理的 meta 标成已同步，之后永不再处理。meta 无 digest 记录（从未成功同步）时不判定，交由收尾盖章建立基线。
-  - 本地更新时间更晚：补偿 push——云端 digest 检测不到本地编辑，队列 push 失败后也靠这里兜底。这里仍是跨时钟域比较（本地是客户端毫秒时钟，云端 mtime 在 WebDAV 等服务端仅整秒精度），比较前两侧都截断到整秒：同秒内的毫秒余数不触发补偿，避免每次编辑上云后（服务端写入时间与编辑同秒）多一轮冗余覆盖 push。
+  - 本地更新时间更晚：候选补偿 push——云端 digest 检测不到本地编辑，队列 push 失败后也靠这里兜底。时间比较是跨时钟域的（本地是客户端毫秒时钟，云端 mtime 在 WebDAV 等服务端仅整秒精度），比较前两侧都截断到整秒：同秒内的毫秒余数不触发补偿，避免每次编辑上云后（服务端写入时间与编辑同秒）多一轮冗余覆盖 push。
+    时间更晚只作预筛，不是本地改过的证据（重新导入同一份脚本也会刷新 `updatetime`），push 前由 `matchSyncedContent()` 按内容确认：本地 `.user.js` 与 `.meta.json`（与 push 同一份 `buildSyncMetaJson()` 拼法）的 md5 都与云端内容一致则不 push，只返回 md5 推进基线。某文件云端 digest 与记录一致且有基线时，以基线代表云端内容、不访问云端；无基线或该文件 digest 已变（`.user.js` 未变时 meta 仍可能被他端改过）则读取云端内容比对。任一不一致才 push。
+    不能只凭时间 push：坚果云等后端对内容相同的 PUT 返回成功但不推进 mtime/etag，云端 mtime 永远追不上本地 `updatetime`，每轮同步都会重推同一批脚本且不报任何错误。
 - 云端 digest 与 `file_digest` 不一致（云端自上次同步已变，或本机无记录），由 `decideDirectionOnRemoteChange()` 决定方向。**不比较本地毫秒时钟与服务端整秒 mtime**（对端更新落在同一秒内时"本地时间戳更大"是误报，会 push 覆盖较新的云端内容，即 L4 同秒竞态）：
   - 本地内容 md5 == `sync_content_md5` 基线（本地未改）：pull。
   - 本地内容已改，但与云端当前内容一致（两台设备做了同样编辑，或本机记账失败后云端实为本机所写）：直接采用云端 digest 收敛基线，不产生写操作（adopt）。
@@ -467,5 +470,6 @@ this.logger.warn("sync overwrite", { action: "overwrite", direction, uuid, name 
 17. 拖动排序不得修改脚本内容 `updatetime`，只为位置变化的脚本登记统一且单调推进的
     `sortUpdatetime`；下一轮同步应让较新的本地排序覆盖旧云端排序，同时保留较新的启用状态。
 18. 排序 pending 在 Service Worker 重启后仍应存在；状态文件写入失败或某个 pending 尚未写入时不得误清。
+19. 云端未变、本地 `updatetime` 更晚但内容（含 meta）与云端一致时，在「内容相同的 PUT 不推进 mtime/etag」的后端上多轮同步不产生写操作；无基线时首轮读取云端比对并建立基线，之后不再读取；代码或 meta 真改过（含云端 meta 被他端改过）时仍补偿 push 并收敛。
 
 真实 provider 验证仍需要账号和夹具。不能把 unit test 或 mock response 结果宣称为真实云端验证。
