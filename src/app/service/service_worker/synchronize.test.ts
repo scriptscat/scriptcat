@@ -2861,7 +2861,7 @@ console.log("ok");`
       {} as any,
       {} as any,
       {
-        scriptCodeDAO: {},
+        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// v2" }) },
         all: vi
           .fn()
           .mockResolvedValue([
@@ -2870,6 +2870,7 @@ console.log("ok");`
       } as any
     );
     await (service as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
+    await (service as any).storage.set("sync_content_md5", { "u1.user.js": md5OfText("// v1") });
     const pushSpy = vi.spyOn(service, "pushScript").mockResolvedValue({});
 
     await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
@@ -3374,8 +3375,9 @@ console.log(1);`;
       } as any
     );
     await (service as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
+    await (service as any).storage.set("sync_content_md5", { "u1.user.js": md5OfText("// v1") });
 
-    // 本地编辑（updatetime 20 > 云端 5，digest 仍相等）→ 应真正把 // v2 覆盖上云
+    // 本地编辑（内容 // v1 → // v2，updatetime 20 > 云端 5，digest 仍相等）→ 应真正把 // v2 覆盖上云
     await service.syncOnce({ ...syncConfig, syncStatus: false }, cloudFs);
     expect(cloud.get("u1.user.js")!.content).toBe("// v2");
 
@@ -3419,6 +3421,178 @@ console.log(1);`;
 
     expect(pushSpy).not.toHaveBeenCalled();
     expect(pullSpy).not.toHaveBeenCalled();
+  });
+
+  describe("云端未变但本地更新时间更晚时按内容判定是否补偿 push（#1863）", () => {
+    // 坚果云等后端对内容相同的 PUT 返回成功但不更新 mtime/etag：若仅凭"本地时间更晚"就补偿 push，
+    // 云端 mtime 永远追不上本地 updatetime，每轮同步都会重推同一批脚本且不报任何错误
+    const metaJsonOf = (downloadUrl: string) =>
+      JSON.stringify({ uuid: "u1", origin: "", downloadUrl, checkUpdateUrl: "" });
+
+    const setup = (opts: { localCode: string; localDownloadUrl?: string; cloudCode: string; cloudMeta: string }) => {
+      let serverNow = 100_000;
+      const cloud = new Map<string, { digest: string; content: string; updatetime: number }>([
+        ["u1.user.js", { digest: "e-code", content: opts.cloudCode, updatetime: 5000 }],
+        ["u1.meta.json", { digest: "e-meta", content: opts.cloudMeta, updatetime: 5000 }],
+      ]);
+      const writes: string[] = [];
+      const reads: string[] = [];
+      const fs = createFs({
+        list: vi.fn(async () =>
+          Array.from(cloud, ([name, f]) => ({
+            name,
+            path: name,
+            size: 1,
+            digest: f.digest,
+            createtime: 1,
+            updatetime: f.updatetime,
+          }))
+        ),
+        open: vi.fn(async (file: FileInfo) => ({
+          read: vi.fn(async () => {
+            reads.push(file.name);
+            return cloud.get(file.name)!.content;
+          }),
+        })),
+        create: vi.fn(async (name: string) => ({
+          write: vi.fn(async (content: string) => {
+            writes.push(name);
+            const existing = cloud.get(name);
+            if (existing && existing.content === content) {
+              return;
+            }
+            cloud.set(name, { digest: `e-${md5OfText(content)}`, content, updatetime: serverNow });
+          }),
+        })),
+      } as unknown as Partial<FileSystem>);
+      const service = new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {
+          scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: opts.localCode }) },
+          all: vi.fn().mockResolvedValue([
+            {
+              uuid: "u1",
+              name: "t",
+              origin: "",
+              downloadUrl: opts.localDownloadUrl ?? "",
+              checkUpdateUrl: "",
+              updatetime: 50_000,
+              createtime: 1,
+              status: 1,
+              sort: 0,
+              metadata: {},
+            },
+          ]),
+        } as any
+      );
+      const runRound = async () => {
+        writes.length = 0;
+        reads.length = 0;
+        serverNow += 1_800_000;
+        await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+        return { writes: [...writes], reads: [...reads] };
+      };
+      return { service, cloud, runRound };
+    };
+
+    it("本地内容与基线一致时不推送也不读取云端", async () => {
+      const { service, runRound } = setup({ localCode: "// same", cloudCode: "// same", cloudMeta: metaJsonOf("") });
+      await (service as any).storage.set("file_digest", { "u1.user.js": "e-code", "u1.meta.json": "e-meta" });
+      await (service as any).storage.set("sync_content_md5", {
+        "u1.user.js": md5OfText("// same"),
+        "u1.meta.json": md5OfText(metaJsonOf("")),
+      });
+
+      for (let i = 0; i < 3; i++) {
+        expect(await runRound()).toEqual({ writes: [], reads: [] });
+      }
+    });
+
+    it("无基线且云端内容与本地一致时不推送，记录基线后后续轮次不再读取云端", async () => {
+      const { service, runRound } = setup({ localCode: "// same", cloudCode: "// same", cloudMeta: metaJsonOf("") });
+      await (service as any).storage.set("file_digest", { "u1.user.js": "e-code", "u1.meta.json": "e-meta" });
+
+      const first = await runRound();
+      expect(first.writes).toEqual([]);
+      expect(first.reads.sort()).toEqual(["u1.meta.json", "u1.user.js"]);
+      expect(await runRound()).toEqual({ writes: [], reads: [] });
+    });
+
+    it("本地代码相对基线已改时补偿 push，之后收敛", async () => {
+      const { service, cloud, runRound } = setup({
+        localCode: "// v2",
+        cloudCode: "// v1",
+        cloudMeta: metaJsonOf(""),
+      });
+      await (service as any).storage.set("file_digest", { "u1.user.js": "e-code", "u1.meta.json": "e-meta" });
+      await (service as any).storage.set("sync_content_md5", {
+        "u1.user.js": md5OfText("// v1"),
+        "u1.meta.json": md5OfText(metaJsonOf("")),
+      });
+
+      const first = await runRound();
+      expect(first.writes).toContain("u1.user.js");
+      expect(cloud.get("u1.user.js")!.content).toBe("// v2");
+      expect((await runRound()).writes).toEqual([]);
+    });
+
+    it("代码未变但本地 meta 字段相对基线已改时仍补偿 push", async () => {
+      const { service, cloud, runRound } = setup({
+        localCode: "// same",
+        localDownloadUrl: "https://example.com/new.user.js",
+        cloudCode: "// same",
+        cloudMeta: metaJsonOf(""),
+      });
+      await (service as any).storage.set("file_digest", { "u1.user.js": "e-code", "u1.meta.json": "e-meta" });
+      await (service as any).storage.set("sync_content_md5", {
+        "u1.user.js": md5OfText("// same"),
+        "u1.meta.json": md5OfText(metaJsonOf("")),
+      });
+
+      const first = await runRound();
+      expect(first.writes).toContain("u1.meta.json");
+      expect(cloud.get("u1.meta.json")!.content).toBe(metaJsonOf("https://example.com/new.user.js"));
+      expect((await runRound()).writes).toEqual([]);
+    });
+
+    it("云端 meta 自上次同步已变时不以旧基线判定未变，按云端内容比对后补偿 push", async () => {
+      // .user.js digest 相等不代表 .meta.json 未变：他端只改了云端 meta 时，本地 meta 仍等于旧基线，
+      // 若据此判定"未变"，收尾盖章会把他端的 meta 改动静默标成已同步
+      const { service, cloud, runRound } = setup({
+        localCode: "// same",
+        cloudCode: "// same",
+        cloudMeta: metaJsonOf("https://example.com/other.user.js"),
+      });
+      await (service as any).storage.set("file_digest", { "u1.user.js": "e-code", "u1.meta.json": "e-meta-old" });
+      await (service as any).storage.set("sync_content_md5", {
+        "u1.user.js": md5OfText("// same"),
+        "u1.meta.json": md5OfText(metaJsonOf("")),
+      });
+
+      expect((await runRound()).writes).toContain("u1.meta.json");
+      expect(cloud.get("u1.meta.json")!.content).toBe(metaJsonOf(""));
+      expect((await runRound()).writes).toEqual([]);
+    });
+
+    it("无基线且云端 meta 与本地不同时补偿 push", async () => {
+      const { service, cloud, runRound } = setup({
+        localCode: "// same",
+        localDownloadUrl: "https://example.com/new.user.js",
+        cloudCode: "// same",
+        cloudMeta: metaJsonOf(""),
+      });
+      await (service as any).storage.set("file_digest", { "u1.user.js": "e-code", "u1.meta.json": "e-meta" });
+
+      expect((await runRound()).writes).toContain("u1.meta.json");
+      expect(cloud.get("u1.meta.json")!.content).toBe(metaJsonOf("https://example.com/new.user.js"));
+      expect((await runRound()).writes).toEqual([]);
+    });
   });
 
   it("云端已变而本地内容未变时，即使本地时间戳更大也应 pull 而非 push（同秒竞态 L4）", async () => {
