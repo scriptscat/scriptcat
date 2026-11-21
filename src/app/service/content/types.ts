@@ -23,6 +23,10 @@ export type ValueUpdateData = {
   sender: ValueUpdateSender;
 };
 
+export type ValueVersion = { revision: number; epoch: string };
+
+export type ValueSnapshot = ValueVersion & { storageName: string; values: Record<string, unknown> };
+
 export type ValueUpdateDataEncoded = {
   id?: string;
   entries: ValueUpdateDataREntry[];
@@ -30,6 +34,15 @@ export type ValueUpdateDataEncoded = {
   storageName: string; // 储存name
   sender: ValueUpdateSender;
   valueUpdated: boolean;
+  revision?: number;
+  epoch?: string;
+};
+
+// An explicit write receipt, issued only after ValueDAO.save succeeds.
+// Value notifications are independent and may be lost while a Port reconnects.
+export type ValueWriteReceipt = {
+  committed: true;
+  update: ValueUpdateDataEncoded;
 };
 
 // gm_api.ts

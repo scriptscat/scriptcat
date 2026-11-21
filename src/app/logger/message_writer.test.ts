@@ -5,6 +5,14 @@ import { SenderRuntime, Server } from "@Packages/message/server";
 import MessageWriter from "./message_writer";
 
 describe("MessageWriter 页面日志路由", () => {
+  it("已失效 context 导致日志发送失败时不能产生未处理 rejection", async () => {
+    const sender = { sendMessage: vi.fn().mockRejectedValue(new Error("Extension context invalidated")) };
+    const writer = MessageWriter.serviceWorker(sender as unknown as import("@Packages/message/types").MessageSend);
+    expect(() => writer.write("error", "closed", { env: "test" })).not.toThrow();
+    await Promise.resolve();
+    expect(sender.sendMessage).toHaveBeenCalledOnce();
+  });
+
   it("页面调用方应将日志发送到 service worker 的 logger 处理器", () => {
     const message = new MockMessage(new EventEmitter());
     const handler = vi.fn();

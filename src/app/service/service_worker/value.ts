@@ -5,15 +5,21 @@ import { type Value, ValueDAO } from "@App/app/repo/value";
 import { TrashScriptDAO } from "@App/app/repo/trash_script";
 import type { IGetSender, Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
-import { type PopupService } from "./popup";
 import { getStorageName } from "@App/pkg/utils/utils";
-import type { ValueUpdateDataEncoded, ValueUpdateDataREntry, ValueUpdateSender } from "../content/types";
+import type {
+  ValueUpdateDataEncoded,
+  ValueUpdateDataREntry,
+  ValueUpdateSender,
+  ValueWriteReceipt,
+} from "../content/types";
 import { type TDeleteScript } from "../queue";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { CACHE_KEY_SET_VALUE } from "@App/app/cache_key";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import type { TKeyValuePair } from "@App/pkg/utils/message_value";
 import { decodeRValue, R_UNDEFINED, encodeRValue } from "@App/pkg/utils/message_value";
+import { uuidv4 } from "@App/pkg/utils/uuid";
+import type { ValueSnapshot } from "../content/types";
 
 export type TSetValuesParams = {
   uuid: string;
@@ -29,7 +35,6 @@ export class ValueService {
   scriptDAO: ScriptDAO = new ScriptDAO();
   valueDAO: ValueDAO = new ValueDAO();
   trashScriptDAO: TrashScriptDAO = new TrashScriptDAO();
-  private popup: PopupService | undefined;
   private runtime: RuntimeService | undefined;
 
   constructor(
@@ -46,9 +51,11 @@ export class ValueService {
     if (ret) {
       data = ret.data;
     }
-    const newValues = data;
-    // 和userconfig组装
+    // User-config defaults belong to the page payload, not to persisted GM data.
+    // Avoid copying a potentially large store for scripts without custom config.
     const { config } = script;
+    const newValues = config ? { ...data } : data;
+    // 和userconfig组装
     if (config) {
       for (const tabKey of Object.keys(config)) {
         const tab = config![tabKey];
@@ -70,6 +77,16 @@ export class ValueService {
       }
     }
     return [newValues, ret] as const;
+  }
+
+  async getValueSnapshot(storageName: string): Promise<ValueSnapshot> {
+    const value = await this.valueDAO.get(storageName);
+    return {
+      storageName,
+      revision: value?.revision ?? 0,
+      epoch: value?.epoch ?? "",
+      values: value?.data ?? {},
+    };
   }
 
   getScriptValue(script: Script): Promise<Record<string, any>> {
@@ -99,7 +116,9 @@ export class ValueService {
     let oldValueRecord: ValueStore = {};
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
     const entries = [] as ValueUpdateDataREntry[];
-    const _flag = await stackAsyncTask<boolean>(cacheKey, async () => {
+    let revision = 0;
+    let epoch = "";
+    await stackAsyncTask<boolean>(cacheKey, async () => {
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
       if (!valueModel) {
         const now = Date.now();
@@ -119,6 +138,8 @@ export class ValueService {
           data: dataModel,
           createtime: ts ? Math.min(ts, now) : now,
           updatetime: ts ? Math.min(ts, now) : now,
+          revision: 1,
+          epoch: uuidv4(),
         };
       } else {
         let changed = false;
@@ -151,13 +172,21 @@ export class ValueService {
             }
           }
         }
-        if (!changed) return false;
-        valueModel.data = dataModel; // 每次储存使用新参考
+        if (!changed) {
+          revision = valueModel.revision ?? 0;
+          epoch = valueModel.epoch ?? "";
+          return false;
+        }
+        valueModel.data = dataModel;
+        valueModel.revision = (valueModel.revision ?? 0) + 1;
+        valueModel.epoch ||= uuidv4(); // 每次储存使用新参考
       }
       await this.valueDAO.save(storageName, valueModel);
+      revision = valueModel.revision ?? 0;
+      epoch = valueModel.epoch ?? "";
       return true;
     });
-    // 推送到所有加载了本脚本的tab中
+    // 保存成功后只通知在线订阅者；RPC 回执不依赖通知送达。
     const valueUpdated = entries.length > 0;
     const sendData = {
       id,
@@ -166,16 +195,18 @@ export class ValueService {
       storageName,
       sender: valueSender,
       valueUpdated,
+      revision,
+      epoch,
     } as ValueUpdateDataEncoded;
     this.pushValueUpdate(script, sendData);
+    return { committed: true, update: sendData } satisfies ValueWriteReceipt;
   }
 
   setScriptValues(params: Pick<TSetValuesParams, "uuid" | "keyValuePairs" | "isReplace" | "ts">, _sender: IGetSender) {
     return this.setValues(params);
   }
 
-  init(runtime: RuntimeService, popup: PopupService) {
-    this.popup = popup;
+  init(runtime: RuntimeService) {
     this.runtime = runtime;
     this.group.on("getScriptValue", this.getScriptValue.bind(this));
     this.group.on("setScriptValues", this.setScriptValues.bind(this));

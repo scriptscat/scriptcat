@@ -105,6 +105,8 @@ export type PageScriptResource = Record<string, { base64?: string; content: stri
 export interface ScriptRunResource extends Script {
   code: string; // 原始代码
   value: ValueStore;
+  valueRevision?: number;
+  valueEpoch?: string;
   flag: string;
   resource: ScriptResource; // 资源列表,包含脚本需要的资源
   resourceByType?: ScriptResourceByType;

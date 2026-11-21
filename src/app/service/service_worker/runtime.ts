@@ -64,6 +64,7 @@ import { parseUserConfig } from "@App/pkg/utils/yaml";
 import type { CompiledResource, Resource, ResourceType } from "@App/app/repo/resource";
 import { CompiledResourceDAO, CompiledResourceNamespace } from "@App/app/repo/resource";
 import { setOnTabURLChanged } from "./url_monitor";
+import ValueUpdatePorts from "./value_port";
 import { scriptToMenu, type TPopupPageLoadInfo, type TPopupPageRestoreInfo } from "./popup_scriptmenu";
 import { getExtensionUserAgentData } from "../extension/extension_env";
 
@@ -131,12 +132,11 @@ export type TScriptsForTab = {
 
 const bgScriptStorageNames = new Set<string>();
 
-// For Firefox, StorageArea.setAccessLevel is not implemented.
-// See https://bugzilla.mozilla.org/show_bug.cgi?id=1724754
-// const deliveryStorage = isFirefox() ? chrome.storage.local : chrome.storage.session;
-const deliveryStorage = chrome.storage.local; // 日后再处理
-
 export class RuntimeService {
+  private readonly valuePorts = new ValueUpdatePorts(
+    (context, error) => this.logger.error("value update Port delivery failed", context, Logger.E(error)),
+    (storageName) => this.value.getValueSnapshot(storageName)
+  );
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
   private gmApi?: GMApi;
@@ -477,13 +477,8 @@ export class RuntimeService {
 
   public async pushValueUpdate(script: Script, sendData: ValueUpdateDataEncoded) {
     try {
-      // 前台腳本 （推送值到tab）
-      await deliveryStorage!.set({
-        valueUpdateDelivery: {
-          rId: `${Date.now()}.${Math.random()}`, // 用于区分不同的更新，确保 deliveryStorage.onChanged 必能触发
-          sendData,
-        },
-      });
+      // 直接推送给订阅该 storageName 的存活 frame，不经过 tabs API 或无关 iframe（#1834）。
+      this.valuePorts.push(sendData.storageName, sendData);
 
       // 後台腳本
       if (bgScriptStorageNames.has(sendData.storageName)) {
@@ -511,19 +506,12 @@ export class RuntimeService {
     }
   }
 
-  async setSessionAccessLevel() {
-    try {
-      // 让 scripting 存取 chrome.storage.session
-      await chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS" });
-    } catch (e) {
-      this.logger.error("set session storage access level failed", Logger.E(e));
-    }
+  public connectValueUpdates(_: unknown, sender: IGetSender) {
+    return this.valuePorts.connect(sender);
   }
 
   init() {
-    if (deliveryStorage === chrome.storage.session) {
-      this.setSessionAccessLevel();
-    }
+    this.group.on("valueUpdates", this.connectValueUpdates.bind(this));
     // 启动gm api
     const permission = new PermissionVerify(this.group.group("permission"), this.mq);
     this.gmApi = new GMApi(
@@ -1619,7 +1607,10 @@ export class RuntimeService {
     await Promise.all(
       enableScriptList.map(async (script) => {
         // value（GM 值）会在页面间变化，必须每次页面加载都实时读取，绝不能走页面加载缓存。
-        script.value = await value.getScriptValue(script);
+        const [data, model] = await value.getScriptValueDetails(script);
+        script.value = data;
+        script.valueRevision = model?.revision ?? 0;
+        script.valueEpoch = model?.epoch ?? "";
       })
     );
 

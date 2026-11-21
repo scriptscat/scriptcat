@@ -22,6 +22,8 @@ const PAGE_LOAD_SCRIPT_OPTIONAL_KEYS = [
   "downloadUrl",
   "config",
   "updatetime",
+  "valueRevision",
+  "valueEpoch",
   "requireCssResource",
   "userConfig",
   "scriptUrlPatterns",
