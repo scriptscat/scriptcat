@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
+import { StrictMode } from "react";
 import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
@@ -7,11 +8,14 @@ import { notify } from "@App/pages/components/ui/toast";
 import ChatInput from "./ChatInput";
 
 vi.mock("@App/pages/components/ui/toast", () => ({
-  notify: { error: vi.fn(), info: vi.fn() },
+  notify: { error: vi.fn(), info: vi.fn(), success: vi.fn() },
 }));
 
 beforeAll(() => initTestLanguage("zh-CN"));
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 const model = (id: string): AgentModelConfig => ({
   id,
@@ -95,6 +99,98 @@ describe("聊天输入框 ChatInput", () => {
     expect(screen.getByTestId("slash-menu")).toBeInTheDocument();
     fireEvent.mouseDown(screen.getByTestId("slash-item-search"));
     expect(ta.value).toBe("/search ");
+  });
+
+  it("优化提示词时禁用输入并用模型响应替换内容", async () => {
+    let resolveOptimize!: (value: string) => void;
+    const onOptimizePrompt = vi.fn().mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveOptimize = resolve;
+      })
+    );
+    setup({ onOptimizePrompt });
+    const textarea = screen.getByTestId("chat-textarea") as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "  原始提示词  " } });
+    fireEvent.click(screen.getByTestId("chat-optimize-prompt"));
+
+    expect(onOptimizePrompt).toHaveBeenCalledWith("原始提示词", "gpt-4o", expect.any(String));
+    expect(textarea).toBeDisabled();
+    resolveOptimize("优化后的提示词");
+
+    await waitFor(() => expect(textarea.value).toBe("优化后的提示词"));
+    expect(textarea).not.toBeDisabled();
+    expect(textarea).toHaveFocus();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("提示词优化进行中应向辅助技术公告状态", () => {
+    setup({ onOptimizePrompt: vi.fn().mockReturnValue(new Promise(() => {})) });
+    const textarea = screen.getByTestId("chat-textarea");
+    fireEvent.change(textarea, { target: { value: "原始提示词" } });
+    fireEvent.click(screen.getByTestId("chat-optimize-prompt"));
+
+    expect(screen.getByRole("status")).toHaveTextContent(t("agent:chat_prompt_optimizing"));
+  });
+
+  it("组件卸载时应取消尚未完成的提示词优化", () => {
+    const onCancelOptimizePrompt = vi.fn();
+    const { unmount } = render(
+      <ChatInput
+        models={[model("gpt-4o")]}
+        selectedModelId="gpt-4o"
+        onModelChange={vi.fn()}
+        onSend={vi.fn()}
+        onStop={vi.fn()}
+        isStreaming={false}
+        onOptimizePrompt={vi.fn().mockReturnValue(new Promise(() => {}))}
+        onCancelOptimizePrompt={onCancelOptimizePrompt}
+      />
+    );
+    fireEvent.change(screen.getByTestId("chat-textarea"), { target: { value: "原始提示词" } });
+    fireEvent.click(screen.getByTestId("chat-optimize-prompt"));
+
+    unmount();
+
+    expect(onCancelOptimizePrompt).toHaveBeenCalledWith(expect.any(String));
+  });
+
+  it("StrictMode 下优化完成后仍应写回并恢复输入框", async () => {
+    render(
+      <StrictMode>
+        <ChatInput
+          models={[model("gpt-4o")]}
+          selectedModelId="gpt-4o"
+          onModelChange={vi.fn()}
+          onSend={vi.fn()}
+          onStop={vi.fn()}
+          isStreaming={false}
+          onOptimizePrompt={vi.fn().mockResolvedValue("优化后的提示词")}
+        />
+      </StrictMode>
+    );
+    const textarea = screen.getByTestId("chat-textarea") as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "原始提示词" } });
+    fireEvent.click(screen.getByTestId("chat-optimize-prompt"));
+
+    await waitFor(() => expect(textarea.value).toBe("优化后的提示词"));
+    expect(textarea).not.toBeDisabled();
+    expect(textarea).toHaveFocus();
+  });
+
+  it("空输入时禁用提示词优化按钮", () => {
+    setup({ onOptimizePrompt: vi.fn() });
+    expect(screen.getByTestId("chat-optimize-prompt")).toBeDisabled();
+  });
+
+  it("提示词优化失败时保留原输入并恢复控件", async () => {
+    setup({ onOptimizePrompt: vi.fn().mockRejectedValue(new Error("API unavailable")) });
+    const textarea = screen.getByTestId("chat-textarea") as HTMLTextAreaElement;
+    const optimizeButton = screen.getByTestId("chat-optimize-prompt");
+    fireEvent.change(textarea, { target: { value: "原始提示词" } });
+    fireEvent.click(optimizeButton);
+
+    await waitFor(() => expect(optimizeButton).not.toBeDisabled());
+    expect(textarea.value).toBe("原始提示词");
   });
 
   it("发送失败时应提示错误并保留文本与附件草稿", async () => {
