@@ -1,291 +1,62 @@
 # Repository Guidelines
 
-This is the repo-wide contract for AI coding agents. It owns only engineering principles and the architecture
-quick-map; concrete mechanics belong to the routed docs. Compatibility entry points reuse this file and have no
-separate contract. Use [`docs/README.md`](docs/README.md) as the index and follow the owning doc instead of
-duplicating its rules.
+This is ScriptCat's repo-wide **negative contract** for coding agents: failure modes to avoid, not a recipe for doing ordinary engineering. Do not read it as a replacement for task-specific evidence, tests, source code, or the owning guides. `CLAUDE.md` and `.github/copilot-instructions.md` reuse this contract; do not maintain divergent instructions there.
 
-When two instructions collide, the doc that owns the subject wins over a summary of it, a specific rule wins over
-a general one, and a narrower exception wins over the default it names. If that still does not settle it, the
-collision is itself a finding: take the more conservative reading, say which one you took, and report the conflict
-so the doc set can be repaired — do not resolve it silently. A request from the user or a maintainer sets the goal
-and authorizes the work, and it can waive a preference; it does not by itself satisfy a rule that this doc set
-states as a prohibition. Say so once, in a sentence, and if the request is reaffirmed, carry it out and record it
-in the change as a named, accepted deviation — never as compliance.
+## Scope and sources
 
-## Route the task before acting
-
-| Before you… | Read |
-| --- | --- |
-| write code | [`docs/develop.md`](docs/develop.md) |
-| run project commands | [`docs/develop.md`](docs/develop.md) |
-| modify tests, test helpers, or test runner configuration | [`docs/references/develop-testing.md`](docs/references/develop-testing.md) — apply the test-boundary, observation, and harness rules before editing |
-| review or report a branch/PR, or create/update a PR or publish its branch | [`docs/develop.md#revision-scope-and-publication-binding`](docs/develop.md#revision-scope-and-publication-binding) + [`docs/pull-request.md`](docs/pull-request.md) |
-| change a process/message/service/persistence boundary or add a subsystem | [`docs/architecture.md`](docs/architecture.md) + the relevant `docs/references/architecture-*.md` |
-| build or modify a page, dialog, or block | [`docs/design.md`](docs/design.md) — Core Constraints apply to every UI change |
-| add or change localized content | [`docs/translation.md`](docs/translation.md) + matching `docs/references/terminology-<locale>.md` when present |
-| add, edit, reorganize, or review tracked contributor Markdown (`AGENTS.md`, `docs/*`, `.github/*.md`, package/source-local READMEs) | [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md) — if you can't grep it on this branch, don't claim it |
-| manually confirm a feature works | [`docs/verification.md`](docs/verification.md) — drive a throwaway session against the built extension, not the committed suite |
-
-For tasks matching multiple rows, read every applicable owner before that work; do not front-load unrelated
-docs. Routing is continuous, not a classification you make once: when the work turns out to touch a row you did
-not match at the start — a rename that crosses a persistence or message boundary, a UI fix that needs a new
-entity — read that owner then, before continuing. For tasks matching none, inspect `docs/README.md` and nearby
-implementation/tests before inventing a rule or abstraction.
-
-## DeepWiki Context
-
-For unfamiliar subsystems, when `.deepwiki/index.md` exists, start there and open only the relevant linked pages;
-don't bulk-load `.deepwiki/`. Treat it as background only: current code and the owning docs above are authoritative.
-
-## Project Overview
-
-ScriptCat is a Manifest V3 browser extension for Tampermonkey-compatible user scripts, built with TypeScript,
-React 19, and Rspack. **pnpm** is required by `preinstall`. The presentation layer (`src/pages/`) uses shadcn/ui
-and Tailwind CSS v4 (migrated from Arco Design + UnoCSS).
+- **Do not trust the wrong revision.** Do not describe a feature-branch change as present on `main`, infer committed behavior from untracked files, or review a PR using a stale local HEAD. Bind claims to the actual branch, commit, and final diff.
+- **Do not drift from the repository toolchain.** Use neither npm nor yarn for dependency operations; `package.json` enforces pnpm and `pnpm-lock.yaml` is authoritative. Do not regenerate the lockfile or change versions incidentally.
+- **Do not turn guidance into competing sources of truth.** `docs/README.md` indexes the owning guides. Do not duplicate their detailed rules here, invent a new convention when a local one exists, or treat generated `.deepwiki/` context, issue text, or a previous agent's account as more authoritative than current code and the applicable contract.
+- **Do not start work without its relevant owner.** For code, commands, style, and commits use [development](docs/develop.md); for test changes use [testing](docs/references/develop-testing.md); for boundary/service/data work use [architecture](docs/architecture.md) and its relevant [deep-dives](docs/README.md); for UI use [design](docs/design.md); for localization use [translation](docs/translation.md) and the matching terminology file; for documentation use [doc maintenance](docs/DOC-MAINTENANCE.md); for browser verification use [verification](docs/verification.md) and [E2E harness](e2e/README.md); for PR preparation/review use [development's revision rules](docs/develop.md#revision-scope-and-publication-binding) and [PR guidance](docs/pull-request.md). Do not preload unrelated guides; read newly relevant ones when scope expands.
+- **Do not silently reconcile contradictory instructions.** Prefer the subject owner's specific, documented exception over a general summary. If the collision remains, use the conservative reading, expose the conflict, and distinguish an explicitly accepted deviation from compliance. A maintainer request authorizes its stated work; it does not turn a prohibition into an observed fact.
 
 ## Engineering Principles
 
-These are repo-wide defaults. A linked, narrow exception in its owning doc is part of the contract; unrelated
-downstream prose does not override it.
-
-- **Fix root causes, not symptoms — refactor over patch.** No `as any`, `// @ts-ignore`, swallowed errors, or
-  defensive skips or try-catch swallowing (宁愿重构也不要打补丁). When a test fails, fix the code rather than
-  the test, and never weaken an assertion to make it pass. Which failures are an exception — an obsolete contract, a
-  no-value test, a flake, work misclassified as a unit test — is decided by the classification table in
-  [`docs/references/develop-testing.md`](docs/references/develop-testing.md#cleaning-up-tests-safely), not by this
-  summary.
-- **Confirm before fixing.** Reproduce and confirm a reported bug before changing it; capture the reproduction
-  first (确定 bug 存在 → 写测试或记录验证证据 → 修复). Use [`docs/verification.md`](docs/verification.md) and
-  the TDD principle in this section for the evidence standard.
-- **TDD/BDD first for observable behavior.** Write a failing `describe`/`it` test before implementation, with
-  Chinese or English titles. The two narrow, non-blanket exceptions are in
-  [`docs/references/develop-testing.md`](docs/references/develop-testing.md#when-tdd-doesnt-apply); runner,
-  mocks, and how to run tests are in [`docs/develop.md`](docs/develop.md).
-- **Test changes must follow the test route.** Before changing a test, shared test helper, or runner configuration,
-  identify the observable contract and test boundary, search existing coverage, capture a baseline or reproduction,
-  then make the smallest correction and rerun focused and relevant broader checks. A single passing run does not
-  establish a root-cause fix; report the trigger, evidence, and remaining uncertainty. Follow the asynchronous
-  observation and timing guidance in
-  [`docs/references/develop-testing.md`](docs/references/develop-testing.md#observation-rules-for-asynchronous-tests).
-- **Shared E2E helpers must model both outcomes.** A helper that drives a save, install, or other mutation must make
-  the expected success or failure explicit and wait for that operation's matching signal. Negative cases must opt into
-  the failure contract; never make them pass by accepting an arbitrary toast, an old notification, or a page shell.
-- **Performance-sensitive UI fixtures must stay bounded.** Use the smallest synthetic fixture that crosses the
-  required boundary; for filtering or pagination, do not eagerly render unrelated rows before the trigger. Obvious
-  explicit one-page-plus fixtures need a line-level `scriptcat/no-test-large-boundary-fixture` rationale; do not hide
-  their cost by raising the test timeout. The detailed fixture and measurement rules live in
-  [`docs/references/develop-testing.md`](docs/references/develop-testing.md#vitest-performance-hygiene).
-- **Dnd-kit list rendering must keep the drag boundary cheap.** Keep sensor options, modifiers, callbacks, and the
-  sortable item-list reference stable when their values are unchanged; render plain rows/cards while dragging is
-  disabled instead of mounting `DndContext`/`SortableContext`. Stabilize item identity with a collision-safe
-  representation, never delimiter-join IDs unless the ID contract forbids that delimiter, and use default shallow
-  memo comparison so rule fields and interaction state cannot be skipped. The Network Rules implementation is the
-  reference in `src/pages/options/routes/Tools/NetworkRules/RuleTable.tsx` and
-  `src/pages/options/routes/Tools/NetworkRules/RuleCards.tsx`.
-- **SOLID, high cohesion, low coupling.** Match existing extension points: persistence uses the small
-  `Repo<T>` / `DAO<T>` / `OPFSRepo` / custom-repo taxonomy, matching an existing entity with the same needs;
-  messages use `Group.on(...)`; service constructor shapes differ by context and Agent subsystem; depend on
-  narrow interfaces such as `IMessageQueue`, not `MessageQueue`. See
-  [`docs/references/architecture-data.md`](docs/references/architecture-data.md#adding-an-entity),
-  [`docs/references/architecture-services.md`](docs/references/architecture-services.md#adding-a-service).
-- **Direct replacement over adapter sandwiches.** Replace a backend/library in place; add
-  `interface Foo + LegacyImpl + NewImpl` only when both must coexist at runtime.
-- **Scope discipline.** Bug fix ≠ cleanup PR: touch only required files (不要动和任务不相干的文件), add no unneeded
-  helpers/abstractions/validation/backwards-compat shims, and prefer three similar lines to a premature abstraction.
-  Do not remove or narrow supported
-  behavior for simplification unless the task or an already-verified contract explicitly calls for it. The same boundary applies to
-  test cleanup; see [`docs/references/develop-testing.md`](docs/references/develop-testing.md#scope--cleanup-boundary).
-- **No dead code or `// removed` markers.** Delete unused code; git remembers.
-- **Comments explain why.** Do not restate code, duplicate enclosing documentation, leave stale comments, or use
-  ephemeral review-round labels such as `finding N` in comments or test names. Permanent issue/PR references may
-  supplement, not replace, the explanation. See
-  [`docs/develop.md`](docs/develop.md#comment-discipline).
+- **Do not patch around an unexamined cause.** For a reported bug, do not implement a fix before reproducing it or establishing an equivalent causal proof. Do not disguise a workaround as the intended model, or preserve dead code, `// removed` markers, speculative compatibility shims, or adapter layers without a real coexistence requirement.
+- **Do not weaken the contract to make checks pass.** Do not delete a valid regression test, loosen an assertion, increase a timeout, add retries or sleeps, or alter a mock to conceal an implementation defect. Do not assume every failing test is valid either: classify obsolete contracts, flakes, integration misplacement, and no-value tests through [testing](docs/references/develop-testing.md#cleaning-up-tests-safely).
+- **Do not skip the failing test for new observable behavior** unless the narrow [TDD exceptions](docs/references/develop-testing.md#when-tdd-doesnt-apply) actually apply. Do not write tautological tests, assert private implementation details in place of outcomes, invent inapplicable edge cases, or substitute a mocked green test for a browser/process boundary it cannot observe.
+- **Do not suppress type or error information.** No new `as any`, `@ts-ignore`, swallowed rejections, empty catches, unchecked `chrome.runtime.lastError`, or broad defensive skips. Model uncertainty explicitly; handle failure at the owning boundary.
+- **Do not trade away memory, latency, throughput, or reliability for a shorter diff.** Avoid unbounded caches, eager fixture/render expansion, redundant listeners, repeated tab queries/polling, leaked subscriptions/ports/timers, avoidable re-renders, and background work without cleanup or backpressure. Do not claim a performance improvement without an appropriate baseline or causal argument. Do not add abstractions whose runtime/maintenance cost has no demonstrated payoff.
+- **Do not broaden the task.** No opportunistic cleanup, renamed public contracts, new dependencies, schema changes, unrelated validation, fallback chains, or behavior removal merely because adjacent code looks improvable. A sound root-cause refactor may be larger than a patch; an unrelated refactor is a separate change.
+- **Do not bypass security and compatibility boundaries.** Do not relax permissions, origin checks, `@grant`/GM API behavior, untrusted input handling, script isolation, user consent, or existing Chrome/Firefox behavior to simplify an implementation. Do not log or commit credentials, tokens, personal data, local certificates, `.env` content, or generated build/test artifacts. See [security policy](SECURITY.md) for vulnerability reporting.
+- **Do not introduce UI or localization drift.** No hardcoded visible strings, ad hoc palette values, obsolete UI libraries, accessibility regressions, or untranslated keys where the [design system](docs/design.md) and [translation rules](docs/translation.md) govern them.
+- **Do not write comments that merely narrate code**, leave stale explanations, or name temporary review rounds. Comments should capture the non-obvious constraint or reason; remove obsolete comments rather than accumulating patches to prose.
 
 ## Decision and review discipline
 
-- **Separate authority from evidence.** A request or maintainer direction is execution authority within scope;
-  issues/PRs provide stated intent and context; source inspection, tests, browser runs, and integrations provide
-  observations; normative specifications, compatibility contracts, security policies, accepted contracts or oracles, and
-  maintainer decisions determine correctness. A request/issue/PR does not prove a bug, necessity, or correctness.
-  Label inferences, unverified, and contradicted claims.
-- **A change is material when a reviewer could not accept it from inspection alone.** That covers anything able
-  to alter runtime behavior, a public or persisted contract, security/privacy posture, permissions, cross-context
-  messaging, or build/release output. Everything else is routine and takes the light path: say what changed and
-  what you checked. Where the call is genuinely close, say which way you read it instead of quietly taking the
-  cheaper one.
-- **State rationale before summary.** For material changes, connect problem/requirement → affected
-  scope/consequence → premise evidence → justification → remedy/trade-off → acceptance evidence → limitation/risk.
-  A diff shows what changed, not why.
-- **Use the smallest justified semantic scope, not smallest diff.** A larger refactor is valid when it is the
-  smallest sound root-cause repair; do not call a solution minimal, best, or least risky without support.
-- **Match claim strength to evidence.** Static reasoning, executed tests, browser runs, and external integrations
-  prove different scopes. A negative claim needs the relevant channel observed through its closure window or a
-  causal proof that the side effect cannot occur.
-- **Do not write a caveat you could have converted into a fact.** Before recording a concern, a risk, or a
-  "worth checking" note, check it — an unchecked worry moves the work to the reader and tells them nothing they
-  could not already guess. If you record one regardless, say why you did not check it and what would settle it.
-  Hedging is not caution when it costs the reader more than it saves you.
-- **Bound readiness.** Do not call a material change review-ready with failed acceptance, a critical contradiction
-  or evidence gap, unjustified scope, or stale final-patch evidence. A requested draft/investigation may proceed
-  when labeled; report the blocker and clearing condition.
-- **Review semantic and physical coverage.** Inspect every changed file and affected path. Map material semantic
-  families to representatives, disposition, highest-risk seam, and residual risk; separate confidence from
-  completeness. On re-review, bind the current head and reconcile findings as present, resolved, narrowed, stale,
-  or new.
-- **Require a witness and impact for findings.** Report only a concrete trigger/proof path, material consequence,
-  useful location, and actionable contract to restore; do not turn an unverified repository assumption into a
-  finding.
+- **Do not confuse authority, intent, and proof.** A request or PR description establishes a goal, not that a bug exists or a patch works. A typecheck proves a different thing from a unit test; a mocked test proves a different thing from a real extension session; static reasoning is not execution evidence.
+- **Do not optimize only for diff size.** Challenge the proposed solution against root cause, supported behavior, CPU/memory and browser lifecycle costs, new failure modes, and reviewer comprehension. Do not call a change “minimal”, “safe”, or “complete” without a defensible scope and evidence.
+- **Do not perform a superficial self-review.** Inspect every changed file and affected caller/consumer; follow important success, failure, concurrency, cancellation, persistence, and cross-browser paths where relevant. Do not raise speculative findings without a concrete trigger and consequence. Do not leave a checkable risk for the reviewer to investigate when you can resolve it now.
+- **Do not manufacture acceptance.** Self-assigned scores, simulated pass rates, other agent/persona reviews, and an unchecked PR-template box do not establish correctness or human approval. Do not mark `Code reviewed by human` unless a person actually reviewed it.
+- **Do not call material work review-ready** while acceptance tests fail, the current diff is unreviewed, critical questions are unresolved, or evidence is stale. Separate what was observed from what remains inferred or blocked.
 
 ## Autonomous operation
 
-These govern what an agent does on its own between two human decisions — the acting as much as the bounds on it.
-Within the work you were asked for you are the contributor, not a proposal generator: decide, do the work, and say
-what you decided. Authority over the goal is not authority over every act taken to reach it, which is what the
-later bullets bound.
-
-- **Decide inside the scope you were given.** Three situations get confused as one. If you do not know something,
-  find out — read the code, run it, write the probe; a question you could have answered yourself is not a question.
-  If it cannot be known yet, take the cheapest reasonable reading, state the assumption where the work will be
-  read, and continue. Only the third is escalation: a decision needing authority you do not have — something
-  irreversible or outward-facing, a product or policy trade-off the maintainer owns, or accepting a residual risk
-  on their behalf. Difficulty, ambiguity, and ordinary risk are not authority problems. Resolve them and record how.
-- **Hand a decision back only with its owner and its blocker named.** When you do escalate, say who owns the
-  decision, what specifically only they can supply, and what you will do by default if they say nothing. Without
-  those three it is not an escalation, it is unfinished work moved into someone else's queue. The same test governs
-  anything you notice in passing: if the task actually requires it, do it and say you did; if it merely happens to
-  be nearby, record a follow-up and move on — the boundary is the scope-discipline principle above, not the set of
-  files you happen to have open. Recommending work you were in a position to finish is not a lighter-touch option;
-  it is a smaller deliverable.
-- **Stop and hand back rather than proceed on a broken premise.** Stop when the reported problem does not
-  reproduce, the confirmed cause lies outside the authorized scope, an observation contradicts the task's premise,
-  or the only remaining repair would remove supported behavior or violate a principle here. A failing check is not
-  one of these triggers — fix its cause. Stopping is a deliverable, not a failure: report the attempt, the
-  evidence, the contradiction, and the decision the human now owns. Do not substitute a smaller change that is
-  easier to justify for the one that was asked for. Submitting an explicitly requested draft or investigation
-  instead stays governed by [`docs/pull-request.md`](docs/pull-request.md#decision-evidence-and-readiness).
-- **Bind the declared scope before committing or publishing.** The task statement, the commit type (gitmoji), and
-  the title declare a scope class — a test change, a fix, a refactor, a documentation change. Compare the actual
-  final diff against that class before you commit or push. Anything outside it is a checkpoint, not a judgement
-  call: move it into its own change with its own justification, or restate the scope. Do not carry an unexplained
-  edit forward because it looks harmless — a reviewer who cannot account for a hunk has to treat the whole change
-  as unreviewed. Mechanics live in [`docs/develop.md`](docs/develop.md#revision-scope-and-publication-binding).
-- **Keep outward-facing and irreversible acts under explicit authorization.** Local work — reading, editing,
-  building, running the suite, driving a verification session — proceeds freely. Acts that leave the working tree
-  or are hard to undo need authorization for that specific act: pushing, opening or updating a pull request,
-  commenting on or closing an issue or pull request, deleting or rewriting a branch, and any command with real
-  external side effects. The task that asked for such an act is that authorization — this is not a rule to ask
-  permission twice — but a neighboring act it did not ask for is a separate decision.
-- **Budget the reviewer's attention, not only your own.** An agent produces far more change per human review-minute
-  than a human contributor, so reviewability is part of the deliverable. Order the work so each commit is
-  independently reviewable and states the one thing it does; keep a confirmed behavior fix separate from cleanup
-  that merely travels with it; and when a correct repair is unavoidably large, say what makes it large and name
-  the seam a reviewer should check first.
-- **Never let a provisional fix pose as the correct model.** The root-cause principle decides whether a
-  result-correct but mechanism-wrong change is acceptable at all; this decides what must be visible once one is
-  accepted anyway. A workaround taken for schedule, a compatibility shim, or a symptom suppressed with the cause
-  identified but unfixed must say so in the change itself — not only in a review thread later readers will not
-  see. A later agent reads merged code as the intended design and builds on it, so an unmarked workaround becomes
-  a false foundation that compounds.
-- **Do not manufacture an oracle.** A self-generated score, grade, simulated pass rate, or persona review is your
-  own output, not an accepted oracle, and it cannot establish that a change is correct or good; report it, if at
-  all, as what it is. The same holds for an attestation that belongs to someone else — never record a human
-  review, a maintainer acceptance, or released behavior as satisfied on their behalf.
+- **Do not ask the maintainer to research answerable questions.** Inspect the repository, reproduce issues, run local probes, and decide ordinary implementation details within the authorized scope. Do not turn a difficult choice into an invented authority blocker.
+- **Do not take unrequested outward-facing or irreversible actions.** A request to investigate, review, or draft is not permission to push, open/update a PR, comment on an issue, change remote settings, delete data, force-push, or perform an external side effect. Conversely, do not demand redundant permission for the precise action the user already requested.
+- **Do not continue on a disproved premise.** If the alleged bug is absent, the necessary fix is outside scope, or the only solution would violate a protected contract, stop that implementation and report the contradiction, evidence, and exact decision owner. Do not silently substitute an easier task.
+- **Do not use hosted CI as the intermediate proof of your own changes.** Run relevant checks locally before publication; if execution is unavailable, say so, perform static checks within reach, and do not invent test results. Do not launch the entire expensive E2E suite when a focused test or [throwaway extension session](docs/verification.md) answers the question.
+- **Do not publish a mixed or unbound revision.** Review the final actual diff against the task, commit category, and title. Do not disguise runtime behavior changes inside test cleanup or documentation work. If committing, make each commit independently reviewable; follow [revision binding](docs/develop.md#revision-scope-and-publication-binding) before any push.
+- **Do not hand off an unfinished in-scope fix as a recommendation.** Complete resolvable work; name a genuine blocker with its owner and clearing condition. Do not use “future work” for something necessary to make the requested change correct.
 
 ## Writing for a human reader
 
-Everything an agent writes for people — pull request bodies, review comments, issue replies, hand-back reports — is
-read by someone deciding what to do next. Being understood is part of delivering, and length is a cost the reader
-pays rather than the writer.
-
-- **Write to the reader's next decision.** They are deciding whether to merge, what to change, or what to look at
-  first. Anything that does not move that decision is padding, however true it is. Lead with the outcome and then
-  the reasoning; do not make the reader assemble the conclusion out of a narrative of how you reached it.
-- **Prose is the default; structure has to earn its place.** A table of three sentences is harder to read than
-  three sentences. Headings, bullet lists, and severity labels help when the content is genuinely parallel or
-  enumerable, and get in the way when it is not. Match the shape of the write-up to the size of the change, not to
-  the longest template you were offered.
-- **Say each thing once.** A fact repeated across sections is one fact and several copies, and a reader who notices
-  the copies differ now has to work out which is current. State it where it belongs and refer back.
-- **Shorten by selecting, never by omitting.** Cut what does not change the reader's decision. Never cut a check
-  you ran, a limitation, an uncertainty, or evidence the change requires — dropping those is not concision, it is
-  an inaccurate report. And when emphasis is everywhere it is nowhere: reserve it for the one or two things you
-  would say aloud if you had the reader's attention for ten seconds.
+- **Do not bury the result.** Avoid procedural diary entries, repeated conclusions, speculative risks, boilerplate checklists, or tables that obscure a short point. Do not omit a failed check or limitation in pursuit of brevity.
+- **Do not force readers to reconstruct the decision.** For material work, connect the requirement and observed baseline to the chosen remedy, trade-off, verification, and residual risk. Use exact commands and results when reporting executed checks; never imply a check ran because it was planned.
 
 ## Architecture
 
-Use [`docs/architecture.md`](docs/architecture.md) and its referenced deep-dives before changing a boundary or
-adding a subsystem. This section is orientation, not an implementation manual.
+ScriptCat is a Manifest V3 userscript extension built with TypeScript, React 19, Rspack, and pnpm. This is only a **boundary warning**, not an alternative to [architecture](docs/architecture.md).
 
-### Multi-Process Model
-
-5 isolated contexts communicate by message passing:
-
-```text
-Service Worker (src/service_worker.ts)
-  ├── ExtensionMessage ──────────────→ Content Script (src/content.ts)
-  │                                        └── CustomEventMessage ──→ Inject Script (src/inject.ts)
-  └── ServiceWorkerMessageSend ──────→ Offscreen (src/offscreen.ts)   (Chrome; Firefox uses EventPageOffscreenManager)
-                                           └── WindowMessage ──→ Sandbox (src/sandbox.ts)
-```
-
-> SW → Offscreen uses `ServiceWorkerMessageSend` (`clients.matchAll()` + `postMessage`) on Chrome and
-> `EventPageOffscreenManager` on Firefox MV3; Offscreen replies to SW over `ExtensionMessage`. `WindowMessage`
-> is the Offscreen ↔ Sandbox channel.
-
-- **Service Worker** — central hub for script CRUD, Chrome APIs, permission verification, resource caching, and message routing.
-- **Content** — bridges SW and inject script.
-- **Inject** — runs in page context with `unsafeWindow`.
-- **Offscreen** — DOM-capable background environment for background/scheduled scripts.
-- **Sandbox** — isolated execution via `with(arguments[0])`; cron scheduling.
-
-Execution paths: page scripts → `chrome.userScripts`; background → SW → Offscreen → Sandbox; scheduled → cron in
-Sandbox.
-
-### Message Passing (`packages/message/`)
-
-`ExtensionMessage` (chrome.runtime — SW ↔ Content / Inject / Offscreen), `WindowMessage` (postMessage — Offscreen ↔
-Sandbox), `ServiceWorkerMessageSend` (`clients.matchAll()` + `postMessage` — SW → Offscreen on Chrome),
-`CustomEventMessage` (CustomEvent — Content ↔ Inject), and `MessageQueue` (cross-context broadcast).
-
-### Service & Data Layers
-
-- Services live under `src/app/service/` as context services (`content/`, `offscreen/`, `sandbox/`,
-  `service_worker/`) plus cross-cutting subsystems (`agent/`, `extension/`, `queue.ts`), not one uniform shape. See
-  [`docs/references/architecture-services.md`](docs/references/architecture-services.md#adding-a-service) for inventory and adding services.
-- Persistence is a backend taxonomy (`Repo<T>` / `DAO<T>` / `OPFSRepo` / custom), not one default pattern. See
-  [`docs/references/architecture-data.md`](docs/references/architecture-data.md#adding-an-entity) for inventory and adding entities.
-- **GM API** is split across content / SW / offscreen, each with a `GMApi`; values use `ValueService`. See
-  [`docs/references/architecture-gm-api.md`](docs/references/architecture-gm-api.md) for additions.
-- **Agent subsystem** (`src/app/service/agent/`) is an AI-agent layer spanning the five contexts, not a sixth. See
-  [`docs/references/architecture-agent.md`](docs/references/architecture-agent.md).
-
-### Browser Extension APIs (MV3)
-
-`chrome.userScripts` (page injection), Offscreen API (DOM in background), and Declarative Net Request (intercepts
-`.user.js` URLs to trigger installation).
-
-### Key Packages
-
-`message/` (with mocks), `filesystem/` (WebDAV, cloud-drive providers, ZIP export; see
-[`docs/cloud-sync.md`](docs/cloud-sync.md)), `cloudscript/`, `eslint/` (userscript lint config based on
-`eslint-plugin-userscripts` and `defaultConfig` for the in-app editor), and `chrome-extension-mock/`. The project's own custom ESLint
-rules live in root `eslint-rules/`, not `packages/eslint/`; both are documented in
-[`docs/develop.md`](docs/develop.md#eslint-custom-rules).
+- **Do not assume a shared process or object graph.** Service Worker (`src/service_worker.ts`), Content (`src/content.ts`), Inject (`src/inject.ts`), Offscreen (`src/offscreen.ts`), and Sandbox (`src/sandbox.ts`) are isolated contexts; `src/scripting.ts` also boots the userscript-facing runtime. Do not move privileged work into a page realm or assume a DOM exists in the Service Worker.
+- **Do not invent a second messaging model without necessity.** Inspect `packages/message/` first: `Server`/`Group`/`Client` handle RPC, `MessageQueue` handles state-change broadcast in its owning contexts, and transports connect browser realms. Do not assume a broadcast reaches every context, confuse request/reply with streaming connections, or hand-roll browser messaging that bypasses existing contracts.
+- **Do not assume a permanent Service Worker or port.** A `runtime.connect` channel can disconnect; every persistent connection needs a bounded lifetime, cleanup, and reconnect/resynchronization behavior where state must survive. Do not infer tab/document identity from an unrelated message or trust a sender solely because a port delivered its message; validate the sender's authority at the receiving boundary. See [message package](packages/message/README.md).
+- **Do not conflate service and storage variants.** Context-specific services, Agent composition, and `Repo<T>`/`DAO<T>`/`OPFSRepo` have different ownership and lifecycle requirements. Do not flatten them into one pattern; see [service](docs/references/architecture-services.md), [Agent](docs/references/architecture-agent.md), and [data](docs/references/architecture-data.md).
+- **Do not casually change persisted or synced data semantics.** Avoid migrations, lost updates, stale digests, and silent overwrites of user scripts. Follow [cloud-sync invariants](docs/cloud-sync.md) and the actual schema/compatibility contracts.
 
 ## Completion checksum
 
-Before claiming completion, use the applicable owner docs to check the final state. This is a handoff checklist, not
-a second copy of their mechanics; when details matter, linked owners win. If a check cannot be completed, state the
-limitation instead of claiming “verified” or “all fixed” without evidence.
+- **Do not claim “verified”, “all fixed”, or “full repository review”** without checks over the scope those phrases imply and the *final* revision being delivered.
+- **Do not stop at green unit tests** when the changed contract requires a browser API, lifecycle, UI interaction, or cross-context observation; likewise, do not require E2E for pure documentation or logic when static/targeted checks suffice.
+- **Do not deliver a revision with unchecked scope, broken links, stale docs, unrelated edits, hidden test exceptions, or unreported limitations.** For Markdown changes, apply [documentation maintenance](docs/DOC-MAINTENANCE.md) against the tree that would actually be delivered.
 
-- **Owners/facts.** Every task part follows its routed owner; changed documentation follows
-  [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md), including branch-aware fact checks against committed
-  code, not memory or untracked files.
-- **Evidence/verification.** Reproduction, tests, manual evidence, and the applicable rules in
-  [`docs/references/develop-testing.md`](docs/references/develop-testing.md) and [`docs/verification.md`](docs/verification.md)
-  support the claim, including any explicit exception; run required checks and report blockers or tooling limits.
-- **Contract/scope.** The final diff matches the requested or verified behavior, contains no unrelated cleanup or
-  compatibility layer, and preserves scope discipline.
-- **Architecture.** Boundary-sensitive work was checked against [`docs/architecture.md`](docs/architecture.md) and
-  the relevant deep-dive rather than inventing a parallel abstraction.
