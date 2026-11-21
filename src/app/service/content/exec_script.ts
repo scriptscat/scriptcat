@@ -78,6 +78,10 @@ export default class ExecScript {
     this.sandboxContext?.valueUpdate(data);
   }
 
+  valueSync(values: Record<string, unknown>) {
+    this.sandboxContext?.valueSync(values);
+  }
+
   execContext: any;
 
   /**

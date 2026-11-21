@@ -105,6 +105,7 @@ export type PageScriptResource = Record<string, { base64?: string; content: stri
 export interface ScriptRunResource extends Script {
   code: string; // 原始代码
   value: ValueStore;
+  valueRevision?: number; // 读取 value 时该存储的版本，页面据此在重订阅时判断是否漏收了更新
   flag: string;
   resource: ScriptResource; // 资源列表,包含脚本需要的资源
   resourceByType?: ScriptResourceByType;

@@ -1212,6 +1212,70 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const ret2 = await retPromise;
     expect(ret2).toEqual({ name: "param2", oldValue: undefined, newValue: 456, remote: true });
   });
+  // SW 处理写入后把同一份更新数据作为 RPC 响应返回；按 Port 推送的那份可能因 SW 重启而丢失
+  const createReceiptExec = (code: string, holdResponse = false) => {
+    const script = Object.assign({ uuid: uuidv4() }, scriptRes) as ScriptLoadInfo;
+    script.value = {};
+    script.metadata = { ...scriptRes.metadata, grant: ["GM.setValue", "GM_addValueChangeListener"] };
+    script.code = code;
+    const responses: any[] = [];
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const mockSendMessage = vi.fn().mockImplementation(async (msg: any) => {
+      const [id, key, value] = msg.data.params;
+      const data = {
+        id,
+        entries: [[key, encodeRValue(value), encodeRValue(undefined)]],
+        uuid: script.uuid,
+        storageName: script.uuid,
+        sender: { runFlag: msg.data.runFlag, tabId: 3 },
+        valueUpdated: true,
+      };
+      responses.push(data);
+      if (holdResponse) await held;
+      return { code: 0, data };
+    });
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: { sendMessage: mockSendMessage } as unknown as Message,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    return { exec, responses, release };
+  };
+  const listenAndSet = `
+    const calls = [];
+    GM_addValueChangeListener("k", (name, oldValue, newValue, remote) => calls.push([oldValue, newValue, remote]));
+    await GM.setValue("k", 1);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    return calls;
+  `;
+
+  it.concurrent("GM.setValue 没有收到推送时，凭 SW 的响应完成，并触发自身监听一次", async () => {
+    const { exec } = createReceiptExec(listenAndSet);
+    expect(await exec.exec()).toEqual([[undefined, 1, false]]);
+  });
+
+  it.concurrent("推送晚于响应到达时只处理一次", async () => {
+    const { exec, responses } = createReceiptExec(listenAndSet);
+    const ret = exec.exec();
+    await vi.waitFor(() => expect(responses).toHaveLength(1));
+    await Promise.resolve();
+    exec.valueUpdate(responses[0]);
+    expect(await ret).toEqual([[undefined, 1, false]]);
+  });
+
+  it.concurrent("推送早于响应到达时只处理一次", async () => {
+    const { exec, responses, release } = createReceiptExec(listenAndSet, true);
+    const ret = exec.exec();
+    await vi.waitFor(() => expect(responses).toHaveLength(1));
+    exec.valueUpdate(responses[0]);
+    release();
+    expect(await ret).toEqual([[undefined, 1, false]]);
+  });
+
   it.concurrent("异步GM.setValue，等待回调", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM.getValue", "GM.setValue"];

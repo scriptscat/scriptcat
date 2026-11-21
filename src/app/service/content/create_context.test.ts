@@ -413,6 +413,31 @@ describe("createContext: capability and lifecycle contract", () => {
     expect(contextValues.loadScriptResolve).toBeUndefined();
   });
 
+  it("valueSync 只对变化的键更新缓存并以 remote=true 触发监听，删除的键也会通知", () => {
+    const script = createScriptInfo();
+    script.value = { same: 1, changed: "old", removed: { a: 1 } };
+    const context = createContext(
+      script,
+      {},
+      "vitest",
+      undefined as any,
+      undefined as any,
+      new Set(["GM_addValueChangeListener", "GM_getValue"])
+    );
+    const listener = vi.fn();
+    for (const key of ["same", "changed", "removed", "added"]) context.GM_addValueChangeListener(key, listener);
+
+    context.valueSync({ same: 1, changed: "new", added: [1] });
+
+    expect(listener.mock.calls).toEqual([
+      ["changed", "old", "new", true, undefined],
+      ["removed", { a: 1 }, undefined, true, undefined],
+      ["added", undefined, [1], true, undefined],
+    ]);
+    expect(context.GM_getValue("changed")).toBe("new");
+    expect(context.GM_getValue("removed")).toBeUndefined();
+  });
+
   it("失效清理是 idempotent，且舊 value listener 不再收到更新", () => {
     const script = createScriptInfo();
     const context = createContext(

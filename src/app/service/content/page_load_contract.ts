@@ -25,6 +25,7 @@ const PAGE_LOAD_SCRIPT_OPTIONAL_KEYS = [
   "requireCssResource",
   "userConfig",
   "scriptUrlPatterns",
+  "valueRevision",
 ] as const;
 
 type PageLoadScriptRequiredKey = (typeof PAGE_LOAD_SCRIPT_REQUIRED_KEYS)[number];

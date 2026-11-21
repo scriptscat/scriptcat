@@ -11,7 +11,7 @@ import {
 } from "@App/app/repo/scripts";
 import { buildScriptRunResourceBasic, getCombinedMeta, scriptURLPatternResults } from "./utils";
 import type { SystemConfig } from "@App/pkg/config/config";
-import { SenderRuntime, type Group } from "@Packages/message/server";
+import { SenderRuntime, type Group, type IGetSender } from "@Packages/message/server";
 import type { ServiceWorkerMessageSend, WindowMessageBody } from "@Packages/message/window_message";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { ValueService } from "./value";
@@ -541,7 +541,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       };
 
       const mockValueService = {
-        getScriptValue: vi.fn().mockResolvedValue({}),
+        getScriptValueDetails: vi.fn().mockResolvedValue([{}, { revision: 42 }]),
       };
 
       (mockScriptDAO as any).gets = vi.fn().mockResolvedValue([script]);
@@ -573,8 +573,10 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       expect(result).not.toBeNull();
       expect(mockCompiledResourceDAO.gets).toHaveBeenCalledTimes(1);
       expect(mockScriptCodeDAO.get).toHaveBeenCalledWith(script.uuid);
-      expect(mockValueService.getScriptValue).toHaveBeenCalledTimes(1);
+      expect(mockValueService.getScriptValueDetails).toHaveBeenCalledTimes(1);
       expect(result!.injectScriptList.length + result!.contentScriptList.length).toBe(1);
+      // 页面据此在重订阅时判断是否漏收了更新
+      expect([...result!.injectScriptList, ...result!.contentScriptList][0].valueRevision).toBe(42);
     });
 
     it("第二次请求命中缓存，不再调用 compiledResourceDAO，但每次都重新加载 value", async () => {
@@ -587,7 +589,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
 
       expect(mockCompiledResourceDAO.gets).toHaveBeenCalledTimes(1);
       expect(mockScriptCodeDAO.get).toHaveBeenCalledTimes(1);
-      expect(mockValueService.getScriptValue).toHaveBeenCalledTimes(2);
+      expect(mockValueService.getScriptValueDetails).toHaveBeenCalledTimes(2);
     });
 
     it("deleteScriptRuntimeCache 后下一次请求重新从 DAO 获取 compiledResource", async () => {
@@ -995,7 +997,7 @@ describe("getScriptsForTab 附加边界场景", () => {
       getScriptResourceValue: vi.fn().mockResolvedValue({}),
       getScriptResourceValueByType: vi.fn().mockResolvedValue({ require: {}, "require-css": {}, resource: {} }),
     };
-    const mockValueService = { getScriptValue: vi.fn().mockResolvedValue({}) };
+    const mockValueService = { getScriptValueDetails: vi.fn().mockResolvedValue([{}, { revision: 42 }]) };
 
     (mockScriptDAO as any).gets = vi.fn().mockResolvedValue([script]);
     (mockScriptDAO as any).scriptCodeDAO = mockScriptCodeDAO;
@@ -1477,6 +1479,53 @@ describe("pushValueUpdate 判断是否需要为 early-start 脚本重新编译",
     });
 
     expect(updateSpy).toHaveBeenCalledWith(script);
+  });
+});
+
+describe("pushValueUpdate 页面投递", () => {
+  it("直接向订阅 storageName 的 Port 投递，不使用 tabs API 或 storage 广播", async () => {
+    const { runtime } = _createRuntimeContext();
+    (runtime as unknown as { value: Pick<ValueService, "subscribeSnapshot"> }).value = {
+      subscribeSnapshot: async (sub, register) => {
+        register();
+        return { storageName: sub.storageName, revision: sub.revision };
+      },
+    };
+    const script = _createMockScript();
+    const sendData = {
+      id: "id-1",
+      entries: [],
+      uuid: script.uuid,
+      storageName: "test-storage",
+      sender: { runFlag: "", tabId: 2 },
+      valueUpdated: false,
+    };
+    let onMessage: (message: TMessage) => void = () => undefined;
+    const postMessage = vi.fn();
+    const port = {
+      sendMessage: postMessage,
+      onMessage: (callback: (message: TMessage) => void) => (onMessage = callback),
+      onDisconnect: vi.fn(),
+    } as unknown as MessageConnect;
+    runtime.connectValueUpdates(undefined, { getConnect: () => port } as unknown as IGetSender);
+    onMessage({
+      action: "runtime/subscribeValueUpdates",
+      data: [{ storageName: "test-storage", revision: 0, uuids: [script.uuid] }],
+    });
+    await vi.waitFor(() =>
+      expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ action: "runtime/valueSubscriptionsReady" }))
+    );
+    postMessage.mockClear();
+    const tabsSpy = vi.spyOn(chrome.tabs, "sendMessage");
+    const querySpy = vi.spyOn(chrome.tabs, "query");
+    const setSpy = vi.spyOn(chrome.storage.local, "set");
+
+    await runtime.pushValueUpdate(script, sendData);
+
+    expect(postMessage).toHaveBeenCalledExactlyOnceWith({ action: "runtime/valueUpdate", data: sendData });
+    expect(tabsSpy).not.toHaveBeenCalled();
+    expect(querySpy).not.toHaveBeenCalled();
+    expect(setSpy).not.toHaveBeenCalled();
   });
 });
 

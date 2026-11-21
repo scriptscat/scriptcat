@@ -3,6 +3,7 @@ import type { Message } from "@Packages/message/types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import { initEnvInfo, ScriptExecutor } from "./script_executor";
+import type ExecScript from "./exec_script";
 
 const styleUrl = "https://example.com/style.css";
 const secondStyleUrl = "https://example.com/second-style.css";
@@ -128,5 +129,18 @@ describe("ScriptExecutor", () => {
 
       expect((adoptedSheets[0] as CSSStyleSheet & { cssText: string }).cssText).toBe("body { color: green; }");
     });
+  });
+
+  it("valueSync 只把快照交给 uuid 对应的脚本", () => {
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    const target = { scriptRes: { uuid: "a" }, valueSync: vi.fn() };
+    const other = { scriptRes: { uuid: "b" }, valueSync: vi.fn() };
+    executor.execScriptMap.set("a", target as unknown as ExecScript);
+    executor.execScriptMap.set("b", other as unknown as ExecScript);
+
+    executor.valueSync({ storageName: "s", values: { a: { k: 1 } } });
+
+    expect(target.valueSync).toHaveBeenCalledExactlyOnceWith({ k: 1 });
+    expect(other.valueSync).not.toHaveBeenCalled();
   });
 });
